@@ -28,6 +28,8 @@ export const joinQueue = async (req, res) => {
       });
     }
     
+    console.log("Queue entry saved:", queueEntry);
+    
     return res.json({ 
       matched: false, 
       message: "Added to queue" 
@@ -36,6 +38,7 @@ export const joinQueue = async (req, res) => {
     console.error('Queue join error:', error);
     res.status(500).json({ message: "Server error" });
   }
+
 };
 
 // Leave the matchmaking queue
@@ -103,6 +106,8 @@ async function findMatch(userId) {
   await Queue.deleteMany({ 
     userId: { $in: [userId, otherUser.userId] } 
   });
+
+  console.log("Chat session created:", chatSession);
   
   return chatSession;
 }
