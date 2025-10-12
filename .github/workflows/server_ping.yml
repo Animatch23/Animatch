@@ -1,10 +1,10 @@
-name: Server_Ping
+name: jest_test
 
 on:
   push:
-    branches: [ "dev" ]
+    branches: [ "*" ]
   pull_request:
-    branches: [ "dev" ]
+    branches: [ "*" ]
 
 jobs:
   test:
