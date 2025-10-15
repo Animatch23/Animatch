@@ -1,15 +1,38 @@
 "use client";
 
 import TermsModal from "../../components/TermsModal";
+import { useGoogleLogin } from '@react-oauth/google';
 
 export default function LoginPage() {
+  const login = useGoogleLogin({
+    flow: "auth-code",
+    onSuccess: async (tokenResponse) => {
+      console.log("✅ Google login success!", tokenResponse);
+      const response = await fetch ("http://localhost:5000/api/auth/google", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify( { code: tokenResponse.code } ),  // Changed from 'token' to 'code'
+      });
+
+      const data = await response.json();
+      console.log("🎟️ Backend verified:", data);
+
+      const sessionToken = data.token;
+      localStorage.setItem("sessionToken", sessionToken);
+      console.log("💾 Token saved:", sessionToken);
+    },
+    // ux_mode: "redirect",
+  });
+
   return (
-    <div className="flex h-screen">
+      <div className="flex h-screen">
       {/* Left Side Background */}
       <div
         className="hidden lg:block w-1/2 bg-cover bg-center"
         style={{ backgroundImage: "url('background.jpg')" }}
-      ></div>
+      ></div> 
 
       {/* Right Side Content */}
       <div className="flex w-full lg:w-1/2 justify-center items-center bg-white">
@@ -30,7 +53,7 @@ export default function LoginPage() {
           </p>
 
           {/* Google Login Button */}
-          <button
+          <button onClick={() => login()}
             className="w-full flex items-center justify-center gap-2 bg-green-100 hover:bg-green-200 text-green-900 font-medium p-3 rounded-md shadow-sm transition-colors"
           >
             {/* Envelope Icon */}
