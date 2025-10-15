@@ -10,13 +10,7 @@ const router = express.Router();
  */
 router.post("/google", async (req, res) => {
     try {
-        console.log("Loaded ENV:", {
-        GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID,
-        GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET ? "✅ Set" : "❌ Missing",
-        });
-
         const { code } = req.body;
-        console.log("📝 Received code:", code);
 
         if (!code) {
             return res.status(400).json({ message: "Authorization code is required" });
@@ -26,17 +20,15 @@ router.post("/google", async (req, res) => {
         const client = new OAuth2Client(
             process.env.GOOGLE_CLIENT_ID,
             process.env.GOOGLE_CLIENT_SECRET,
-            'postmessage' // Special redirect URI for popup/redirect flows
+            process.env.GOOGLE_REDIRECT_URI
         );
 
         // Exchange authorization code for tokens
         const { tokens } = await client.getToken(code);
         
-        console.log("🎟️ Got tokens:", { id_token: tokens.id_token ? "✅" : "❌" });
-        
         const idToken = tokens.id_token;
 
-        //verify google token using google's library
+        // Verify google token using google's library
         const ticket = await client.verifyIdToken({
             idToken,
             audience: process.env.GOOGLE_CLIENT_ID,
@@ -45,21 +37,18 @@ router.post("/google", async (req, res) => {
         const payload = ticket.getPayload();
         const email = payload.email;
 
-        console.log("👤 User email:", email);
-
-        //restricts to DLSU accs only
+        // Restricts to DLSU accs only
         if (!email.endsWith("@dlsu.edu.ph")) {
             return res.status(403).json({ message: "Access denied: not a DLSU email" });
         }
 
-        //generates session JWT valid for 24hrs
+        // Generates session JWT valid for 24hrs
         const sessionToken = jwt.sign(
             { email, name: payload.name, picture: payload.picture },
             process.env.JWT_SECRET,
             { expiresIn: "24h" }
         );
 
-        console.log("✅ Session token created");
         res.json({ token: sessionToken });
     } catch (err) {
         console.error("Google authentication error:", err);

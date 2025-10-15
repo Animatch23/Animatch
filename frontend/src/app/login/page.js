@@ -1,29 +1,46 @@
 "use client";
 
+import { useEffect } from "react";
 import TermsModal from "../../components/TermsModal";
 import { useGoogleLogin } from '@react-oauth/google';
+import { useRouter } from 'next/navigation';
 
 export default function LoginPage() {
+  const router = useRouter();
+
+  // Handle the redirect callback when user returns from Google
+  useEffect(() => {
+    const handleRedirectCallback = async () => {
+      const urlParams = new URLSearchParams(window.location.search);
+      const code = urlParams.get('code');
+      
+      if (code) {
+        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/google`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ code }),
+        });
+
+        const data = await response.json();
+        const sessionToken = data.token;
+        localStorage.setItem("sessionToken", sessionToken);
+        
+        // Clean up URL and redirect to next page
+        window.history.replaceState({}, document.title, "/login");
+
+        // Redirect to profile-setup AFTER getting the token
+        router.push('/profile-setup');
+      }
+    };
+    handleRedirectCallback();
+  }, []);
+
   const login = useGoogleLogin({
     flow: "auth-code",
-    onSuccess: async (tokenResponse) => {
-      console.log("✅ Google login success!", tokenResponse);
-      const response = await fetch ("http://localhost:5000/api/auth/google", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify( { code: tokenResponse.code } ),  // Changed from 'token' to 'code'
-      });
-
-      const data = await response.json();
-      console.log("🎟️ Backend verified:", data);
-
-      const sessionToken = data.token;
-      localStorage.setItem("sessionToken", sessionToken);
-      console.log("💾 Token saved:", sessionToken);
-    },
-    // ux_mode: "redirect",
+    ux_mode: "redirect",
+    redirect_uri: process.env.GOOGLE_REDIRECT_URI,
   });
 
   return (
