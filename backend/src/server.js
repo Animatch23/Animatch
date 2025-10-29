@@ -3,6 +3,8 @@ import mongoose from "mongoose";
 import dotenv from "dotenv";
 import cors from "cors";
 import connectDB from "./config/db.js";
+import testRoutes from "./routes/testRoute.js";
+import uploadRoutes from "./routes/uploadRoute.js"
 import authRoute from "./routes/authRoute.js";
 import testRoute from "./routes/testRoute.js";
 
@@ -17,6 +19,10 @@ app.use(express.json());
 app.use("/api/auth", authRoute);
 app.use("/api/test", testRoute);
 
+app.use("/api/test", testRoutes);
+app.use("/api/upload", uploadRoutes);
+app.use('/api/uploads', express.static('uploads'));
+app.use('/api/test-uploads', express.static('test-uploads'));
 const PORT = process.env.PORT || 3000;
 
 const start = async () => {
