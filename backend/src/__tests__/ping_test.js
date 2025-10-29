@@ -1,5 +1,6 @@
 import request from 'supertest';
 import app from '../server.js';
+import mongoose from "mongoose";
 
 describe('Backend API Tests', () => {
   afterAll(async () => {
@@ -22,4 +23,10 @@ describe('Backend API Tests', () => {
     const response = await request(app).get('/api/nonexistent');
     expect(response.statusCode).toBe(404);
   });
+});
+
+afterAll(async () => {
+    if (mongoose.connection.readyState !== 0) {
+        await mongoose.connection.close();
+    }
 });

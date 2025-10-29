@@ -1,0 +1,284 @@
+{
+	"info": {
+		"_postman_id": "1a633464-c1d8-41eb-9401-8db42f064d88",
+		"name": "profile pic and session",
+		"description": "### Welcome to Postman! This is your first collection. \n\nCollections are your starting point for building and testing APIs. You can use this one to:\n\n• Group related requests\n• Test your API in real-world scenarios\n• Document and share your requests\n\nUpdate the name and overview whenever you’re ready to make it yours.\n\n[Learn more about Postman Collections.](https://learning.postman.com/docs/collections/collections-overview/)",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "48839755",
+		"_collection_link": "https://joshua-domanais-7165937.postman.co/workspace/Joshua-Domanais's-Workspace~d83558a7-baba-4af1-84a0-ad9b0d28096e/collection/48839755-1a633464-c1d8-41eb-9401-8db42f064d88?action=share&source=collection_link&creator=48839755"
+	},
+	"item": [
+		{
+			"name": "profile-pic",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Response should be successful\", function () {",
+							"    pm.response.to.have.status(200);",
+							"    pm.expect(pm.response.json().success).to.eql(true);",
+							"});",
+							"",
+							"pm.test(\"Response should include a message\", function () {",
+							"    pm.expect(pm.response.json().message).to.eql(\"Picture blurred successfully\");",
+							"});",
+							"",
+							"pm.test(\"Blurred image should exist\", function () {",
+							"    let jsonData = pm.response.json();",
+							"    pm.expect(jsonData).to.have.property(\"blurredImage\");",
+							"    pm.expect(jsonData.blurredImage.length).to.be.greaterThan(100);",
+							"});",
+							"",
+							"pm.test(\"Status code is 500 for invalid file type\", function () {",
+							"    pm.response.to.have.status(500);",
+							"});",
+							"",
+							"pm.test(\"Response should indicate failure\", function () {",
+							"    pm.response.to.have.status(500);",
+							"    pm.expect(pm.response.text()).to.include(\"Only JPG and PNG files are allowed!\");",
+							"});",
+							""
+						],
+						"type": "text/javascript",
+						"packages": {},
+						"requests": {}
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "formdata",
+					"formdata": [
+						{
+							"key": "picture",
+							"type": "file",
+							"src": "/E:/DLSU_Files/A.Y.2025-2026-T1/STSWENG/Animatch/backend/cat.gif"
+						}
+					]
+				},
+				"url": {
+					"raw": "http://localhost:3000/api/blur/profile-pic",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "3000",
+					"path": [
+						"api",
+						"blur",
+						"profile-pic"
+					]
+				},
+				"description": "This is a GET request and it is used to \"get\" data from an endpoint. There is no request body for a GET request, but you can use query parameters to help specify the resource you want data on (e.g., in this request, we have `id=1`).\n\nA successful GET response will have a `200 OK` status, and should include some kind of response body - for example, HTML web content or JSON data."
+			},
+			"response": []
+		},
+		{
+			"name": "google-auth",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 200\", function () {\r",
+							"    pm.response.to.have.status(200);\r",
+							"});\r",
+							"\r",
+							"let jsonData = pm.response.json();\r",
+							"pm.test(\"Response has token\", function () {\r",
+							"    pm.expect(jsonData).to.have.property(\"token\");\r",
+							"});\r",
+							"\r",
+							"pm.environment.set(\"jwtToken\", jsonData.token);\r",
+							""
+						],
+						"type": "text/javascript",
+						"packages": {},
+						"requests": {}
+					}
+				}
+			],
+			"request": {
+				"auth": {
+					"type": "oauth2",
+					"oauth2": [
+						{
+							"key": "client_authentication",
+							"value": "body",
+							"type": "string"
+						},
+						{
+							"key": "scope",
+							"value": "openid email profile",
+							"type": "string"
+						},
+						{
+							"key": "clientSecret",
+							"value": "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",
+							"type": "string"
+						},
+						{
+							"key": "clientId",
+							"value": "112676578099-uigd7gu1k52o6l9171k4hgabh43qu9v7.apps.googleusercontent.com",
+							"type": "string"
+						},
+						{
+							"key": "accessTokenUrl",
+							"value": "https://oauth2.googleapis.com/token",
+							"type": "string"
+						},
+						{
+							"key": "authUrl",
+							"value": "https://accounts.google.com/o/oauth2/v2/auth",
+							"type": "string"
+						},
+						{
+							"key": "redirect_uri",
+							"value": "http://localhost:3000",
+							"type": "string"
+						},
+						{
+							"key": "tokenName",
+							"value": "DLSU",
+							"type": "string"
+						},
+						{
+							"key": "addTokenTo",
+							"value": "header",
+							"type": "string"
+						}
+					]
+				},
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json",
+						"type": "text"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\r\n  \"token\": \"eyJhbGciOiJSUzI1NiIsImtpZCI6IjE3ZjBmMGYxNGU5Y2FmYTlhYjUxODAxNTBhZTcxNGM5ZmQxYjVjMjYiLCJ0eXAiOiJKV1QifQ.eyJpc3MiOiJodHRwczovL2FjY291bnRzLmdvb2dsZS5jb20iLCJhenAiOiIxMTI2NzY1NzgwOTktdWlnZDdndTFrNTJvNmw5MTcxazRoZ2FiaDQzcXU5djcuYXBwcy5nb29nbGV1c2VyY29udGVudC5jb20iLCJhdWQiOiIxMTI2NzY1NzgwOTktdWlnZDdndTFrNTJvNmw5MTcxazRoZ2FiaDQzcXU5djcuYXBwcy5nb29nbGV1c2VyY29udGVudC5jb20iLCJzdWIiOiIxMDczNzg3MDIxMjUzMjIyNjUxODYiLCJoZCI6ImRsc3UuZWR1LnBoIiwiZW1haWwiOiJqb3NodWFfZG9tYW5haXNAZGxzdS5lZHUucGgiLCJlbWFpbF92ZXJpZmllZCI6dHJ1ZSwiYXRfaGFzaCI6InV2SHdJS1FoNVM1X3RCRFU0UGMycUEiLCJuYW1lIjoiSm9zaHVhIERvbWFuYWlzIiwicGljdHVyZSI6Imh0dHBzOi8vbGgzLmdvb2dsZXVzZXJjb250ZW50LmNvbS9hL0FDZzhvY0tCWGVFRDJfeUxhY2Z1aG9CYjFJMHVFNUNoQnlkdEFERjdqRGF1TjRsVUNJZ0JsWTQ9czk2LWMiLCJnaXZlbl9uYW1lIjoiSm9zaHVhIiwiZmFtaWx5X25hbWUiOiJEb21hbmFpcyIsImlhdCI6MTc1OTIzNTgxMSwiZXhwIjoxNzU5MjM5NDExfQ.X3EN8FzbfmDy3OW2KiwQ2Qpph6GJFmykVk-gZDAonbDGu3C9TiwKs7E1lcA29AbT9nWmNfv8oF89AVv8lq47Kvr-Uh8kvsCQss_nQ_hVE2TqZ85223Qm4t-D4Juvxcz4hTxfsW-vgWujCQNJGsCZYO_ATEBxPxZYsKr7LkNBws_VLDVcexHSrkfMBRA6jO8g_tLpj7gWEikCyG9xHqdCObd2c92EYf7qHAc5p1r3oSvNX38L6eWxxHe3VUi6ZWNOsVjTmNZMY7KggdJg2u4CHNx5w93snMWMm3-9P7oflyWq4uSkC2D-MkQr4zhSfJvhG5_5-74PfVkzQWmWypiguw\"\r\n}\r\n",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "http://localhost:3000/api/auth/google",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "3000",
+					"path": [
+						"api",
+						"auth",
+						"google"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "protected",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 200\", function () {\r",
+							"    pm.response.to.have.status(200);\r",
+							"});\r",
+							"\r",
+							"let jsonData = pm.response.json();\r",
+							"pm.test(\"Response contains authenticated message\", function () {\r",
+							"    pm.expect(jsonData.message).to.include(\"authenticated\");\r",
+							"});\r",
+							"\r",
+							"pm.test(\"Response includes user object\", function () {\r",
+							"    pm.expect(jsonData).to.have.property(\"user\");\r",
+							"    pm.expect(jsonData.user).to.have.property(\"email\");\r",
+							"});\r",
+							""
+						],
+						"type": "text/javascript",
+						"packages": {},
+						"requests": {}
+					}
+				}
+			],
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Authorization",
+						"value": "Bearer {{jwtToken}}",
+						"type": "text"
+					}
+				],
+				"url": {
+					"raw": "http://localhost:3000/api/test/protected",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "3000",
+					"path": [
+						"api",
+						"test",
+						"protected"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "public",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 200\", function () {\r",
+							"    pm.response.to.have.status(200);\r",
+							"});\r",
+							"\r",
+							"pm.test(\"Public route contains message\", function () {\r",
+							"    let jsonData = pm.response.json();\r",
+							"    pm.expect(jsonData.message).to.include(\"public\");\r",
+							"});\r",
+							""
+						],
+						"type": "text/javascript",
+						"packages": {},
+						"requests": {}
+					}
+				}
+			],
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "http://localhost:3000/api/test/public",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "3000",
+					"path": [
+						"api",
+						"test",
+						"public"
+					]
+				}
+			},
+			"response": []
+		}
+	]
+}
