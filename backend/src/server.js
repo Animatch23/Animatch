@@ -2,6 +2,7 @@ import express from "express";
 import mongoose from "mongoose";
 import dotenv from "dotenv";
 import cors from "cors";
+import connectDB from "./config/db.js";
 import authRoute from "./routes/authRoute.js";
 import testRoute from "./routes/testRoute.js";
 
@@ -18,9 +19,14 @@ app.use("/api/test", testRoute);
 
 const PORT = process.env.PORT || 3000;
 
-mongoose.connect(process.env.MONGODB_URI)
-    .then(() => {
-        console.log("MongoDB connected");
+const start = async () => {
+    try {
+        await connectDB();
         app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
-    })
-    .catch(err => console.error("MongoDB connection error:", err));
+    } catch (err) {
+        console.error("Failed to start server:", err);
+        process.exit(1);
+    }
+};
+
+start();
