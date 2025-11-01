@@ -15,7 +15,7 @@ export default function MatchQueuePage() {
 
 
   return (
-    <div className="min-h-screen bg-[#286633] text-white relative overflow-hidden">
+    <div className="min-h-[calc(100vh-4rem)] bg-[#286633] text-white relative overflow-hidden">
       {/* Close button */}
       <div className="absolute top-4 left-4">
         <button
@@ -31,7 +31,7 @@ export default function MatchQueuePage() {
       </div>
 
       {/* Center spinner with icon */}
-      <div className="flex flex-col items-center justify-center min-h-screen gap-6">
+  <div className="flex flex-col items-center justify-center min-h-[calc(100vh-4rem)] gap-6">
         <div className="relative w-56 h-56">
           {/* SVG spinner with rounded arc caps */}
           <svg viewBox="0 0 100 100" className="absolute inset-0 w-full h-full">

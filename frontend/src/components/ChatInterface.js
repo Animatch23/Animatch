@@ -92,6 +92,17 @@ export default function ChatInterface({ onDisconnect }) {
 
   const toggleSidebar = () => setShowSidebar((v) => !v);
 
+  // Listen for global toggle from TopBar (menu icon)
+  useEffect(() => {
+    const handler = () => setShowSidebar((v) => !v);
+    try {
+      window.addEventListener("animatch:toggleSavedChats", handler);
+    } catch (_) {}
+    return () => {
+      try { window.removeEventListener("animatch:toggleSavedChats", handler); } catch (_) {}
+    };
+  }, []);
+
   const chatDisplayName = (chat) => {
     if (!chat) return "Juan Dela Cruz";
     return chat.name && !chat.name.startsWith("Saved chat") ? chat.name : "Juan Dela Cruz";
@@ -282,101 +293,75 @@ export default function ChatInterface({ onDisconnect }) {
   };
 
   return (
-    <div className="flex flex-col h-screen bg-gray-50">
-      {/* Header */}
-      <div className="bg-[#286633] p-4 text-white">
-        <div className="flex items-center justify-between">
-          {/* Chat History Button (saved chats sidebar placeholder) */}
-          <button className="p-2" title="Menu" onClick={toggleSidebar} aria-expanded={showSidebar} aria-controls="chat-history-sidebar">
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+    <div className="flex flex-col min-h-[calc(100vh-4rem)] bg-gray-50">
+      {/* Chat actions below TopBar */}
+      <div className="bg-white border-b border-gray-200 px-4 py-2 flex items-center justify-end gap-2">
+        {/* Save Chat (UI only) */}
+        <button
+          type="button"
+          onClick={saveCurrentChat}
+          title="Save Chat (UI only)"
+          className="h-9 px-3 rounded-md bg-yellow-300 text-[#286633] flex items-center justify-center hover:brightness-95"
+        >
+          <span className="inline-flex items-center gap-2 text-sm font-medium">
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0z" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 14a7 7 0 00-7 7h7" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="M19 7v6m3-3h-6" />
             </svg>
+            Save chat
+          </span>
+        </button>
+
+        {/* Report/Block with hover menu (UI only) */}
+        <div
+          className="relative"
+          onMouseEnter={openMenu}
+          onMouseLeave={scheduleCloseMenu}
+        >
+          <button
+            type="button"
+            aria-haspopup="true"
+            aria-expanded={showActionMenu}
+            onClick={() => setShowActionMenu((v) => !v)}
+            title="Report / Block (UI only)"
+            className="h-9 px-3 rounded-md bg-rose-500 text-white flex items-center justify-center hover:brightness-95"
+          >
+            <span className="inline-flex items-center gap-2 text-sm font-medium">
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 6v14M4 6h10l-1.5 3H20l-1.5 3H10L8.5 15H4" />
+              </svg>
+              Report / Block
+            </span>
           </button>
 
-          {/* Title */}
-          <h1 className="text-xl font-bold">AniMatch Chat</h1>
-
-          {/* Right: actions + user's profile avatar (avatar rightmost) */}
-          <div className="flex items-center gap-2">
-            {/* Save Chat (UI only) */}
-            <button
-              type="button"
-              onClick={saveCurrentChat}
-              title="Save Chat (UI only)"
-              className="w-9 h-9 rounded-md bg-yellow-300 text-[#286633] flex items-center justify-center hover:brightness-95"
-            >
-              {/* User plus icon */}
-              <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0z" />
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 14a7 7 0 00-7 7h7" />
-                <path strokeLinecap="round" strokeLinejoin="round" d="M19 7v6m3-3h-6" />
-              </svg>
-            </button>
-
-            {/* Report/Block with hover menu (UI only) */}
+          {showActionMenu && (
             <div
-              className="relative"
+              className="absolute right-0 mt-2 w-44 bg-white text-black rounded-md shadow-lg z-20 ring-1 ring-black/5"
               onMouseEnter={openMenu}
               onMouseLeave={scheduleCloseMenu}
             >
               <button
                 type="button"
-                aria-haspopup="true"
-                aria-expanded={showActionMenu}
-                onClick={() => setShowActionMenu((v) => !v)}
-                title="Report / Block (UI only)"
-                className="w-9 h-9 rounded-md bg-rose-500 text-white flex items-center justify-center hover:brightness-95"
+                onClick={blockUser}
+                className="w-full text-left px-3 py-2 hover:bg-gray-100 transition"
               >
-                {/* Flag icon */}
-                <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 6v14M4 6h10l-1.5 3H20l-1.5 3H10L8.5 15H4" />
-                </svg>
+                Block user
               </button>
-
-              {showActionMenu && (
-                <div
-                  className="absolute right-0 mt-2 w-44 bg-white text-black rounded-md shadow-lg z-20 ring-1 ring-black/5"
-                  onMouseEnter={openMenu}
-                  onMouseLeave={scheduleCloseMenu}
-                >
-                  <button
-                    type="button"
-                    onClick={blockUser}
-                    className="w-full text-left px-3 py-2 hover:bg-gray-100 transition"
-                  >
-                    Block user
-                  </button>
-                  <button
-                    type="button"
-                    onClick={reportUser}
-                    className="w-full text-left px-3 py-2 hover:bg-gray-100 border-t transition"
-                  >
-                    Report user
-                  </button>
-                </div>
-              )}
+              <button
+                type="button"
+                onClick={reportUser}
+                className="w-full text-left px-3 py-2 hover:bg-gray-100 border-t transition"
+              >
+                Report user
+              </button>
             </div>
-
-            {/* Avatar (rightmost) */}
-            <button
-              type="button"
-              title="My Profile"
-              className="p-0.5 rounded-full ring-2 ring-white/70 hover:ring-white transition"
-            >
-              <span className="block w-9 h-9 rounded-full bg-white text-[#286633] flex items-center justify-center">
-                {/* Person icon as placeholder avatar */}
-                <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                </svg>
-              </span>
-            </button>
-          </div>
+          )}
         </div>
       </div>
 
       {/* Content area: sidebar + chat, split-screen (no overlay) */}
-      <div className="flex-1 flex overflow-hidden">
+  <div className="flex-1 flex overflow-hidden">
         {/* Left sidebar (saved chats) */}
         <aside
           aria-label="Saved chats"
