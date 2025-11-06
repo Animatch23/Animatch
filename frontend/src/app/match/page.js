@@ -1,61 +1,70 @@
 "use client";
 
-import { useState } from "react";
-import FindingMatch from "../../components/FindingMatch";
-import ChatInterface from "../../components/ChatInterface";
+import Link from "next/link";
 
-export default function MatchmakingPage() {
-  const [currentView, setCurrentView] = useState("finding"); // finding, chatting, disconnected
-
-  const handleMatchFound = () => {
-    setCurrentView("chatting");
-  };
-
-  const handleDisconnect = () => {
-    setCurrentView("finding");
-    // TODO: Implement proper disconnect logic
-    console.log("Chat disconnected, finding new match...");
-  };
-
-  const handleStartMatching = () => {
-    setCurrentView("finding");
-  };
-
-  if (currentView === "finding") {
-    return <FindingMatch onMatchFound={handleMatchFound} />;
-  }
-
-  if (currentView === "chatting") {
-    return <ChatInterface onDisconnect={handleDisconnect} />;
-  }
-
-  // Default view with start button
+// Intro/landing for matching flow (UI-only)
+export default function MatchIntroPage() {
   return (
-    <div className="flex items-center justify-center min-h-screen bg-gray-50">
-      <div className="text-center p-8">
-        {/* AniMatch Logo */}
-        <div className="flex items-center justify-center mb-8">
-          <div className="w-12 h-12 bg-green-800 rounded-full flex items-center justify-center mr-3">
-            <span className="text-white font-bold text-xl">A</span>
+    <div className="min-h-screen bg-[#286633] text-white relative overflow-hidden">
+      {/* Top bar with sidebar (saved chats) icon */}
+      <div className="absolute top-4 left-4">
+        <button
+          type="button"
+          aria-label="Open saved chats sidebar"
+          className="p-2 rounded-md hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/40"
+          onClick={() => console.log("[UI ONLY] open saved chats sidebar")}
+        >
+          {/* Hamburger */}
+          <div className="space-y-1.5">
+            <span className="block w-7 h-0.5 bg-white rounded"></span>
+            <span className="block w-7 h-0.5 bg-white rounded"></span>
+            <span className="block w-7 h-0.5 bg-white rounded"></span>
           </div>
-          <h1 className="text-3xl font-bold">
-            <span className="text-green-800">Ani</span>
-            <span className="text-red-600">Match</span>
-          </h1>
+        </button>
+      </div>
+
+      {/* Content */}
+      <div className="flex flex-col items-center justify-center min-h-screen px-6">
+        {/* Center icon (simple bow/arrow style) */}
+        <svg
+          viewBox="0 0 64 64"
+          className="w-20 h-20 text-white mb-10"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="3"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden="true"
+        >
+          <path d="M10 40 C24 22, 42 22, 54 40" />
+          <path d="M10 40 L32 32" />
+          <path d="M54 40 L32 32" />
+          <path d="M50 28 l8 -2 l-2 8" />
+        </svg>
+
+        <div className="flex flex-col gap-4 w-full max-w-xs">
+          <Link
+            href="/match/queue"
+            className="text-center bg-white text-green-800 font-semibold rounded-lg py-3 shadow hover:bg-white/90 transition-colors"
+          >
+            Start Matching
+          </Link>
+          <Link
+            href="/profile-setup"
+            className="text-center bg-white text-green-800 font-semibold rounded-lg py-3 shadow hover:bg-white/90 transition-colors"
+          >
+            Select Interests
+          </Link>
         </div>
 
-        <h2 className="text-2xl font-bold text-green-800 mb-4">Ready to meet someone new?</h2>
-        <p className="text-gray-600 mb-8 max-w-md mx-auto">
-          Connect with fellow DLSU students in anonymous 24-hour chats. 
-          Start conversations that could lead to lasting friendships!
-        </p>
+        {/* No stats shown (per request) */}
 
-        <button
-          onClick={handleStartMatching}
-          className="bg-green-600 hover:bg-green-700 text-white px-8 py-4 rounded-lg font-semibold text-lg transition-colors shadow-md"
-        >
-          Start Matching
-        </button>
+        {/* Post-login access to Terms & Conditions */}
+        <div className="mt-10">
+          <Link href="/terms" className="text-sm underline text-white/80 hover:text-white">
+            View Terms & Conditions
+          </Link>
+        </div>
       </div>
     </div>
   );

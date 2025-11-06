@@ -1,23 +1,35 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
-export default function TermsModal() {
-  const [isOpen, setIsOpen] = useState(false);
+/**
+ * TermsModal
+ * Props:
+ * - defaultOpen?: boolean — if true, open the modal on mount (default: false)
+ * - showTrigger?: boolean — if true, render the inline trigger text/button (default: true)
+ */
+export default function TermsModal({ defaultOpen = false, showTrigger = true, onAccept }) {
+  const [isOpen, setIsOpen] = useState(defaultOpen);
+
+  useEffect(() => {
+    setIsOpen(defaultOpen);
+  }, [defaultOpen]);
 
   return (
     <>
-      {/* Trigger link */}
-      <p className="text-xs text-gray-600 mt-4 text-center">
-        By signing up, you are agreeing to follow the DLSU student handbook and our{" "}
-        <button
-          className="font-semibold underline text-green-800 hover:text-green-600 transition-colors"
-          onClick={() => setIsOpen(true)}
-        >
-          Terms and Conditions
-        </button>
-        .
-      </p>
+      {/* Trigger link (optional) */}
+      {showTrigger && (
+        <p className="text-xs text-gray-600 mt-4 text-center">
+          By signing up, you are agreeing to follow the DLSU student handbook and our{" "}
+          <button
+            className="font-semibold underline text-green-800 hover:text-green-600 transition-colors"
+            onClick={() => setIsOpen(true)}
+          >
+            Terms and Conditions
+          </button>
+          .
+        </p>
+      )}
 
       {/* Modal */}
       {isOpen && (
@@ -127,7 +139,13 @@ export default function TermsModal() {
                 Cancel
               </button>
               <button
-                onClick={() => setIsOpen(false)}
+                onClick={() => {
+                  if (onAccept) {
+                    onAccept();
+                  } else {
+                    setIsOpen(false);
+                  }
+                }}
                 className="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-md transition-colors"
               >
                 Accept
