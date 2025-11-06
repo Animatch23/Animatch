@@ -1,21 +1,35 @@
 import mongoose from 'mongoose';
 import { 
-    validateUserInput, 
+    validateEmailInput,
+    validateUsernameInput,
     createProfilePictureObject, 
     createUserData 
 } from '../routes/uploadRoute.js';
 
 describe('Upload Route API Unit Tests', () => {
-    describe('Tests for validateUserInput()', () => {
+    describe('Tests for validateEmailInput()', () => {
+        it('should pass validation with a valid email', () => {
+            expect(() => validateEmailInput('test@dlsu.edu.ph')).not.toThrow();
+            expect(validateEmailInput('test@dlsu.edu.ph')).toBe(true);
+        });
+
+        it('should throw an error when the email is missing', () => {
+            expect(() => validateEmailInput(null)).toThrow('Email is required');
+            expect(() => validateEmailInput(undefined)).toThrow('Email is required');
+            expect(() => validateEmailInput('')).toThrow('Email is required');
+        });
+    });
+
+    describe('Tests for validateUsernameInput()', () => {
         it('should pass validation with a valid username', () => {
-            expect(() => validateUserInput('validuser')).not.toThrow();
-            expect(validateUserInput('validuser')).toBe(true);
+            expect(() => validateUsernameInput('validuser')).not.toThrow();
+            expect(validateUsernameInput('validuser')).toBe(true);
         });
 
         it('should throw an error when the username is missing', () => {
-            expect(() => validateUserInput(null)).toThrow('Username is required');
-            expect(() => validateUserInput(undefined)).toThrow('Username is required');
-            expect(() => validateUserInput('')).toThrow('Username is required');
+            expect(() => validateUsernameInput(null)).toThrow('Username is required');
+            expect(() => validateUsernameInput(undefined)).toThrow('Username is required');
+            expect(() => validateUsernameInput('')).toThrow('Username is required');
         });
     });
 
@@ -46,18 +60,20 @@ describe('Upload Route API Unit Tests', () => {
     describe('Tests for createUserData()', () => {
         it('should create user data with profile picture', () => {
             const profilePicture = { url: '/uploads/test.jpg', isBlurred: true };
-            const result = createUserData('testuser', profilePicture);
+            const result = createUserData('test@dlsu.edu.ph', 'testuser', profilePicture);
             
             expect(result).toEqual({
+                email: 'test@dlsu.edu.ph',
                 username: 'testuser',
                 profilePicture: profilePicture
             });
         });
 
         it('should create user data without profile picture', () => {
-            const result = createUserData('testuser', null);
+            const result = createUserData('test@dlsu.edu.ph', 'testuser', null);
             
             expect(result).toEqual({
+                email: 'test@dlsu.edu.ph',
                 username: 'testuser',
                 profilePicture: null
             });
