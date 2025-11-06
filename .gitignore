@@ -1,8 +1,7 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
 # dependencies
-node_modules
-/node_modules
+node_modules/
 /.pnp
 .pnp.js
 
@@ -35,3 +34,28 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Jest
+.jest/
+__snapshots__/
+
+# Babel
+.babel-cache/
+
+# MongoDB memory server
+.mongodb-data/
+
+# Coverage reports
+coverage/
+
+# IDE-specific files
+.vscode/
+.idea/
+
+# Logs
+logs/
+*.log
+
+# Temp files
+*.tmp
+.temp/
