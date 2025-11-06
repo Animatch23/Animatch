@@ -12,6 +12,10 @@ const profilePictureSchema = new mongoose.Schema({
 }, { _id: false });
 
 const userSchema = new mongoose.Schema({
+    email: {
+        type: String,
+        required: true
+    },
     username: {
         type: String,
         required: true
@@ -19,7 +23,7 @@ const userSchema = new mongoose.Schema({
     profilePicture: {
         type: profilePictureSchema,
         default: null    
-    }
+    },
 });
 
 const User = mongoose.model("User", userSchema);

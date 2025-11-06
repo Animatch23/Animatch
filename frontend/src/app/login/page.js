@@ -15,27 +15,65 @@ export default function LoginPage() {
       const code = urlParams.get('code');
       
       if (code) {
-        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/google`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ code }),
-        });
+        try {
+          const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/google`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ code }),
+          });
 
-        const data = await response.json();
-        const sessionToken = data.token;
-        localStorage.setItem("sessionToken", sessionToken);
-        
-        // Clean up URL and redirect to next page
-        window.history.replaceState({}, document.title, "/login");
+          // Check if authentication was successful
+          if (!response.ok) {
+            console.error("Authentication failed");
+            window.history.replaceState({}, document.title, "/login");
+            return;
+          }
 
-        // Redirect to profile-setup AFTER getting the token
-        router.push('/profile-setup');
+          const data = await response.json();
+
+          // Validate that we received a token
+          if (!data.token) {
+            console.error("No token received");
+            window.history.replaceState({}, document.title, "/login");
+            return; 
+          }
+
+          const sessionToken = data.token;
+          const email = data.email;
+          localStorage.setItem("sessionToken", sessionToken);
+
+          // Clean up URL
+          window.history.replaceState({}, document.title, "/login");
+
+          // POST HTTP request for checking if an email exists in the database
+          const checkEmail = async (email) => {
+            const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/exist`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ email }),
+            });
+            const data = await response.json();
+            return data.exists;
+          }
+
+          const exists = await checkEmail(email);
+          if (exists) {
+            // Redirect to match AFTER getting the token
+            router.push('/match');
+          } else {
+            // Redirect to profile-setup AFTER getting the token
+            router.push('/profile-setup');
+          }
+        } catch (error) {
+          console.error("Error during authentication:", error);
+          window.history.replaceState({}, document.title, "/login");
+        }
       }
     };
     handleRedirectCallback();
-  }, []);
+  }, [router]);
 
   const login = useGoogleLogin({
     flow: "auth-code",

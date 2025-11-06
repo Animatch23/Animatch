@@ -1,8 +1,11 @@
 "use client";
 
 import { useState } from "react";
+import { jwtDecode } from "jwt-decode";
+import { useRouter } from 'next/navigation';
 
 export default function ProfileSetup() {
+  const router = useRouter();
   const [username, setUsername] = useState("");
   const [photo, setPhoto] = useState(null);
   const [photoFile, setPhotoFile] = useState(null);
@@ -53,18 +56,41 @@ export default function ProfileSetup() {
     try {
       // Prepare form data for backend
       const formData = new FormData();
+
+      const token = localStorage.getItem("sessionToken");
+      let email = null;
+
+      if (token) {
+        const decoded = jwtDecode(token);
+        email = decoded.email;
+        console.log("User email:", email);
+        formData.append('email', email);
+      }
+
       formData.append('username', username);
       if (photoFile) {
         formData.append('profilePhoto', photoFile);
       }
 
-      // TODO: Send to backend API
-      // const response = await fetch('/api/profile/setup', {
-      //   method: 'POST',
-      //   body: formData,
-      // });
+      // Submits the formData to the backend for account creation.
+      try {
+        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/upload`, {
+          method: 'POST',
+          body: formData,
+        });
+
+        if (response.ok) {
+          const result = await response.json();
+          console.log("Form submitted successfully:", result);
+        } else {
+          console.error("Form submission failed:", response.statusText);
+        } 
+      } catch (error) {
+        console.error("Error:", error);
+      }
       
       // For now, just log the data
+      console.log("Email:", email);
       console.log("Username:", username);
       console.log("Photo file:", photoFile);
       console.log("FormData prepared for backend:", formData);
@@ -74,6 +100,7 @@ export default function ProfileSetup() {
       
       // TODO: Navigate to dashboard after successful save
       console.log("Profile setup completed!");
+      router.push("/match"); // Navigate to match for the timebeing.
       
     } catch (error) {
       console.error("Error saving profile:", error);

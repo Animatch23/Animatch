@@ -2,9 +2,11 @@ import express from "express";
 import mongoose from "mongoose";
 import dotenv from "dotenv";
 import cors from "cors";
+import authRoute from "./routes/authRoute.js"
 import connectDB from "./config/db.js";
-import testRoutes from "./routes/testRoute.js";
+import testRoute from "./routes/testRoute.js";
 import blurRoute from "./routes/blurRoute.js"
+import existRoute from "./routes/existRoute.js"
 import uploadRoutes from "./routes/uploadRoute.js"
 
 dotenv.config();
@@ -13,13 +15,12 @@ const app = express();
 
 app.use(cors());
 app.use(express.json());
-app.use("/api/blur", blurRoute)
 
 // Routes
 app.use("/api/auth", authRoute);
+app.use("/api/blur", blurRoute);
+app.use("/api/exist", existRoute);
 app.use("/api/test", testRoute);
-
-app.use("/api/test", testRoutes);
 app.use("/api/upload", uploadRoutes);
 app.use('/api/uploads', express.static('uploads'));
 app.use('/api/test-uploads', express.static('test-uploads'));

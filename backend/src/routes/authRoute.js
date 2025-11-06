@@ -49,7 +49,7 @@ router.post("/google", async (req, res) => {
             { expiresIn: "24h" }
         );
 
-        res.json({ token: sessionToken });
+        res.json({ token: sessionToken, email: email});
     } catch (err) {
         console.error("Google authentication error:", err);
         res.status(401).json({ message: "Invalid Google token", error: err.message });

@@ -13,12 +13,25 @@ const getUploadDir = () => {
 };
 
 /**
+ * Validates user input for required email field
+ * @param {string} email - The email to validate
+ * @returns {boolean} True if valid
+ * @throws {Error} If email is missing or invalid
+ */
+export const validateEmailInput = (email) => {
+    if (!email) {
+        throw new Error("Email is required");
+    }
+    return true;
+};
+
+/**
  * Validates user input for required fields
  * @param {string} username - The username to validate
  * @returns {boolean} True if valid
  * @throws {Error} If username is missing or empty
  */
-export const validateUserInput = (username) => {
+export const validateUsernameInput = (username) => {
     if (!username) {
         throw new Error("Username is required");
     }
@@ -43,8 +56,9 @@ export const createProfilePictureObject = (file, uploadDir) => {
  * @param {Object|null} profilePicture - Profile picture object or null
  * @returns {Object} User data object
  */
-export const createUserData = (username, profilePicture) => {
+export const createUserData = (email, username, profilePicture) => {
     return {
+        email,
         username,
         profilePicture
     };
@@ -93,15 +107,17 @@ const router = express.Router();
  * @returns {Object} 400 - Validation error or upload error
  * @returns {Object} 500 - Server error
  */
-router.post('/', upload.single('file'), async (req, res) => {
+router.post('/', upload.single('profilePhoto'), async (req, res) => {
     try {
-        const { username } = req.body;
+        const email = req.body.email
+        const username = req.body.username;
         
-        validateUserInput(username);
+        validateEmailInput(email);
+        validateUsernameInput(username);
         
         const uploadDir = getUploadDir();
         const profilePicture = createProfilePictureObject(req.file, uploadDir);
-        const userData = createUserData(username, profilePicture);
+        const userData = createUserData(email, username, profilePicture);
         
         const newUser = new User(userData);
         await newUser.save();
