@@ -16,33 +16,26 @@ on:
 jobs:
   cypress-run:
     runs-on: ubuntu-latest
+    container:
+      image: cypress/included:latest
     
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '18'
-
       - name: Install dependencies (frontend)
         working-directory: ./frontend
         run: npm ci
 
-      - name: Build Next.js
+      - name: Start dev server
         working-directory: ./frontend
-        run: npm run build
+        run: |
+          nohup npm run dev > /dev/null 2>&1 &
+          npx wait-on http://localhost:3000
 
-      - name: Run E2E tests
-        uses: cypress-io/github-action@v6
-        with:
-          working-directory: ./frontend
-          start: npm run dev
-          wait-on: 'http://localhost:3000'
-          wait-on-timeout: 120
-          browser: chrome
-          record: false
+      - name: Run Cypress tests
+        working-directory: ./frontend
+        run: npx cypress run
 
       - name: Upload Cypress screenshots (on failure)
         if: failure()
@@ -50,3 +43,4 @@ jobs:
         with:
           name: cypress-screenshots
           path: frontend/cypress/screenshots
+
