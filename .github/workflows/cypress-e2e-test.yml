@@ -5,12 +5,12 @@ on:
     branches:
       - main
       - "frontend/**"
-      - "**-frontend"
+      - "**frontend**"
   pull_request:
     branches:
       - main
       - "frontend/**"
-      - "**-frontend"
+      - "**frontend**"
   workflow_dispatch:
   
 jobs:
