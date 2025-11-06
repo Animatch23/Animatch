@@ -36,4 +36,10 @@ const start = async () => {
     }
 };
 
-start();
+// Only start the server when NOT in test mode
+if (process.env.NODE_ENV !== 'test') {
+    start();
+}
+
+// Export the app for testing
+export default app;
