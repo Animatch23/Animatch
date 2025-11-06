@@ -8,8 +8,9 @@ import {
 
 const router = Router();
 
-router.post("/join", joinQueue);
-router.get("/status", queueStatus); // correct handler uses req.userId
-router.post("/leave", leaveQueue);
+router.post("/join", requireAuth, joinQueue);
+router.get("/status", requireAuth, queueStatus);
+router.post("/leave", requireAuth, leaveQueue);
+
 
 export default router;
