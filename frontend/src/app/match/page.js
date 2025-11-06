@@ -58,6 +58,13 @@ export default function MatchIntroPage() {
         </div>
 
         {/* No stats shown (per request) */}
+
+        {/* Post-login access to Terms & Conditions */}
+        <div className="mt-10">
+          <Link href="/terms" className="text-sm underline text-white/80 hover:text-white">
+            View Terms & Conditions
+          </Link>
+        </div>
       </div>
     </div>
   );
