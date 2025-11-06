@@ -1,0 +1,46 @@
+name: Cypress E2E Tests
+
+on:
+  push:
+    branches:
+      - main
+      - "frontend/**"
+      - "**frontend**"
+  pull_request:
+    branches:
+      - main
+      - "frontend/**"
+      - "**frontend**"
+  workflow_dispatch:
+
+jobs:
+  cypress-run:
+    runs-on: ubuntu-latest
+    container:
+      image: cypress/included:latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install dependencies (frontend)
+        working-directory: ./frontend
+        run: npm ci
+
+      - name: Start dev server
+        working-directory: ./frontend
+        run: |
+          nohup npm run dev > /dev/null 2>&1 &
+          npx wait-on http://localhost:3000
+
+      - name: Run Cypress tests
+        working-directory: ./frontend
+        run: npx cypress run
+
+      - name: Upload Cypress screenshots (on failure)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cypress-screenshots
+          path: frontend/cypress/screenshots
+
