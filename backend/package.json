@@ -4,9 +4,15 @@
   "main": "src/server.js",
   "type": "module",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "node src/server.js",
-    "dev": "nodemon src/server.js"
+    "test": "NODE_OPTIONS=--experimental-vm-modules jest --forceExit",
+    "test:win": "set NODE_OPTIONS=--experimental-vm-modules && jest --forceExit",
+    "test:watch": "set NODE_OPTIONS=--experimental-vm-modules && jest --watch",
+    "test:debug": "set NODE_OPTIONS=--experimental-vm-modules && jest --detectOpenHandles",
+    "lint": "eslint \"src/**\"",
+    "lint:fix": "eslint \"src/**\" --fix"
+  },
+  "jest": {
+    "testEnvironment": "node"
   },
   "keywords": [],
   "author": "",
@@ -22,6 +28,11 @@
     "mongoose": "^8.18.1"
   },
   "devDependencies": {
-    "nodemon": "^3.1.10"
+    "eslint": "^9.36.0",
+    "eslint-plugin-react": "^7.37.5",
+    "globals": "^16.4.0",
+    "jest": "^30.1.3",
+    "nodemon": "^3.1.10",
+    "supertest": "^7.1.4"
   }
 }
