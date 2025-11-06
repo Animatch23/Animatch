@@ -134,4 +134,10 @@ router.post('/', upload.single('profilePhoto'), async (req, res) => {
     }
 });
 
+export const validateUserInput = (email, username) => {
+    validateEmailInput(email);
+    validateUsernameInput(username);
+    return true;
+};
+
 export default router;
