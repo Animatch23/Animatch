@@ -1,8 +1,25 @@
 "use client";
+import { useSearchParams, useRouter } from "next/navigation";
+import { useEffect } from "react";
 
-import ChatInterface from "../../../components/ChatInterface";
+export default function ChatPage() {
+  const params = useSearchParams();
+  const router = useRouter();
+  const chatId = params.get("chatId");
 
-// Chat page: renders chat UI; stays in-chat and uses system logs when disconnecting
-export default function MatchChatPage() {
-  return <ChatInterface />;
+  useEffect(() => {
+    if (!chatId) {
+      router.replace("/match");
+    }
+  }, [chatId, router]);
+
+  if (!chatId) return null;
+
+  return (
+    <div className="p-6">
+      <h1 className="text-xl font-semibold mb-2">Chat</h1>
+      <p className="text-gray-600 mb-4">ChatId: {chatId}</p>
+      {/* Your chat UI goes here */}
+    </div>
+  );
 }

@@ -1,44 +1,60 @@
+import "dotenv/config";
 import express from "express";
 import cors from "cors";
-import mongoose from "mongoose";
-import dotenv from "dotenv";
+import cookieParser from "cookie-parser";
+import connectDB from "./config/db.js";
 import authRoute from "./routes/authRoute.js";
 import testRoute from "./routes/testRoute.js";
 import queueRoutes from "./routes/queueRoutes.js";
+import { ensureUser } from "./middleware/authMiddleware.js";
 
-dotenv.config();
 const app = express();
 
+// Basic health check (no DB required)
+app.get("/api/health", (req, res) => {
+  res.json({ ok: true, env: process.env.NODE_ENV || "development" });
+});
+
+app.use(
+  cors({
+    origin: ["http://localhost:3000"],
+    credentials: true,
+  })
+);
+app.use(cookieParser());
 app.use(express.json());
-app.use(cors());
+app.use(ensureUser);
 
 // Routes
 app.use("/api/auth", authRoute);
 app.use("/api/test", testRoute);
 app.use("/api/queue", queueRoutes);
 
+// 404 JSON
 app.use((req, res) => {
   res.status(404).json({ message: "Route not found" });
 });
 
-const PORT = process.env.PORT || 3000;
+// Global JSON error handler
+app.use((err, req, res, next) => {
+  console.error(err);
+  const status = err.status || 500;
+  res.status(status).json({ error: err.message || "Internal Server Error" });
+});
 
-// Skip connecting when running under Jest or NODE_ENV=test
-const isTest = process.env.NODE_ENV === "test" || process.env.JEST_WORKER_ID !== undefined;
-const mongoUri = process.env.MONGODB_URI || process.env.MONGO_URI;
-
-if (!isTest) {
-  if (!mongoUri) {
-    console.error("MongoDB connection string missing. Set MONGODB_URI or MONGO_URI.");
+async function start() {
+  try {
+    await connectDB();
+    const PORT = process.env.PORT || 5000;
+    app.listen(PORT, () => {
+      console.log(`Server running on http://localhost:${PORT}`);
+    });
+  } catch (e) {
+    console.error("Startup error:", e.message || e);
     process.exit(1);
   }
-  mongoose
-    .connect(mongoUri)
-    .then(() => {
-      console.log("MongoDB connected");
-      app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
-    })
-    .catch((err) => console.error("MongoDB connection error:", err));
 }
+
+start();
 
 export default app;

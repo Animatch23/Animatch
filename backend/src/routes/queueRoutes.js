@@ -1,14 +1,15 @@
-import express from 'express';
-import { joinQueue, leaveQueue, checkQueueStatus } from '../controllers/queueController.js';
-import { protect } from '../middleware/authMiddleware.js';
+import { Router } from "express";
+import {
+  joinQueue,
+  queueStatus,
+  leaveQueue,
+  // checkQueueStatus, // do not use this legacy handler
+} from "../controllers/queueController.js";
 
-const router = express.Router();
+const router = Router();
 
-// Authentication on all routes
-router.use(protect);
-
-router.post('/join', joinQueue);
-router.post('/leave', leaveQueue);
-router.get('/status', checkQueueStatus);
+router.post("/join", joinQueue);
+router.get("/status", queueStatus); // correct handler uses req.userId
+router.post("/leave", leaveQueue);
 
 export default router;
