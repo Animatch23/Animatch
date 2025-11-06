@@ -34,7 +34,7 @@ jobs:
       - name: Install start-server-and-test and cypress
         run: |
           cd frontend
-          npm install start-server-and-test cypress cypress-file-upload
+          npm install start-server-and-test cypress@latest cypress-file-upload
 
       - name: Run E2E tests
         run: |
