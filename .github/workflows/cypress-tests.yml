@@ -1,0 +1,47 @@
+name: Cypress E2E Tests
+
+on:
+  push:
+    branches:
+      - main
+      - frontend/*
+      - "*-frontend"
+  pull_request:
+    branches:
+      - main
+      - frontend/*
+      - "*-frontend"
+jobs:
+  cypress-run:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Install dependencies (frontend)
+        run: |
+          cd frontend
+          npm install
+
+      - name: Install start-server-and-test and cypress
+        run: |
+          cd frontend
+          npm install start-server-and-test cypress cypress-file-upload
+
+      - name: Run E2E tests
+        run: |
+          cd frontend
+          npm run test:e2e
+
+      - name: Upload Cypress screenshots (on failure)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cypress-screenshots
+          path: frontend/cypress/screenshots
