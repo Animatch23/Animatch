@@ -5,38 +5,31 @@ import mongoose from "mongoose";
 
 const COOKIE_NAME = "uid";
 
-function isHex24(str) {
-  return typeof str === "string" && /^[a-fA-F0-9]{24}$/.test(str);
-}
-
 export function ensureUser(req, res, next) {
   try {
-    // Parse incoming cookies
     const parsed = cookie.parse(req.headers.cookie || "");
-    let uid = parsed[COOKIE_NAME];
+    let raw = parsed[COOKIE_NAME];
 
-    // Ensure uid is a valid 24-hex string (Mongo ObjectId compatible)
-    if (!isHex24(uid)) {
-      uid = new mongoose.Types.ObjectId().toHexString();
-
-      // Set cookie so the browser keeps a stable id
-      const secure = process.env.NODE_ENV === "production";
+    if (!raw || !/^[a-fA-F0-9]{24}$/.test(raw)) {
+      raw = new mongoose.Types.ObjectId().toHexString();
       res.setHeader(
         "Set-Cookie",
-        cookie.serialize(COOKIE_NAME, uid, {
+        cookie.serialize(COOKIE_NAME, raw, {
           httpOnly: true,
           sameSite: "lax",
-          secure,
+          secure: process.env.NODE_ENV === "production",
           path: "/",
-          maxAge: 60 * 60 * 24 * 365, // 1 year
+          maxAge: 60 * 60 * 24 * 365,
         })
       );
     }
 
-    req.userId = uid;
+    // Provide both forms expected by code/tests
+    req.user = { id: new mongoose.Types.ObjectId(raw) };
+    req.userId = raw;
     next();
-  } catch (err) {
-    next(err);
+  } catch (e) {
+    next(e);
   }
 }
 
