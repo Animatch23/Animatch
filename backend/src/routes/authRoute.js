@@ -1,7 +1,7 @@
 import express from 'express';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
-import User from '../models/userModel.js'; 
+import User from '../models/User.js'; 
 
 const router = express.Router();
 
@@ -14,21 +14,19 @@ router.post('/login', (req, res) => {
 router.post('/debug-create-user', async (req, res) => {
   try {
     const { email, password, name } = req.body;
-    
-    // Create user (adjust based on your User model)
+
     const user = new User({
       email,
       name,
       password: await bcrypt.hash(password, 10)
     });
-    
+
     await user.save();
-    
-    // Generate token
+
     const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { 
       expiresIn: '30d' 
     });
-    
+
     res.json({ user: { id: user._id, email, name }, token });
   } catch (error) {
     console.error(error);
