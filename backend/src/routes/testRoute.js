@@ -3,6 +3,10 @@ import { authMiddleware } from "../middleware/authMiddleware.js";
 
 const router = express.Router();
 
+router.get("/", (req, res) => {
+    res.status(200).json({ message: "Backend API is working" });
+});
+
 router.get("/public", (req, res) => {
     res.json({ message: "This is a public endpoint. No token needed." });
 });
