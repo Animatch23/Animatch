@@ -11,6 +11,7 @@ on:
       - main
       - frontend/*
       - "*-frontend"
+  workflow_dispatch:      
 jobs:
   cypress-run:
     runs-on: ubuntu-latest
