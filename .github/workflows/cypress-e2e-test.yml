@@ -12,7 +12,7 @@ on:
       - "frontend/**"
       - "**frontend**"
   workflow_dispatch:
-  
+
 jobs:
   cypress-run:
     runs-on: ubuntu-latest
@@ -27,19 +27,22 @@ jobs:
           node-version: '18'
 
       - name: Install dependencies (frontend)
-        run: |
-          cd frontend
-          npm install
+        working-directory: ./frontend
+        run: npm ci
 
-      - name: Install start-server-and-test and cypress
-        run: |
-          cd frontend
-          npm install start-server-and-test cypress@latest cypress-file-upload
+      - name: Build Next.js
+        working-directory: ./frontend
+        run: npm run build
 
       - name: Run E2E tests
-        run: |
-          cd frontend
-          npm run test:e2e
+        uses: cypress-io/github-action@v6
+        with:
+          working-directory: ./frontend
+          start: npm run dev
+          wait-on: 'http://localhost:3000'
+          wait-on-timeout: 120
+          browser: chrome
+          record: false
 
       - name: Upload Cypress screenshots (on failure)
         if: failure()
