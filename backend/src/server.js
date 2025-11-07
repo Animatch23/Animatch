@@ -9,7 +9,6 @@ import existRoute from "./routes/existRoute.js";
 import testRoute from "./routes/testRoute.js";
 import uploadRoutes from "./routes/uploadRoute.js";
 import termRoutes from "./routes/termsRoutes.js";
-// Remove this line: import queueRoutes from "./routes/queueRoutes.js";
 import matchRoutes from "./routes/matchRoutes.js";
 
 if (process.env.NODE_ENV === 'test') {
@@ -50,12 +49,46 @@ app.use(
 app.use(cookieParser());
 app.use(express.json());
 
-// Debug logging middleware
+// SUPER DETAILED LOGGING MIDDLEWARE
 app.use((req, res, next) => {
-  console.log(`${new Date().toISOString()} - ${req.method} ${req.url}`);
+  const timestamp = new Date().toISOString();
+  console.log('╔════════════════════════════════════════════════════════════');
+  console.log(`║ [${timestamp}]`);
+  console.log(`║ Method: ${req.method}`);
+  console.log(`║ URL: ${req.url}`);
+  console.log(`║ Path: ${req.path}`);
+  console.log(`║ Origin: ${req.headers.origin || 'No origin header'}`);
+  console.log(`║ User-Agent: ${req.headers['user-agent']?.substring(0, 50) || 'No user agent'}...`);
+  console.log(`║ Content-Type: ${req.headers['content-type'] || 'No content type'}`);
+  console.log(`║ Query Params:`, JSON.stringify(req.query));
+  console.log(`║ Body Preview:`, JSON.stringify(req.body).substring(0, 100));
+  console.log('╚════════════════════════════════════════════════════════════');
+  
+  // Log response when it finishes
+  const originalSend = res.send;
+  res.send = function(data) {
+    console.log(`║ Response Status: ${res.statusCode}`);
+    console.log(`║ Response Preview:`, typeof data === 'string' ? data.substring(0, 100) : JSON.stringify(data).substring(0, 100));
+    console.log('╚════════════════════════════════════════════════════════════\n');
+    originalSend.call(this, data);
+  };
+  
   next();
 });
 
+// Root route - test if server is running
+app.get("/", (req, res) => {
+  res.json({ 
+    message: "AniMatch Backend API", 
+    status: "running",
+    timestamp: new Date().toISOString()
+  });
+});
+
+// Ping route at root level
+app.get("/ping", (req, res) => res.json({ pong: true, timestamp: new Date().toISOString() }));
+
+// API routes
 app.use("/api/auth", authRoute);
 app.use("/api/blur", blurRoute);
 app.use("/api/exist", existRoute);
@@ -64,16 +97,24 @@ app.use("/api/upload", uploadRoutes);
 app.use('/api/uploads', express.static('uploads'));
 app.use('/api/test-uploads', express.static('test-uploads'));
 app.use("/api/terms", termRoutes);
-app.use("/api", matchRoutes); // This handles /api/queue/* and /api/match/*
+app.use("/api", matchRoutes);
 
-app.get("/api/ping", (req, res) => res.json({ pong: true }));
+// API ping route
+app.get("/api/ping", (req, res) => res.json({ pong: true, api: true, timestamp: new Date().toISOString() }));
 
+// 404 handler - must be last
 app.use((req, res) => {
-  res.status(404).json({ message: "Route not found" });
+  console.log(`404 - Route not found: ${req.method} ${req.url}`);
+  res.status(404).json({ 
+    message: "Route not found",
+    path: req.url,
+    method: req.method
+  });
 });
 
+// Error handler
 app.use((err, req, res, next) => {
-  console.error(err);
+  console.error("Error:", err);
   const status = err.status || 500;
   res.status(status).json({ error: err.message || "Internal Server Error" });
 });
@@ -82,39 +123,77 @@ const PORT = process.env.PORT || 5000;
 
 const start = async () => {
   try {
-    console.log("Starting server...");
-    console.log("NODE_ENV:", process.env.NODE_ENV);
-    console.log("PORT:", PORT);
-    console.log("MONGO_URI:", process.env.MONGO_URI ? "Set" : "Not set");
-    console.log("GOOGLE_CLIENT_ID:", process.env.GOOGLE_CLIENT_ID ? "Set" : "Not set");
-    console.log("GOOGLE_REDIRECT_URI:", process.env.GOOGLE_REDIRECT_URI);
+    console.log('\n');
+    console.log('╔═══════════════════════════════════════════════════════════════════╗');
+    console.log('║              🚀 ANIMATCH BACKEND STARTING 🚀                      ║');
+    console.log('╚═══════════════════════════════════════════════════════════════════╝');
     
+    console.log('\n📋 ENVIRONMENT VARIABLES:');
+    console.log('  NODE_ENV:', process.env.NODE_ENV || '❌ NOT SET');
+    console.log('  PORT:', PORT);
+    console.log('  MONGO_URI:', process.env.MONGO_URI ? '✅ Set' : '❌ NOT SET');
+    console.log('  JWT_SECRET:', process.env.JWT_SECRET ? '✅ Set' : '❌ NOT SET');
+    console.log('  GOOGLE_CLIENT_ID:', process.env.GOOGLE_CLIENT_ID ? '✅ Set' : '❌ NOT SET');
+    console.log('  GOOGLE_CLIENT_SECRET:', process.env.GOOGLE_CLIENT_SECRET ? '✅ Set' : '❌ NOT SET');
+    console.log('  GOOGLE_REDIRECT_URI:', process.env.GOOGLE_REDIRECT_URI || '❌ NOT SET');
+    
+    console.log('\n🔌 CONNECTING TO DATABASE...');
     await connectDB();
-    console.log("Database connected successfully");
+    console.log('✅ Database connected successfully!');
     
-    // Always start server, even in test mode for Render
-    app.listen(PORT, () => {
-      console.log(`Server running on port ${PORT}`);
-      console.log(`Allowed origins: ${allowedOrigins.join(', ')}`);
-      console.log("Routes registered:");
-      console.log("  - /api/auth");
-      console.log("  - /api/blur");
-      console.log("  - /api/exist");
-      console.log("  - /api/test");
-      console.log("  - /api/upload");
-      console.log("  - /api/terms");
-      console.log("  - /api/match");
-      console.log("  - /api/queue");
-      console.log("  - /api/ping");
+    console.log('\n🌐 CORS CONFIGURATION:');
+    console.log(`  Allowed Origins (${allowedOrigins.length}):`);
+    allowedOrigins.forEach(origin => console.log(`    - ${origin}`));
+    
+    console.log('\n📍 REGISTERED API ROUTES:');
+    console.log('  GET  /                          → Root health check');
+    console.log('  GET  /ping                      → Simple ping');
+    console.log('  GET  /api/ping                  → API ping');
+    console.log('  POST /api/auth/google           → Google OAuth login');
+    console.log('  GET  /api/auth/test             → Auth route test');
+    console.log('  GET  /api/auth/check            → Check auth status');
+    console.log('  POST /api/blur                  → Blur image');
+    console.log('  POST /api/exist                 → Check if user exists');
+    console.log('  POST /api/upload/profile-pic    → Upload profile picture');
+    console.log('  POST /api/terms/accept          → Accept terms');
+    console.log('  GET  /api/terms/:userId         → Get terms for user');
+    console.log('  POST /api/queue/join            → Join matching queue');
+    console.log('  POST /api/queue/leave           → Leave queue');
+    console.log('  POST /api/match                 → Create match');
+    
+    app.listen(PORT, '0.0.0.0', () => {
+      console.log('\n╔═══════════════════════════════════════════════════════════════════╗');
+      console.log(`║  ✅ SERVER IS LIVE ON PORT ${PORT}                               ║`);
+      console.log('║  🌐 Listening on 0.0.0.0 (accepting all connections)              ║');
+      console.log(`║  🕐 Started at: ${new Date().toISOString()}                  ║`);
+      console.log('╚═══════════════════════════════════════════════════════════════════╝');
+      console.log('\n👀 Waiting for incoming requests...\n');
     });
   } catch (err) {
-    console.error("Failed to start server:", err);
+    console.error('\n╔═══════════════════════════════════════════════════════════════════╗');
+    console.error('║  ❌ FATAL ERROR - SERVER FAILED TO START                          ║');
+    console.error('╚═══════════════════════════════════════════════════════════════════╝');
+    console.error('Error Message:', err.message);
+    console.error('Stack Trace:', err.stack);
     process.exit(1);
   }
 };
 
-if (process.env.NODE_ENV !== 'test') {
-  start();
-}
+// Handle uncaught errors
+process.on('uncaughtException', (error) => {
+  console.error('\n💥 UNCAUGHT EXCEPTION:');
+  console.error('Message:', error.message);
+  console.error('Stack:', error.stack);
+  process.exit(1);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('\n💥 UNHANDLED PROMISE REJECTION:');
+  console.error('Reason:', reason);
+  process.exit(1);
+});
+
+// Always start server (Render needs this)
+start();
 
 export default app;
