@@ -6,32 +6,14 @@ import jwt from 'jsonwebtoken';
 import queueRoutes from '../routes/queueRoutes.js';
 import { protect } from '../middleware/authMiddleware.js';
 import Queue from '../models/Queue.js';
+import app from '../server.js';
 
 let mongoServer;
-let app;
-
-// Setup test user
-const testUser = { id: new mongoose.Types.ObjectId() };
-
-// Create token for test user
-const generateToken = (user) => {
-  return jwt.sign({ id: user.id }, process.env.JWT_SECRET, {
-    expiresIn: '30d',
-  });
-};
 
 beforeAll(async () => {
-  // Start in-memory MongoDB server
   mongoServer = await MongoMemoryServer.create();
-  await mongoose.connect(mongoServer.getUri());
-  
-  // Setup environment variable for JWT
-  process.env.JWT_SECRET = 'test-secret';
-  
-  // Setup Express app
-  app = express();
-  app.use(express.json());
-  app.use('/api/queue', queueRoutes);
+  const uri = mongoServer.getUri();
+  await mongoose.connect(uri);
 });
 
 afterAll(async () => {
@@ -44,6 +26,8 @@ beforeEach(async () => {
 });
 
 describe('Queue API Routes Tests', () => {
+  const testToken = new mongoose.Types.ObjectId().toHexString();
+
   test('POST /api/queue/join should require auth token', async () => {
     const res = await request(app)
       .post('/api/queue/join')
@@ -53,27 +37,27 @@ describe('Queue API Routes Tests', () => {
   });
   
   test('POST /api/queue/join should add user to queue', async () => {
-    const token = generateToken(testUser);
-    
     const res = await request(app)
       .post('/api/queue/join')
-      .set('Authorization', `Bearer ${token}`)
+      .set('Authorization', `Bearer ${testToken}`)
       .send({});
       
     expect(res.statusCode).toBe(200);
     expect(res.body.matched).toBe(false);
     expect(res.body.message).toBe('Added to queue');
   });
-  
+
   test('GET /api/queue/status should return queue status', async () => {
-    // Add user to queue first
-    await new Queue({ userId: testUser.id }).save();
-    
-    const token = generateToken(testUser);
-    
+    // First join with testToken
+    await request(app)
+      .post('/api/queue/join')
+      .set('Authorization', `Bearer ${testToken}`)
+      .send({});
+
+    // Then check status with same token
     const res = await request(app)
       .get('/api/queue/status')
-      .set('Authorization', `Bearer ${token}`);
+      .set('Authorization', `Bearer ${testToken}`);
       
     expect(res.statusCode).toBe(200);
     expect(res.body.inQueue).toBe(true);
@@ -81,14 +65,16 @@ describe('Queue API Routes Tests', () => {
   });
   
   test('POST /api/queue/leave should remove user from queue', async () => {
-    // Add user to queue first
-    await new Queue({ userId: testUser.id }).save();
-    
-    const token = generateToken(testUser);
-    
+    // Join with testToken
+    await request(app)
+      .post('/api/queue/join')
+      .set('Authorization', `Bearer ${testToken}`)
+      .send({});
+
+    // Leave with same token
     const res = await request(app)
       .post('/api/queue/leave')
-      .set('Authorization', `Bearer ${token}`)
+      .set('Authorization', `Bearer ${testToken}`)
       .send({});
       
     expect(res.statusCode).toBe(200);

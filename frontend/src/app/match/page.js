@@ -1,52 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useState } from "react";
-
-export function MatchHome() {
-  const router = useRouter();
-  const [loading, setLoading] = useState(false);
-  const [err, setErr] = useState("");
-
-  const startMatching = async () => {
-    setLoading(true);
-    setErr("");
-    try {
-      const res = await fetch("/api/queue/join", {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.error || "Failed to join queue");
-
-      if (data.matched && data.chatId) {
-        router.replace(`/match/chat?chatId=${encodeURIComponent(data.chatId)}`);
-      } else {
-        router.replace("/match/queue");
-      }
-    } catch (e) {
-      setErr(e.message || "Error");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <div className="p-6">
-      <h1 className="text-2xl font-semibold mb-4">Find a match</h1>
-      <button
-        onClick={startMatching}
-        disabled={loading}
-        className="rounded bg-blue-600 text-white px-4 py-2 disabled:opacity-50"
-      >
-        {loading ? "Joining..." : "Start Matching"}
-      </button>
-      {err && <p className="text-red-600 mt-3">{err}</p>}
-    </div>
-  );
-}
 
 // Intro/landing for matching flow (UI-only)
 export default function MatchIntroPage() {

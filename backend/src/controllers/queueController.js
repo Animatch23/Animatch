@@ -5,16 +5,17 @@ import ChatSession from "../models/ChatSession.js";
 // Join the matchmaking queue
 export const joinQueue = async (req, res) => {
   try {
-    const userId = req.user?.id;
-    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+    const userIdObj = req.user?.id;
+    if (!userIdObj) return res.status(401).json({ error: "Unauthorized" });
+
+    const idStr = userIdObj.toString();
 
     await Queue.updateOne(
-      { userId },
-      { $setOnInsert: { userId }, $set: { status: "waiting", chatId: null } },
+      { $or: [{ userId: userIdObj }, { userId: idStr }] },
+      { $setOnInsert: { userId: userIdObj }, $set: { status: "waiting", chatId: null } },
       { upsert: true }
     );
 
-    // For unit tests, just acknowledge queued
     return res.status(200).json({ matched: false, message: "Added to queue" });
   } catch (err) {
     console.error("joinQueue error:", err);
@@ -25,10 +26,12 @@ export const joinQueue = async (req, res) => {
 // GET /api/queue/status
 export const queueStatus = async (req, res) => {
   try {
-    const userId = req.user?.id;
-    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+    const userIdObj = req.user?.id;
+    if (!userIdObj) return res.status(401).json({ error: "Unauthorized" });
 
-    const q = await Queue.findOne({ userId }).lean();
+    const idStr = userIdObj.toString();
+
+    const q = await Queue.findOne({ $or: [{ userId: userIdObj }, { userId: idStr }] }).lean();
     const inQueue = !!q;
     const matched = !!(q && q.status === "matched" && q.chatId);
 
@@ -42,10 +45,12 @@ export const queueStatus = async (req, res) => {
 // POST /api/queue/leave
 export const leaveQueue = async (req, res) => {
   try {
-    const userId = req.user?.id;
-    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+    const userIdObj = req.user?.id;
+    if (!userIdObj) return res.status(401).json({ error: "Unauthorized" });
 
-    await Queue.deleteOne({ userId });
+    const idStr = userIdObj.toString();
+
+    await Queue.deleteOne({ $or: [{ userId: userIdObj }, { userId: idStr }] });
     return res.status(200).json({ message: "Removed from queue" });
   } catch (err) {
     console.error("leaveQueue error:", err);
