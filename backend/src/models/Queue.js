@@ -12,7 +12,8 @@ const queueSchema = new mongoose.Schema({
     },
     joinedAt: {
         type: Date,
-        default: Date.now
+        default: Date.now,
+        index: true // Add index for better query performance
     },
     status: {
         type: String,
@@ -20,5 +21,8 @@ const queueSchema = new mongoose.Schema({
         default: 'waiting'
     }
 });
+
+// Auto-cleanup old queue entries after 30 minutes
+queueSchema.index({ joinedAt: 1 }, { expireAfterSeconds: 1800 });
 
 export default mongoose.model('Queue', queueSchema);

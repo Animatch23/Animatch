@@ -10,6 +10,8 @@ router.post('/queue/join', authenticate, async (req, res) => {
     try {
         const { email, username } = req.user;
 
+        console.log(`[QUEUE JOIN] User: ${email} (${username})`);
+
         // Check if user already has an active match
         const existingMatch = await Match.findOne({
             $or: [
@@ -20,6 +22,7 @@ router.post('/queue/join', authenticate, async (req, res) => {
         });
 
         if (existingMatch) {
+            console.log(`[QUEUE JOIN] User ${email} already has active match`);
             return res.status(400).json({ 
                 message: 'You already have an active match',
                 matchId: existingMatch._id 
@@ -30,9 +33,12 @@ router.post('/queue/join', authenticate, async (req, res) => {
         let queueEntry = await Queue.findOne({ userId: email });
         
         if (queueEntry) {
+            console.log(`[QUEUE JOIN] User ${email} already in queue`);
+            const position = await Queue.countDocuments({ joinedAt: { $lt: queueEntry.joinedAt } }) + 1;
             return res.json({ 
                 message: 'Already in queue',
-                position: await Queue.countDocuments({ joinedAt: { $lt: queueEntry.joinedAt } }) + 1
+                matched: false,
+                position: position
             });
         }
 
@@ -40,8 +46,11 @@ router.post('/queue/join', authenticate, async (req, res) => {
         queueEntry = await Queue.create({
             userId: email,
             username: username,
-            status: 'waiting'
+            status: 'waiting',
+            joinedAt: new Date()
         });
+
+        console.log(`[QUEUE JOIN] Added ${email} to queue`);
 
         // Try to find a match immediately
         const potentialMatch = await Queue.findOne({
@@ -50,6 +59,8 @@ router.post('/queue/join', authenticate, async (req, res) => {
         }).sort({ joinedAt: 1 });
 
         if (potentialMatch) {
+            console.log(`[QUEUE JOIN] Found match: ${email} <-> ${potentialMatch.userId}`);
+            
             // Create match
             const match = await Match.create({
                 user1: {
@@ -60,13 +71,16 @@ router.post('/queue/join', authenticate, async (req, res) => {
                     userId: potentialMatch.userId,
                     username: potentialMatch.username
                 },
-                status: 'active'
+                status: 'active',
+                createdAt: new Date()
             });
 
             // Remove both from queue
             await Queue.deleteMany({
                 userId: { $in: [email, potentialMatch.userId] }
             });
+
+            console.log(`[QUEUE JOIN] Match created: ${match._id}`);
 
             return res.json({
                 matched: true,
@@ -77,6 +91,8 @@ router.post('/queue/join', authenticate, async (req, res) => {
             });
         }
 
+        console.log(`[QUEUE JOIN] No match found, user ${email} waiting in queue`);
+
         res.json({ 
             matched: false,
             message: 'Added to queue, waiting for match...',
@@ -84,7 +100,7 @@ router.post('/queue/join', authenticate, async (req, res) => {
         });
 
     } catch (error) {
-        console.error('Queue join error:', error);
+        console.error('[QUEUE JOIN] Error:', error);
         res.status(500).json({ message: 'Failed to join queue' });
     }
 });
@@ -109,6 +125,8 @@ router.get('/queue/status', authenticate, async (req, res) => {
             // Remove from queue if still there
             await Queue.deleteOne({ userId: email });
 
+            console.log(`[QUEUE STATUS] User ${email} matched with ${partner.username}`);
+
             return res.json({
                 matched: true,
                 matchId: match._id,
@@ -122,6 +140,7 @@ router.get('/queue/status', authenticate, async (req, res) => {
         const queueEntry = await Queue.findOne({ userId: email });
         
         if (!queueEntry) {
+            console.log(`[QUEUE STATUS] User ${email} not in queue`);
             return res.json({
                 matched: false,
                 inQueue: false
@@ -132,6 +151,8 @@ router.get('/queue/status', authenticate, async (req, res) => {
             joinedAt: { $lt: queueEntry.joinedAt } 
         }) + 1;
 
+        console.log(`[QUEUE STATUS] User ${email} in queue, position: ${position}`);
+
         res.json({
             matched: false,
             inQueue: true,
@@ -139,7 +160,7 @@ router.get('/queue/status', authenticate, async (req, res) => {
         });
 
     } catch (error) {
-        console.error('Status check error:', error);
+        console.error('[QUEUE STATUS] Error:', error);
         res.status(500).json({ message: 'Failed to check status' });
     }
 });
@@ -147,10 +168,12 @@ router.get('/queue/status', authenticate, async (req, res) => {
 // Leave queue
 router.post('/queue/leave', authenticate, async (req, res) => {
     try {
-        await Queue.deleteOne({ userId: req.user.email });
+        const { email } = req.user;
+        await Queue.deleteOne({ userId: email });
+        console.log(`[QUEUE LEAVE] User ${email} left queue`);
         res.json({ message: 'Left queue successfully' });
     } catch (error) {
-        console.error('Leave queue error:', error);
+        console.error('[QUEUE LEAVE] Error:', error);
         res.status(500).json({ message: 'Failed to leave queue' });
     }
 });
@@ -158,10 +181,12 @@ router.post('/queue/leave', authenticate, async (req, res) => {
 // Get active match
 router.get('/match/active', authenticate, async (req, res) => {
     try {
+        const { email } = req.user;
+        
         const match = await Match.findOne({
             $or: [
-                { 'user1.userId': req.user.email },
-                { 'user2.userId': req.user.email }
+                { 'user1.userId': email },
+                { 'user2.userId': email }
             ],
             status: 'active'
         });
@@ -170,7 +195,9 @@ router.get('/match/active', authenticate, async (req, res) => {
             return res.status(404).json({ message: 'No active match' });
         }
 
-        const partner = match.user1.userId === req.user.email ? match.user2 : match.user1;
+        const partner = match.user1.userId === email ? match.user2 : match.user1;
+
+        console.log(`[MATCH ACTIVE] User ${email} has active match with ${partner.username}`);
 
         res.json({
             matchId: match._id,
@@ -181,7 +208,7 @@ router.get('/match/active', authenticate, async (req, res) => {
         });
 
     } catch (error) {
-        console.error('Get match error:', error);
+        console.error('[MATCH ACTIVE] Error:', error);
         res.status(500).json({ message: 'Failed to get match' });
     }
 });
@@ -189,11 +216,13 @@ router.get('/match/active', authenticate, async (req, res) => {
 // End match
 router.post('/match/end', authenticate, async (req, res) => {
     try {
+        const { email } = req.user;
+        
         const match = await Match.findOneAndUpdate(
             {
                 $or: [
-                    { 'user1.userId': req.user.email },
-                    { 'user2.userId': req.user.email }
+                    { 'user1.userId': email },
+                    { 'user2.userId': email }
                 ],
                 status: 'active'
             },
@@ -205,10 +234,12 @@ router.post('/match/end', authenticate, async (req, res) => {
             return res.status(404).json({ message: 'No active match to end' });
         }
 
+        console.log(`[MATCH END] User ${email} ended match ${match._id}`);
+
         res.json({ message: 'Match ended successfully' });
 
     } catch (error) {
-        console.error('End match error:', error);
+        console.error('[MATCH END] Error:', error);
         res.status(500).json({ message: 'Failed to end match' });
     }
 });

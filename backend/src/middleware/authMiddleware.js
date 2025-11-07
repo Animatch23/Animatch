@@ -10,20 +10,29 @@ export const authenticate = async (req, res, next) => {
         }
 
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        
+        // Fetch full user document
         const user = await User.findOne({ email: decoded.email });
         
         if (!user) {
             return res.status(401).json({ message: 'User not found' });
         }
 
-        req.user = user;
+        // Attach user info to request
+        req.user = {
+            email: user.email,
+            username: user.username,
+            id: user._id
+        };
+        
         next();
     } catch (error) {
+        console.error('Authentication error:', error);
         return res.status(401).json({ message: 'Invalid or expired token' });
     }
 };
 
-//validates the token from the client if valid or not
+// Legacy middleware - keeping for backward compatibility
 export const authMiddleware = (req, res, next) => {
     const authHeader = req.headers["authorization"];
     const token = authHeader && authHeader.split(" ")[1];
