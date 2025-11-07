@@ -4,6 +4,11 @@ import { OAuth2Client } from "google-auth-library";
 
 const router = express.Router();
 
+// Test route to verify auth routes are loaded
+router.get("/test", (req, res) => {
+    res.json({ message: "Auth routes are working!" });
+});
+
 /**
  * @route   POST /google
  * @desc    Authenticate user via Google Sign-In token and create a session token

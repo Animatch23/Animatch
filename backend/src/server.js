@@ -50,6 +50,12 @@ app.use(
 app.use(cookieParser());
 app.use(express.json());
 
+// Debug logging middleware
+app.use((req, res, next) => {
+  console.log(`${new Date().toISOString()} - ${req.method} ${req.url}`);
+  next();
+});
+
 app.use("/api/auth", authRoute);
 app.use("/api/blur", blurRoute);
 app.use("/api/exist", existRoute);
@@ -76,16 +82,39 @@ const PORT = process.env.PORT || 5000;
 
 const start = async () => {
   try {
+    console.log("Starting server...");
+    console.log("NODE_ENV:", process.env.NODE_ENV);
+    console.log("PORT:", PORT);
+    console.log("MONGO_URI:", process.env.MONGO_URI ? "Set" : "Not set");
+    console.log("GOOGLE_CLIENT_ID:", process.env.GOOGLE_CLIENT_ID ? "Set" : "Not set");
+    console.log("GOOGLE_REDIRECT_URI:", process.env.GOOGLE_REDIRECT_URI);
+    
     await connectDB();
-    if (process.env.NODE_ENV !== 'test') {
-      app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
-    }
+    console.log("Database connected successfully");
+    
+    // Always start server, even in test mode for Render
+    app.listen(PORT, () => {
+      console.log(`Server running on port ${PORT}`);
+      console.log(`Allowed origins: ${allowedOrigins.join(', ')}`);
+      console.log("Routes registered:");
+      console.log("  - /api/auth");
+      console.log("  - /api/blur");
+      console.log("  - /api/exist");
+      console.log("  - /api/test");
+      console.log("  - /api/upload");
+      console.log("  - /api/terms");
+      console.log("  - /api/match");
+      console.log("  - /api/queue");
+      console.log("  - /api/ping");
+    });
   } catch (err) {
     console.error("Failed to start server:", err);
     process.exit(1);
   }
 };
 
-start();
+if (process.env.NODE_ENV !== 'test') {
+  start();
+}
 
 export default app;
