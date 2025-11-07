@@ -1,6 +1,6 @@
 import mongoose from 'mongoose';
 import { connectTestDB, disconnectTestDB } from '../../utils/testDb.js';
-import User from "./models/User.js";
+import User from '../../models/User.js';
 
 describe('User Model Tests', () => {
   beforeAll(async () => {

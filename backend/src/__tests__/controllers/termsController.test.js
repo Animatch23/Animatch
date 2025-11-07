@@ -1,7 +1,7 @@
 import mongoose from 'mongoose';
 import { afterAll, jest } from '@jest/globals';
 import { connectTestDB, disconnectTestDB, clearDatabase } from '../../utils/testDb.js';
-import User from "./models/User.js";
+import User from '../../models/User.js';
 import { acceptTerms, getTermsStatus } from '../../controllers/termsController.js';
 
 describe('Terms Controller Tests', () => {
