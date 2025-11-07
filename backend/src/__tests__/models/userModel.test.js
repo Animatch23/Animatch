@@ -1,0 +1,47 @@
+import mongoose from 'mongoose';
+import { connectTestDB, disconnectTestDB } from '../../utils/testDb.js';
+import User from '../../models/User.js';
+
+describe('User Model Tests', () => {
+  beforeAll(async () => {
+    await connectTestDB();
+  });
+
+  afterAll(async () => {
+    await disconnectTestDB();
+  });
+
+  afterEach(async () => {
+    await User.deleteMany({});
+  });
+
+  it('should create a user with default terms acceptance values', async () => {
+    const userData = {
+      email: 'test@example.com',
+      username: 'testuser' 
+    };
+
+    const newUser = await User.create(userData);
+    expect(newUser).toBeDefined();
+    expect(newUser.termsAccepted).toBe(false);
+    expect(newUser.termsAcceptedDate).toBeNull();
+    expect(newUser.termsAcceptedVersion).toBeNull();
+  });
+
+  it('should update terms acceptance fields', async () => {
+    const user = await User.create({
+      email: 'test@example.com',
+      username: 'testuser' 
+    });
+
+    user.termsAccepted = true;
+    user.termsAcceptedDate = new Date();
+    user.termsAcceptedVersion = "1.0";
+    await user.save();
+
+    const updatedUser = await User.findById(user._id);
+    expect(updatedUser.termsAccepted).toBe(true);
+    expect(updatedUser.termsAcceptedDate).toBeInstanceOf(Date);
+    expect(updatedUser.termsAcceptedVersion).toBe("1.0");
+  });
+});

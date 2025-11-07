@@ -1,6 +1,41 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://github.com/vercel/next.js/tree/canary/packages/create-next-app).
 
 ## Getting Started
+First, run the development server:
+
+```bash
+Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+
+You can start editing the page by modifying `app/page.js`. The page auto-updates as you edit the file.
+This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+
+## Temporary Frontend-only Auth Flag
+Until real authentication (e.g. NextAuth) is integrated, a very lightweight client-side flag controls access to protected pages like the Terms & Conditions:
+
+```
+localStorage.setItem('animatch_logged_in', 'true');
+
+```
+The login button currently sets this value, then redirects to `/match`. The `AuthGuard` component (see `src/components/AuthGuard.js`) checks this key; if absent it redirects the user to `/login`.
+
+### Viewing Terms & Conditions After Login
+The Terms modal is now removed from the public login page. After logging in, navigate to:
+
+```
+/terms
+
+```
+This route renders the modal opened by default without a trigger button (`<TermsModal defaultOpen showTrigger={false} />`).
+
+### Next Steps (when backend/auth is ready)
+1. Replace the placeholder localStorage flag with a real session (e.g. wrap `RootLayout` with a provider and check `useSession`).
+2. Update `AuthGuard` to read from the actual auth source instead of localStorage.
+3. Remove the automatic redirect logic inside the placeholder login handler once OAuth is wired.
+
+---
+This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://github.com/vercel/next.js/tree/canary/packages/create-next-app).
+
+## Getting Started
 
 First, run the development server:
 
