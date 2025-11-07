@@ -3,10 +3,14 @@ import express from 'express';
 import mongoose from 'mongoose';
 import { MongoMemoryServer } from 'mongodb-memory-server';
 import jwt from 'jsonwebtoken';
+import dotenv from 'dotenv';
 import queueRoutes from '../routes/queueRoutes.js';
-import { authMiddleware } from '../middleware/authMiddleware.js'; // Change 'protect' to 'authMiddleware'
+import { authMiddleware } from '../middleware/authMiddleware.js';
 import Queue from '../models/Queue.js';
 import app from '../server.js';
+
+// Load test environment variables
+dotenv.config({ path: '.env.test' });
 
 let mongoServer;
 
@@ -26,19 +30,29 @@ beforeEach(async () => {
 });
 
 describe('Queue API Routes Tests', () => {
-  // Generate a valid JWT token for testing
+  // Generate a valid JWT token using the ACTUAL JWT_SECRET from environment
   const generateTestToken = () => {
+    const secret = process.env.JWT_SECRET;
+    
+    if (!secret) {
+      throw new Error('JWT_SECRET is not defined in test environment');
+    }
+    
     return jwt.sign(
       { 
         email: 'test@dlsu.edu.ph',
         name: 'Test User'
       },
-      process.env.JWT_SECRET || 'test-secret',
+      secret,
       { expiresIn: '1h' }
     );
   };
 
-  const testToken = generateTestToken();
+  let testToken;
+
+  beforeAll(() => {
+    testToken = generateTestToken();
+  });
 
   test('POST /api/queue/join should require auth token', async () => {
     const res = await request(app)

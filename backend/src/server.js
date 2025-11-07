@@ -11,7 +11,12 @@ import uploadRoutes from "./routes/uploadRoute.js";
 import termRoutes from "./routes/termsRoutes.js";
 import queueRoutes from "./routes/queueRoutes.js";
 
-dotenv.config();
+// Load appropriate .env file based on NODE_ENV
+if (process.env.NODE_ENV === 'test') {
+  dotenv.config({ path: '.env.test' });
+} else {
+  dotenv.config();
+}
 
 const app = express();
 
