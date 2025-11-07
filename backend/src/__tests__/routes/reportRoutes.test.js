@@ -1,6 +1,6 @@
 import request from 'supertest';
 import app from '../../server.js';
-import { connectDB, disconnectDB } from '../../utils/testDb.js';
+import { connectTestDB, disconnectTestDB } from '../../utils/testDb.js';
 import Report from '../../models/Report.js';
 import User from '../../models/User.js';
 import jwt from 'jsonwebtoken';
@@ -11,7 +11,7 @@ describe('Report Routes - Integration Tests', () => {
   let testReportedUser;
 
   beforeAll(async () => {
-    await connectDB();
+    await connectTestDB();
 
     // Create test users
     testReporter = await User.create({
@@ -38,7 +38,7 @@ describe('Report Routes - Integration Tests', () => {
     // Clean up
     await Report.deleteMany({});
     await User.deleteMany({});
-    await disconnectDB();
+    await disconnectTestDB();
   });
 
   afterEach(async () => {

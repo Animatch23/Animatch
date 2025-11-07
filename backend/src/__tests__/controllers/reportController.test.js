@@ -8,22 +8,28 @@ import Report from '../../models/Report.js';
 import User from '../../models/User.js';
 import ChatSession from '../../models/ChatSession.js';
 
-// Mock the models
-jest.spyOn(Report.prototype, 'save');
-jest.spyOn(Report, 'findById');
-jest.spyOn(Report, 'find');
-jest.spyOn(Report, 'countDocuments');
-jest.spyOn(User, 'findOne');
-jest.spyOn(ChatSession, 'findById');
-
 describe('Report Controller - Unit Tests', () => {
   let req, res;
 
   beforeEach(() => {
-    // Reset mocks
+    // Reset all mocks
     jest.clearAllMocks();
-    console.log = jest.fn(); // Suppress console logs in tests
+    
+    // Mock console methods
+    console.log = jest.fn();
     console.error = jest.fn();
+    
+    // Setup spies for each test
+    jest.spyOn(Report.prototype, 'save').mockImplementation(() => Promise.resolve());
+    jest.spyOn(Report, 'findById').mockImplementation(() => Promise.resolve(null));
+    jest.spyOn(Report, 'find').mockImplementation(() => ({
+      sort: jest.fn().mockReturnThis(),
+      limit: jest.fn().mockReturnThis(),
+      skip: jest.fn().mockResolvedValue([]),
+    }));
+    jest.spyOn(Report, 'countDocuments').mockImplementation(() => Promise.resolve(0));
+    jest.spyOn(User, 'findOne').mockImplementation(() => Promise.resolve(null));
+    jest.spyOn(ChatSession, 'findById').mockImplementation(() => Promise.resolve(null));
 
     // Mock request and response
     req = {
@@ -40,6 +46,11 @@ describe('Report Controller - Unit Tests', () => {
       status: jest.fn().mockReturnThis(),
       json: jest.fn().mockReturnThis(),
     };
+  });
+
+  afterEach(() => {
+    // Restore all mocks
+    jest.restoreAllMocks();
   });
 
   describe('submitReport', () => {
