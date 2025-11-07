@@ -11,7 +11,6 @@ import { createServer } from "http";
 import { Server } from "socket.io";
 
 dotenv.config();
-connectDB();
 
 const app = express();
 const httpServer = createServer(app);
@@ -50,7 +49,19 @@ io.on("connection", (socket) => {
     });
 });
 
-const PORT = process.env.PORT || 5000;
-httpServer.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+const startServer = async () => {
+    await connectDB();
+
+    const PORT = process.env.PORT || 5000;
+    return httpServer.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+};
+
+if (process.env.NODE_ENV !== "test") {
+    startServer().catch((err) => {
+        console.error("Failed to start server:", err);
+        process.exit(1);
+    });
+}
 
 export default app;
+export { httpServer, startServer };

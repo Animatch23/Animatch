@@ -1,6 +1,7 @@
 import request from "supertest";
 import mongoose from "mongoose";
 import jwt from "jsonwebtoken";
+import { MongoMemoryServer } from "mongodb-memory-server";
 import app from "../server.js";
 import ChatSession from "../models/ChatSession.js";
 import Queue from "../models/Queue.js";
@@ -11,26 +12,26 @@ describe("Chat Controller - Next Chat Feature", () => {
     let userId;
     let otherUserId;
     let chatSessionId;
+    let mongoServer;
 
     beforeAll(async () => {
         process.env.JWT_SECRET = process.env.JWT_SECRET || "test-secret";
-        await mongoose.connect(process.env.MONGO_URI_TEST);
+        mongoServer = await MongoMemoryServer.create();
+        await mongoose.connect(mongoServer.getUri());
         
         // Create test users
         const user = await User.create({
-            email: "test1@example.com",
-            password: "hashedpassword"
+            username: "tester_one"
         });
         userId = user._id;
 
         const otherUser = await User.create({
-            email: "test2@example.com",
-            password: "hashedpassword"
+            username: "tester_two"
         });
         otherUserId = otherUser._id;
 
         // Mock JWT token
-    token = jwt.sign({ id: userId.toString() }, process.env.JWT_SECRET, { expiresIn: "1h" });
+        token = jwt.sign({ id: userId.toString() }, process.env.JWT_SECRET, { expiresIn: "1h" });
     });
 
     beforeEach(async () => {
@@ -49,7 +50,10 @@ describe("Chat Controller - Next Chat Feature", () => {
         await User.deleteMany({});
         await ChatSession.deleteMany({});
         await Queue.deleteMany({});
-        await mongoose.connection.close();
+        await mongoose.disconnect();
+        if (mongoServer) {
+            await mongoServer.stop();
+        }
     });
 
     describe("POST /api/chat/next", () => {
