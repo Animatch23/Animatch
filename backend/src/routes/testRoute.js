@@ -1,8 +1,21 @@
 import express from "express";
+import { authMiddleware } from "../middleware/authMiddleware.js";
+
 const router = express.Router();
 
 router.get("/", (req, res) => {
-    res.json({ message: "Backend API is working" });
+    res.status(200).json({ message: "Backend API is working" });
+});
+
+router.get("/public", (req, res) => {
+    res.json({ message: "This is a public endpoint. No token needed." });
+});
+
+router.get("/protected", authMiddleware, (req, res) => {
+    res.json({
+        message: "This is a protected endpoint. You are authenticated!",
+        user: req.user,
+    });
 });
 
 export default router;

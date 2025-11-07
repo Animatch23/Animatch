@@ -1,0 +1,22 @@
+# Upload directories
+uploads/
+test-uploads/
+
+# Keep the directory structure but ignore contents
+!uploads/.gitkeep
+!test-uploads/.gitkeep
+
+# Environment files
+.env
+.env.local
+.env.test
+
+# Dependencies
+node_modules/
+
+# Logs
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
