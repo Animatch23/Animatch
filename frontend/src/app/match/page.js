@@ -1,9 +1,46 @@
 "use client";
 
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 
-// Intro/landing for matching flow (UI-only)
 export default function MatchIntroPage() {
+  const router = useRouter();
+
+  useEffect(() => {
+    // Check authentication on mount
+    const token = localStorage.getItem("sessionToken");
+    if (!token) {
+      router.push("/login");
+      return;
+    }
+
+    // Check for existing active match
+    checkExistingMatch();
+  }, [router]);
+
+  const checkExistingMatch = async () => {
+    try {
+      const token = localStorage.getItem("sessionToken");
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/match/active`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        // Redirect to chat if active match exists
+        router.push(`/match/chat?matchId=${data.matchId}`);
+      }
+    } catch (error) {
+      console.error("Error checking existing match:", error);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-[#286633] text-white relative overflow-hidden">
       {/* Top bar with sidebar (saved chats) icon */}
