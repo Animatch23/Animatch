@@ -1,5 +1,20 @@
 import mongoose from "mongoose";
 
+const messageSchema = new mongoose.Schema({
+  sender: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  },
+  text: {
+    type: String,
+    required: true
+  },
+  timestamp: {
+    type: Date,
+    default: Date.now
+  }
+});
+
 const ChatSessionSchema = new mongoose.Schema({
   participants: [{
     type: mongoose.Schema.Types.ObjectId,
@@ -23,7 +38,8 @@ const ChatSessionSchema = new mongoose.Schema({
   isSaved: {
     type: Boolean,
     default: false
-  }
+  },
+  messages: [messageSchema]
 });
 
 export default mongoose.model("ChatSession", ChatSessionSchema);

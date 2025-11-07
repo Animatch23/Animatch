@@ -15,7 +15,7 @@ export const saveMatch = async (req, res) => {
         return res.status(404).json({ msg: 'Chat session not found' });
     }
 
-    if (!chat.participants.includes(userId)) {
+    if (!chat.participants.some(p => p.equals(userId))) {
         return res.status(403).json({ msg: 'User not authorized for this chat' });
     }
 
@@ -39,3 +39,57 @@ export const saveMatch = async (req, res) => {
     res.status(500).send('Server Error');
     }
 };
+
+export const getChatHistory = async (req, res) => {
+    try {
+        const userId = req.user.id;
+
+        // Find all sessions where:
+        // 1. isSaved is true
+        // 2. The user is a participant
+        const savedChats = await ChatSession.find({
+        isSaved: true,
+        participants: { $in: [userId] }
+        })
+        .populate('participants', 'username profilePicture')
+        .select('-messages')
+        .sort({ endedAt: -1 });
+
+        res.json(savedChats);
+
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).send('Server Error');
+    }
+};
+
+export const getChatSession = async (req, res) => {
+    try {
+        const { sessionId } = req.params;
+        const userId = req.user.id;
+
+        const chatSession = await ChatSession.findById(sessionId)
+        .populate('participants', 'username profilePicture');
+
+        if (!chatSession) {
+            return res.status(404).json({ msg: 'Chat not found' });
+        }
+
+        // Security Check
+        if (!chatSession.participants.some(p => p._id.equals(userId))) {
+            return res.status(403).json({ msg: 'User not authorized for this chat' });
+        }
+
+        // Acceptance Criteria Check
+        if (!chatSession.isSaved) {
+            return res.status(403).json({ msg: 'This chat has not been saved' });
+        }
+
+        res.json(chatSession);
+
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).send('Server Error');
+    }
+};
+
