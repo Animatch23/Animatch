@@ -1,8 +1,12 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
+
+const API_BASE = process.env.NEXT_PUBLIC_API_URL;
 
 export default function ProfileSetup() {
+  const router = useRouter();
   const [username, setUsername] = useState("");
   const [photo, setPhoto] = useState(null);
   const [photoFile, setPhotoFile] = useState(null);
@@ -51,33 +55,37 @@ export default function ProfileSetup() {
     setIsSubmitting(true);
     
     try {
-      // Prepare form data for backend
-      const formData = new FormData();
-      formData.append('username', username);
-      if (photoFile) {
-        formData.append('profilePhoto', photoFile);
+      if (!API_BASE) {
+        throw new Error("API URL is not configured");
       }
 
-      // TODO: Send to backend API
-      // const response = await fetch('/api/profile/setup', {
-      //   method: 'POST',
-      //   body: formData,
-      // });
-      
-      // For now, just log the data
-      console.log("Username:", username);
-      console.log("Photo file:", photoFile);
-      console.log("FormData prepared for backend:", formData);
-      
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // TODO: Navigate to dashboard after successful save
-      console.log("Profile setup completed!");
-      
+      const email = typeof window !== "undefined" ? localStorage.getItem("userEmail") : null;
+      if (!email) {
+        throw new Error("Your session expired. Please log in again.");
+      }
+
+      const formData = new FormData();
+      formData.append("email", email);
+      formData.append("username", username.trim());
+      if (photoFile) {
+        formData.append("profilePhoto", photoFile);
+      }
+
+      const response = await fetch(`${API_BASE}/api/upload`, {
+        method: "POST",
+        body: formData,
+      });
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(data.message || "Failed to save profile. Please try again.");
+      }
+
+      router.replace("/match");
     } catch (error) {
       console.error("Error saving profile:", error);
-      setErrors({ submit: "Failed to save profile. Please try again." });
+      setErrors({ submit: error instanceof Error ? error.message : "Failed to save profile. Please try again." });
     } finally {
       setIsSubmitting(false);
     }

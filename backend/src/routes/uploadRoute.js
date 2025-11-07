@@ -118,11 +118,34 @@ router.post('/', upload.single('profilePhoto'), async (req, res) => {
         const uploadDir = getUploadDir();
         const profilePicture = createProfilePictureObject(req.file, uploadDir);
         const userData = createUserData(email, username, profilePicture);
-        
-        const newUser = new User(userData);
-        await newUser.save();
-        
-        res.status(201).json({ message: "User created", user: newUser });
+
+        const updatePayload = {
+            $set: {
+                username: userData.username,
+            },
+            $setOnInsert: {
+                email: userData.email,
+                profilePicture: userData.profilePicture,
+            },
+        };
+
+        if (profilePicture) {
+            updatePayload.$set.profilePicture = profilePicture;
+        }
+
+        const updateResult = await User.findOneAndUpdate(
+            { email: userData.email },
+            updatePayload,
+            { new: true, upsert: true, setDefaultsOnInsert: true, rawResult: true }
+        );
+
+        const updatedUser = updateResult.value;
+        const updatedExisting = Boolean(updateResult?.lastErrorObject?.updatedExisting);
+
+        res.status(updatedExisting ? 200 : 201).json({
+            message: updatedExisting ? "User profile updated" : "User created",
+            user: updatedUser,
+        });
     } catch (err) {
         if (err instanceof multer.MulterError) {
             return res.status(400).json({ message: "Upload error", error: err.message });

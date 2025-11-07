@@ -1,5 +1,5 @@
 import jwt from "jsonwebtoken";
-import User from '../models/User.js';
+import { ensureUserRecord } from "../utils/userHelpers.js";
 
 export const authenticate = async (req, res, next) => {
     try {
@@ -9,14 +9,10 @@ export const authenticate = async (req, res, next) => {
             return res.status(401).json({ message: 'Authentication required' });
         }
 
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        
-        // Fetch full user document
-        const user = await User.findOne({ email: decoded.email });
-        
-        if (!user) {
-            return res.status(401).json({ message: 'User not found' });
-        }
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+    // Fetch or provision user document
+    const user = await ensureUserRecord(decoded.email, decoded.name);
 
         // Attach user info to request
         req.user = {
@@ -41,13 +37,9 @@ export const authMiddleware = async (req, res, next) => {
     }
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    
+
     // Fetch the user from database to get the MongoDB _id
-    const user = await User.findOne({ email: decoded.email });
-    
-    if (!user) {
-      return res.status(401).json({ message: 'User not found' });
-    }
+    const user = await ensureUserRecord(decoded.email, decoded.name);
     
     // Set the MongoDB ObjectId, not the email
     req.userId = user._id.toString();

@@ -1,6 +1,7 @@
 import express from "express";
 import jwt from "jsonwebtoken";
 import { OAuth2Client } from "google-auth-library";
+import { ensureUserRecord } from "../utils/userHelpers.js";
 
 const router = express.Router();
 
@@ -41,6 +42,9 @@ router.post("/google", async (req, res) => {
         if (!email.endsWith("@dlsu.edu.ph")) {
             return res.status(403).json({ message: "Access denied: not a DLSU email" });
         }
+
+        // Ensure a user document exists so downstream authenticated routes succeed
+        await ensureUserRecord(email, payload.name);
 
         // Generates session JWT valid for 24hrs
         const sessionToken = jwt.sign(
