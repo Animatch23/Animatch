@@ -4,7 +4,7 @@ import mongoose from 'mongoose';
 import { MongoMemoryServer } from 'mongodb-memory-server';
 import jwt from 'jsonwebtoken';
 import queueRoutes from '../routes/queueRoutes.js';
-import { protect } from '../middleware/authMiddleware.js';
+import { authMiddleware } from '../middleware/authMiddleware.js'; // Change 'protect' to 'authMiddleware'
 import Queue from '../models/Queue.js';
 import app from '../server.js';
 
@@ -26,7 +26,19 @@ beforeEach(async () => {
 });
 
 describe('Queue API Routes Tests', () => {
-  const testToken = new mongoose.Types.ObjectId().toHexString();
+  // Generate a valid JWT token for testing
+  const generateTestToken = () => {
+    return jwt.sign(
+      { 
+        email: 'test@dlsu.edu.ph',
+        name: 'Test User'
+      },
+      process.env.JWT_SECRET || 'test-secret',
+      { expiresIn: '1h' }
+    );
+  };
+
+  const testToken = generateTestToken();
 
   test('POST /api/queue/join should require auth token', async () => {
     const res = await request(app)
@@ -34,6 +46,7 @@ describe('Queue API Routes Tests', () => {
       .send({});
       
     expect(res.statusCode).toBe(401);
+    expect(res.body.message).toBe('No token provided');
   });
   
   test('POST /api/queue/join should add user to queue', async () => {
@@ -83,5 +96,15 @@ describe('Queue API Routes Tests', () => {
     // Confirm removal
     const queueEntries = await Queue.find({});
     expect(queueEntries).toHaveLength(0);
+  });
+
+  test('POST /api/queue/join should reject invalid token', async () => {
+    const res = await request(app)
+      .post('/api/queue/join')
+      .set('Authorization', 'Bearer invalid-token')
+      .send({});
+      
+    expect(res.statusCode).toBe(403);
+    expect(res.body.message).toBe('Invalid token');
   });
 });
