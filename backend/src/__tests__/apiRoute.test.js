@@ -9,15 +9,33 @@ import { authMiddleware } from '../middleware/authMiddleware.js';
 import Queue from '../models/Queue.js';
 import app from '../server.js';
 
-// Load test environment variables
-dotenv.config({ path: '.env.test' });
-
 let mongoServer;
+let testToken;
 
 beforeAll(async () => {
   mongoServer = await MongoMemoryServer.create();
   const uri = mongoServer.getUri();
   await mongoose.connect(uri);
+  
+  // Generate token AFTER server.js has loaded .env.test
+  const secret = process.env.JWT_SECRET;
+  
+  if (!secret) {
+    throw new Error('JWT_SECRET is not defined in test environment');
+  }
+  
+  console.log('JWT_SECRET loaded:', !!secret);
+  
+  testToken = jwt.sign(
+    { 
+      email: 'test@dlsu.edu.ph',
+      name: 'Test User'
+    },
+    secret,
+    { expiresIn: '1h' }
+  );
+  
+  console.log('Token generated successfully');
 });
 
 afterAll(async () => {
@@ -30,30 +48,6 @@ beforeEach(async () => {
 });
 
 describe('Queue API Routes Tests', () => {
-  // Generate a valid JWT token using the ACTUAL JWT_SECRET from environment
-  const generateTestToken = () => {
-    const secret = process.env.JWT_SECRET;
-    
-    if (!secret) {
-      throw new Error('JWT_SECRET is not defined in test environment');
-    }
-    
-    return jwt.sign(
-      { 
-        email: 'test@dlsu.edu.ph',
-        name: 'Test User'
-      },
-      secret,
-      { expiresIn: '1h' }
-    );
-  };
-
-  let testToken;
-
-  beforeAll(() => {
-    testToken = generateTestToken();
-  });
-
   test('POST /api/queue/join should require auth token', async () => {
     const res = await request(app)
       .post('/api/queue/join')
@@ -64,10 +58,15 @@ describe('Queue API Routes Tests', () => {
   });
   
   test('POST /api/queue/join should add user to queue', async () => {
+    console.log('Sending request with token');
+    
     const res = await request(app)
       .post('/api/queue/join')
       .set('Authorization', `Bearer ${testToken}`)
       .send({});
+    
+    console.log('Response status:', res.statusCode);
+    console.log('Response body:', res.body);
       
     expect(res.statusCode).toBe(200);
     expect(res.body.matched).toBe(false);
