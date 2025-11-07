@@ -9,7 +9,7 @@ export const acceptTerms = async (req, res) => {
       return res.status(400).json({ message: "User ID is required" });
     }
     
-    // Update EXISTING user with terms accepted (don't create new user)
+    // Update user with terms accepted
     const updatedUser = await User.findOneAndUpdate(
       { email: userId },
       { 
@@ -17,7 +17,7 @@ export const acceptTerms = async (req, res) => {
         termsAcceptedDate: new Date(),
         termsAcceptedVersion: version || "1.0"
       },
-      { new: true } // Remove upsert - user must already exist
+      { new: true }
     );
     
     if (!updatedUser) {

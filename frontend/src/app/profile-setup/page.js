@@ -17,9 +17,10 @@ export default function ProfileSetup() {
     // Get pending email and token from sessionStorage
     const pendingEmail = sessionStorage.getItem("pendingEmail");
     const pendingToken = sessionStorage.getItem("pendingToken");
+    const termsAccepted = sessionStorage.getItem("termsAccepted");
     
-    if (!pendingEmail || !pendingToken) {
-      // If no pending data, redirect to login
+    if (!pendingEmail || !pendingToken || !termsAccepted) {
+      // If no pending data or terms not accepted, redirect to login
       router.push("/login");
       return;
     }
@@ -74,10 +75,11 @@ export default function ProfileSetup() {
         throw new Error("Email not found");
       }
 
-      // Create profile using upload route
+      // Create profile using upload route WITH terms acceptance
       const formData = new FormData();
       formData.append('email', email);
       formData.append('username', username);
+      formData.append('acceptTerms', 'true'); // Include terms acceptance
       
       // Add photo file if it exists
       if (photoFile) {
@@ -94,16 +96,21 @@ export default function ProfileSetup() {
         throw new Error(errorData.message || "Failed to save profile");
       }
 
-      // Terms already accepted at /terms route
-      // NOW store the session token in localStorage
+      console.log("Profile created successfully with terms accepted!");
+      
+      // NOW store the session token in localStorage (only after successful profile creation)
       localStorage.setItem("sessionToken", token);
+      localStorage.setItem("userEmail", email);
       
       // Clear sessionStorage
       sessionStorage.removeItem("pendingEmail");
       sessionStorage.removeItem("pendingToken");
+      sessionStorage.removeItem("termsAccepted");
 
-      console.log("Profile setup completed successfully!");
-      router.push("/match");
+      console.log("Profile setup completed successfully! Redirecting to match...");
+      
+      // Use window.location for more reliable redirect
+      window.location.href = '/match';
 
     } catch (error) {
       console.error("Error during profile setup:", error);

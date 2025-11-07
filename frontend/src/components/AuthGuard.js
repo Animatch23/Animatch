@@ -4,20 +4,23 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 /**
- * Very lightweight client-side auth guard.
- * It checks a localStorage flag set on login (animatch_logged_in === 'true').
- * This is a FRONTEND-ONLY placeholder until real auth (e.g. next-auth) is wired.
+ * Client-side auth guard to protect routes.
+ * Checks for sessionToken in localStorage to verify authentication.
+ * Redirects to /login if not authenticated.
  */
 export default function AuthGuard({ children }) {
   const router = useRouter();
   const [allowed, setAllowed] = useState(false);
 
   useEffect(() => {
-    // Defer to next tick so SSR hydration mismatch avoided
-    const logged = typeof window !== 'undefined' && localStorage.getItem("animatch_logged_in") === "true";
-    if (!logged) {
+    // Check if user has a valid session token
+    const sessionToken = typeof window !== 'undefined' && localStorage.getItem("sessionToken");
+    
+    if (!sessionToken) {
+      // No token found, redirect to login
       router.replace("/login");
     } else {
+      // Token exists, allow access
       setAllowed(true);
     }
   }, [router]);

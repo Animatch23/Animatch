@@ -62,10 +62,11 @@ export default function LoginPage() {
             // Existing user - store token and go to match
             console.log("Existing user, storing token and redirecting to /match");
             localStorage.setItem("sessionToken", sessionToken);
+            localStorage.setItem("userEmail", email);
             // Use window.location for more reliable redirect in production
             window.location.href = '/match';
           } else {
-            // New user - store pending data and redirect to /terms route
+            // New user - store pending data (including temp token) and redirect to /terms
             console.log("New user, redirecting to /terms");
             sessionStorage.setItem("pendingEmail", email);
             sessionStorage.setItem("pendingToken", sessionToken);

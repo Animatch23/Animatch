@@ -30,19 +30,9 @@ export default function TermsPage() {
         throw new Error("Session expired. Please login again.");
       }
 
-      // Accept terms and conditions
-      const termsResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/terms/accept`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId: pendingEmail,
-          version: "1.0"
-        }),
-      });
-
-      if (!termsResponse.ok) {
-        throw new Error("Failed to accept terms");
-      }
+      // Mark that user accepted terms in sessionStorage
+      // Actual terms will be saved when user is created in profile-setup
+      sessionStorage.setItem("termsAccepted", "true");
 
       console.log("Terms accepted, redirecting to profile setup");
       
