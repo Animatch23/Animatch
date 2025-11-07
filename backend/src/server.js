@@ -10,6 +10,7 @@ import testRoute from "./routes/testRoute.js";
 import uploadRoutes from "./routes/uploadRoute.js";
 import termRoutes from "./routes/termsRoutes.js";
 import matchRoutes from "./routes/matchRoutes.js";
+import reportRoutes from "./routes/reportRoutes.js";
 
 if (process.env.NODE_ENV === 'test') {
   dotenv.config({ path: '.env.test' });
@@ -120,6 +121,7 @@ app.use('/api/uploads', express.static('uploads'));
 app.use('/api/test-uploads', express.static('test-uploads'));
 app.use("/api/terms", termRoutes);
 app.use("/api", matchRoutes);
+app.use("/api/reports", reportRoutes);
 
 // API ping route
 app.get("/api/ping", (req, res) => res.json({ pong: true, api: true, timestamp: new Date().toISOString() }));
@@ -182,6 +184,10 @@ const start = async () => {
     console.log('  POST /api/queue/join            → Join matching queue');
     console.log('  POST /api/queue/leave           → Leave queue');
     console.log('  POST /api/match                 → Create match');
+    console.log('  POST /api/reports               → Submit report');
+    console.log('  GET  /api/reports               → Get all reports (admin)');
+    console.log('  GET  /api/reports/my-reports    → Get user\'s reports');
+    console.log('  GET  /api/reports/:id           → Get report by ID');
     
     app.listen(PORT, '0.0.0.0', () => {
       console.log('\n╔═══════════════════════════════════════════════════════════════════╗');

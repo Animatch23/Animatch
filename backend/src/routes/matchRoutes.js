@@ -213,6 +213,45 @@ router.get('/match/active', authenticate, async (req, res) => {
     }
 });
 
+// Get match by ID
+router.get('/match/:matchId', authenticate, async (req, res) => {
+    try {
+        const { email } = req.user;
+        const { matchId } = req.params;
+        
+        const match = await Match.findById(matchId);
+
+        if (!match) {
+            return res.status(404).json({ message: 'Match not found' });
+        }
+
+        // Verify user is part of this match
+        if (match.user1.userId !== email && match.user2.userId !== email) {
+            return res.status(403).json({ message: 'Not authorized to view this match' });
+        }
+
+        const partner = match.user1.userId === email ? match.user2 : match.user1;
+
+        console.log(`[MATCH GET] User ${email} fetched match ${matchId}`);
+
+        res.json({
+            matchId: match._id,
+            partnerEmail: partner.userId,
+            partnerUsername: partner.username,
+            partner: {
+                email: partner.userId,
+                username: partner.username
+            },
+            status: match.status,
+            createdAt: match.createdAt
+        });
+
+    } catch (error) {
+        console.error('[MATCH GET] Error:', error);
+        res.status(500).json({ message: 'Failed to get match' });
+    }
+});
+
 // End match
 router.post('/match/end', authenticate, async (req, res) => {
     try {

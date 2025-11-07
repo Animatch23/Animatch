@@ -1,8 +1,13 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import { submitReport } from "../services/api";
+import { useSearchParams } from "next/navigation";
 
 export default function ChatInterface({ onDisconnect }) {
+  const searchParams = useSearchParams();
+  const matchId = searchParams.get('matchId');
+  
   const [messages, setMessages] = useState([
     { id: 1, text: "Hey there! How's your day going?", sender: "other", timestamp: new Date() },
     { id: 2, text: "Hi! It's going well, thanks for asking! How about yours?", sender: "me", timestamp: new Date() }
@@ -17,6 +22,9 @@ export default function ChatInterface({ onDisconnect }) {
   const [confirmBlockOpen, setConfirmBlockOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
   const [reportReason, setReportReason] = useState("");
+  const [reportDescription, setReportDescription] = useState("");
+  const [isSubmittingReport, setIsSubmittingReport] = useState(false);
+  const [partnerInfo, setPartnerInfo] = useState(null); // Store partner's email and username
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
   const menuCloseTimeoutRef = useRef(null);
@@ -28,6 +36,46 @@ export default function ChatInterface({ onDisconnect }) {
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  // Fetch match details to get partner info
+  useEffect(() => {
+    if (matchId) {
+      fetchMatchDetails();
+    }
+  }, [matchId]);
+
+  const fetchMatchDetails = async () => {
+    try {
+      const token = localStorage.getItem('sessionToken');
+      if (!token) {
+        console.error('[ChatInterface] No auth token found');
+        return;
+      }
+
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/match/${matchId}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        // Assuming the API returns partner info in data.partner
+        setPartnerInfo({
+          email: data.partnerEmail || data.partner?.email,
+          username: data.partnerUsername || data.partner?.username || 'Partner',
+        });
+        console.log('[ChatInterface] Partner info loaded:', data.partner);
+      } else {
+        console.error('[ChatInterface] Failed to fetch match details');
+      }
+    } catch (error) {
+      console.error('[ChatInterface] Error fetching match details:', error);
+    }
+  };
 
   // Load saved chats from localStorage (seed with a demo item if empty)
   useEffect(() => {
@@ -266,14 +314,49 @@ export default function ChatInterface({ onDisconnect }) {
     setStatusLog((prev) => [...prev, "User blocked (UI-only)."]);
   };
 
-  const handleSubmitReport = () => {
-    const reason = reportReason.trim();
-    setReportOpen(false);
-    setReportReason("");
-    setStatusLog((prev) => [
-      ...prev,
-      reason ? `Report submitted: ${reason}` : "Report submitted.",
-    ]);
+  const handleSubmitReport = async () => {
+    if (!reportReason || !reportDescription.trim()) {
+      setStatusLog((prev) => [...prev, "❌ Please select a reason and provide a description"]);
+      return;
+    }
+
+    // Check if we have partner info
+    if (!partnerInfo || !partnerInfo.email) {
+      setStatusLog((prev) => [...prev, "❌ Cannot report: Partner information not available"]);
+      return;
+    }
+
+    setIsSubmittingReport(true);
+
+    try {
+      const reportData = {
+        reportedUserId: partnerInfo.email,
+        reason: reportReason,
+        description: reportDescription.trim(),
+        chatSessionId: matchId, // Include matchId as chatSessionId
+      };
+
+      const response = await submitReport(reportData);
+
+      setStatusLog((prev) => [
+        ...prev,
+        `✅ Report submitted successfully. Reported ${partnerInfo.username}`,
+      ]);
+
+      // Close modal and reset form
+      setReportOpen(false);
+      setReportReason("");
+      setReportDescription("");
+
+    } catch (error) {
+      console.error('[Report] Error submitting report:', error);
+      setStatusLog((prev) => [
+        ...prev,
+        `❌ Failed to submit report: ${error.message}`,
+      ]);
+    } finally {
+      setIsSubmittingReport(false);
+    }
   };
 
   // Save current chat to history
@@ -565,32 +648,68 @@ export default function ChatInterface({ onDisconnect }) {
       {/* Report Modal */}
       {reportOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div className="absolute inset-0 bg-black/40" onClick={() => setReportOpen(false)} />
+          <div className="absolute inset-0 bg-black/40" onClick={() => !isSubmittingReport && setReportOpen(false)} />
           <div className="relative bg-white w-[92%] max-w-xl rounded-2xl p-6 shadow-xl">
-            <h2 className="text-3xl font-bold text-[#286633] text-center mb-4">Report Issue</h2>
-            <label className="block mb-6">
-              <span className="sr-only">Describe the issue</span>
-              <textarea
+            <h2 className="text-3xl font-bold text-[#286633] text-center mb-4">Report User</h2>
+            
+            {/* Reason Selector */}
+            <label className="block mb-4">
+              <span className="block text-sm font-semibold text-gray-700 mb-2">Reason for report *</span>
+              <select
                 value={reportReason}
                 onChange={(e) => setReportReason(e.target.value)}
-                placeholder="Describe the issue or reason for reporting..."
-                className="w-full min-h-[200px] rounded-xl bg-green-100/70 border-2 border-transparent focus:border-blue-500 outline-none p-4 text-gray-800"
-              />
+                disabled={isSubmittingReport}
+                className="w-full rounded-xl bg-green-100/70 border-2 border-transparent focus:border-blue-500 outline-none p-3 text-gray-800 disabled:opacity-50"
+              >
+                <option value="">Select a reason...</option>
+                <option value="spam">Spam</option>
+                <option value="harassment">Harassment</option>
+                <option value="inappropriate_content">Inappropriate Content</option>
+                <option value="fake_profile">Fake Profile</option>
+                <option value="other">Other</option>
+              </select>
             </label>
+
+            {/* Description */}
+            <label className="block mb-6">
+              <span className="block text-sm font-semibold text-gray-700 mb-2">Description *</span>
+              <textarea
+                value={reportDescription}
+                onChange={(e) => setReportDescription(e.target.value)}
+                placeholder="Please provide details about the issue..."
+                disabled={isSubmittingReport}
+                className="w-full min-h-[150px] rounded-xl bg-green-100/70 border-2 border-transparent focus:border-blue-500 outline-none p-4 text-gray-800 disabled:opacity-50"
+                maxLength={1000}
+              />
+              <span className="text-xs text-gray-500">{reportDescription.length}/1000 characters</span>
+            </label>
+
             <div className="flex gap-4">
               <button
                 type="button"
                 onClick={() => setReportOpen(false)}
-                className="flex-1 bg-gray-300 text-white py-3 rounded-2xl"
+                disabled={isSubmittingReport}
+                className="flex-1 bg-gray-300 text-white py-3 rounded-2xl disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Cancel
               </button>
               <button
                 type="button"
                 onClick={handleSubmitReport}
-                className="flex-1 bg-green-600 hover:bg-green-700 text-white py-3 rounded-2xl"
+                disabled={isSubmittingReport || !reportReason || !reportDescription.trim()}
+                className="flex-1 bg-green-600 hover:bg-green-700 text-white py-3 rounded-2xl disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
-                Report
+                {isSubmittingReport ? (
+                  <>
+                    <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Submitting...
+                  </>
+                ) : (
+                  'Submit Report'
+                )}
               </button>
             </div>
           </div>
