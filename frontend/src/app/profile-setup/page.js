@@ -143,6 +143,7 @@ export default function ProfileSetup() {
           <label className="cursor-pointer flex flex-col items-center">
             <div className="w-32 h-32 bg-green-50 border-2 border-dashed border-green-300 rounded-lg flex items-center justify-center mb-3 shadow-sm hover:bg-green-100 transition-colors">
               {photo ? (
+                // eslint-disable-next-line @next/next/no-img-element
                 <img
                   src={photo}
                   alt="Profile Preview"

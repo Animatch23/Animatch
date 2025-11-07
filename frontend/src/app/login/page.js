@@ -104,6 +104,7 @@ export default function LoginPage() {
         <div className="w-full max-w-md px-8">
           {/* Logo */}
           <div className="flex items-center mb-6">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="dlsu logo.png" alt="AniMatch Logo" className="w-10 h-10 mr-2" />
             <h1 className="text-2xl font-bold">
               <span className="text-green-800">Ani</span>
@@ -141,7 +142,7 @@ export default function LoginPage() {
           </button>
 
           <p className="text-[11px] text-gray-400 mt-4 text-center">
-            By continuing you confirm you're a DLSU student. Terms & Conditions will be available after login.
+            By continuing you confirm you&apos;re a DLSU student. Terms & Conditions will be available after login.
           </p>
         </div>
       </div>

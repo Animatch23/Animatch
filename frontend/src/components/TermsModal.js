@@ -129,7 +129,7 @@ export default function TermsModal({
                 <div>
                   <h3 className="font-semibold text-green-800 mb-2">6. Limitation of Liability</h3>
                   <p>
-                    AniMatch is provided "as is" without warranties. We are not liable for any 
+                    AniMatch is provided &quot;as is&quot; without warranties. We are not liable for any 
                     damages arising from the use of this service.
                   </p>
                 </div>
