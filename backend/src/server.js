@@ -19,25 +19,44 @@ if (process.env.NODE_ENV === 'test') {
 
 const app = express();
 
-const allowedOrigins = [
-  'http://localhost:3000',
-  'https://animatch-git-us-3-animatch-dlsus-projects.vercel.app',
-  'https://animatch-dlsus-projects.vercel.app',
-];
+// CORS configuration: allow known origins and any animatch*.vercel.app subdomains.
+// If ALLOWED_ORIGINS env var is set, use it; otherwise use default list
+// comment
+const allowedOriginsEnv = process.env.ALLOWED_ORIGINS || '';
+const allowedOrigins = allowedOriginsEnv
+  ? allowedOriginsEnv.split(',').map(s => s.trim()).filter(Boolean)
+  : [
+      'http://localhost:3000',
+      'https://animatch-git-us-3-animatch-dlsus-projects.vercel.app',
+      'https://animatch-dlsus-projects.vercel.app',
+    ];
 
 app.use(
   cors({
-    origin: function (origin, callback) {
-      // Allow requests with no origin (like mobile apps, Postman, or tests)
+    origin: (origin, callback) => {
+      // No origin (server-to-server, curl, Postman) -> allow
       if (!origin) return callback(null, true);
-      
-      // Check if origin is in allowed list
-      if (allowedOrigins.includes(origin)) {
-        callback(null, true);
-      } else {
-        console.log('Blocked origin:', origin);
-        callback(new Error('Not allowed by CORS'));
+
+      // Exact allow list
+      if (allowedOrigins.includes(origin)) return callback(null, true);
+
+      // Allow localhost for development
+      if (origin.startsWith('http://localhost') || origin.startsWith('http://127.0.0.1')) {
+        return callback(null, true);
       }
+
+      // Allow any animatch-* or animatch variant on vercel.app (helps with preview deploys)
+      try {
+        const lower = origin.toLowerCase();
+        if (lower.endsWith('.vercel.app') && lower.includes('animatch')) {
+          return callback(null, true);
+        }
+      } catch (e) {
+        // fallthrough to rejection
+      }
+
+      console.error('Blocked origin:', origin);
+      return callback(new Error('Not allowed by CORS'));
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
@@ -45,6 +64,13 @@ app.use(
     exposedHeaders: ['set-cookie'],
   })
 );
+// Guarantee header even if cors() skipped it
+app.use((req, res, next) => {
+  if (!res.get("Access-Control-Allow-Origin")) {
+    res.set("Access-Control-Allow-Origin", "*");
+  }
+  next();
+});
 
 app.use(cookieParser());
 app.use(express.json());
