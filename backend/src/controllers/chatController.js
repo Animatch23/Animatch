@@ -42,35 +42,29 @@ export const nextChat = async (req, res) => {
 
         // Add both users back to queue
         const queuePromises = [userId, otherParticipant?._id].filter(Boolean).map(async (id) => {
-            const existingQueue = await Queue.findOne({ userId: id, status: "waiting" });
-            if (!existingQueue) {
-                return Queue.create({
-                    userId: id,
-                    status: "waiting",
-                    joinedAt: new Date()
-                });
-            }
-            return existingQueue;
+            // Use updateOne with upsert to avoid duplicates
+            return Queue.updateOne(
+                { userId: id },
+                { 
+                    $setOnInsert: { userId: id },
+                    $set: { status: "waiting", chatId: null }
+                },
+                { upsert: true }
+            );
         });
 
         await Promise.all(queuePromises);
 
         // Notify both users they're back in queue
-        io.to(userId).emit("returned_to_queue", {
+        io.to(userId.toString()).emit("returned_to_queue", {
             message: "You've been added back to the queue",
-            queuePosition: await Queue.countDocuments({ 
-                status: "waiting",
-                joinedAt: { $lt: new Date() }
-            })
+            matched: false
         });
 
         if (otherParticipant) {
             io.to(otherParticipant._id.toString()).emit("returned_to_queue", {
                 message: "You've been added back to the queue",
-                queuePosition: await Queue.countDocuments({ 
-                    status: "waiting",
-                    joinedAt: { $lt: new Date() }
-                })
+                matched: false
             });
         }
 

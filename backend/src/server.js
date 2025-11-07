@@ -3,13 +3,12 @@ import dotenv from "dotenv";
 import cors from "cors";
 import connectDB from "./config/db.js";
 import testRoutes from "./routes/testRoute.js";
+import authRoutes from "./routes/authRoute.js";
 import queueRoutes from "./routes/queueRoutes.js";
+import chatRoutes from "./routes/chatRoutes.js";
 import cookieParser from "cookie-parser";
-import { ensureUser } from "./middleware/authMiddleware.js";
 import { createServer } from "http";
 import { Server } from "socket.io";
-import chatRoutes from "./routes/chatRoutes.js";
-
 
 dotenv.config();
 connectDB();
@@ -19,12 +18,17 @@ const httpServer = createServer(app);
 export const io = new Server(httpServer, {
     cors: {
         origin: process.env.FRONTEND_URL || "http://localhost:3000",
-        methods: ["GET", "POST"]
+        methods: ["GET", "POST"],
+        credentials: true
     }
 });
 
-app.use(cors());
+app.use(cors({
+    origin: process.env.FRONTEND_URL || "http://localhost:3000",
+    credentials: true
+}));
 app.use(express.json());
+app.use(cookieParser());
 
 // Routes
 app.use("/api/test", testRoutes);
