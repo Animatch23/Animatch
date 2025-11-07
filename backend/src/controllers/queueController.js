@@ -2,18 +2,35 @@ import mongoose from "mongoose";
 import Queue from "../models/Queue.js";
 import ChatSession from "../models/ChatSession.js";
 
+const normalizeObjectId = (value) => {
+  if (!value) return null;
+  if (value instanceof mongoose.Types.ObjectId) {
+    return value;
+  }
+  if (typeof value === "string" && mongoose.Types.ObjectId.isValid(value)) {
+    return new mongoose.Types.ObjectId(value);
+  }
+  return null;
+};
+
 // Join the matchmaking queue
 export const joinQueue = async (req, res) => {
   try {
-    const userIdObj = req.user?.id;
-    if (!userIdObj) return res.status(401).json({ error: "Unauthorized" });
+    const userIdObj = normalizeObjectId(req.user?.id);
+    if (!userIdObj) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
 
-    const idStr = userIdObj.toString();
-
-    await Queue.updateOne(
-      { $or: [{ userId: userIdObj }, { userId: idStr }] },
-      { $setOnInsert: { userId: userIdObj }, $set: { status: "waiting", chatId: null } },
-      { upsert: true }
+    await Queue.findOneAndUpdate(
+      { userId: userIdObj },
+      {
+        $set: { status: "waiting", chatId: null },
+      },
+      {
+        upsert: true,
+        new: true,
+        setDefaultsOnInsert: true,
+      }
     );
 
     return res.status(200).json({ matched: false, message: "Added to queue" });
@@ -26,12 +43,12 @@ export const joinQueue = async (req, res) => {
 // GET /api/queue/status
 export const queueStatus = async (req, res) => {
   try {
-    const userIdObj = req.user?.id;
-    if (!userIdObj) return res.status(401).json({ error: "Unauthorized" });
+    const userIdObj = normalizeObjectId(req.user?.id);
+    if (!userIdObj) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
 
-    const idStr = userIdObj.toString();
-
-    const q = await Queue.findOne({ $or: [{ userId: userIdObj }, { userId: idStr }] }).lean();
+    const q = await Queue.findOne({ userId: userIdObj }).lean();
     const inQueue = !!q;
     const matched = !!(q && q.status === "matched" && q.chatId);
 
@@ -45,12 +62,12 @@ export const queueStatus = async (req, res) => {
 // POST /api/queue/leave
 export const leaveQueue = async (req, res) => {
   try {
-    const userIdObj = req.user?.id;
-    if (!userIdObj) return res.status(401).json({ error: "Unauthorized" });
+    const userIdObj = normalizeObjectId(req.user?.id);
+    if (!userIdObj) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
 
-    const idStr = userIdObj.toString();
-
-    await Queue.deleteOne({ $or: [{ userId: userIdObj }, { userId: idStr }] });
+    await Queue.deleteOne({ userId: userIdObj });
     return res.status(200).json({ message: "Removed from queue" });
   } catch (err) {
     console.error("leaveQueue error:", err);
@@ -61,10 +78,13 @@ export const leaveQueue = async (req, res) => {
 // Check queue status
 export const checkQueueStatus = async (req, res) => {
   try {
-    const userId = req.user.id;
+    const userId = normalizeObjectId(req.user?.id);
+    if (!userId) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
 
     // If user already in an active chat, return that session
-    const activeChat = await ChatSession.findOne({ participants: userId, active: true });
+    const activeChat = await ChatSession.findOne({ participants: userId, status: "active" });
     if (activeChat) {
       return res.json({
         matched: true,
@@ -89,7 +109,7 @@ export const checkQueueStatus = async (req, res) => {
     }
 
     // Still waiting
-    const waitTime = Date.now() - queueEntry.joinedAt;
+    const waitTime = queueEntry.createdAt ? Date.now() - queueEntry.createdAt.getTime() : null;
     return res.json({
       inQueue: true,
       waitTime,
@@ -103,11 +123,11 @@ export const checkQueueStatus = async (req, res) => {
 // Internal function to find a match (random pairing) and enforce single active chat
 async function findMatch(userId) {
   // Ensure the requesting user has no active chat
-  const userActive = await ChatSession.findOne({ participants: userId, active: true });
+  const userActive = await ChatSession.findOne({ participants: userId, status: "active" });
   if (userActive) return userActive;
 
   // Count potential partners
-  const candidatesQuery = { userId: { $ne: userId } };
+  const candidatesQuery = { userId: { $ne: userId }, status: "waiting" };
   const count = await Queue.countDocuments(candidatesQuery);
   if (!count) return null;
 
@@ -117,7 +137,7 @@ async function findMatch(userId) {
   if (!otherUser) return null;
 
   // Ensure the other user has no active chat
-  const otherActive = await ChatSession.findOne({ participants: otherUser.userId, active: true });
+  const otherActive = await ChatSession.findOne({ participants: otherUser.userId, status: "active" });
   if (otherActive) {
     // Optionally: remove them from queue if they have an active chat
     await Queue.deleteOne({ userId: otherUser.userId });
@@ -126,7 +146,8 @@ async function findMatch(userId) {
 
   // Create a chat session between the two users
   const chatSession = new ChatSession({
-    participants: [userId, otherUser.userId]
+    participants: [userId, otherUser.userId],
+    status: "active",
   });
   await chatSession.save();
 

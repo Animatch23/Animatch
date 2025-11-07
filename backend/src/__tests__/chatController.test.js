@@ -1,5 +1,6 @@
 import request from "supertest";
 import mongoose from "mongoose";
+import jwt from "jsonwebtoken";
 import app from "../server.js";
 import ChatSession from "../models/ChatSession.js";
 import Queue from "../models/Queue.js";
@@ -12,6 +13,7 @@ describe("Chat Controller - Next Chat Feature", () => {
     let chatSessionId;
 
     beforeAll(async () => {
+        process.env.JWT_SECRET = process.env.JWT_SECRET || "test-secret";
         await mongoose.connect(process.env.MONGO_URI_TEST);
         
         // Create test users
@@ -28,7 +30,7 @@ describe("Chat Controller - Next Chat Feature", () => {
         otherUserId = otherUser._id;
 
         // Mock JWT token
-        token = "mock-jwt-token";
+    token = jwt.sign({ id: userId.toString() }, process.env.JWT_SECRET, { expiresIn: "1h" });
     });
 
     beforeEach(async () => {
@@ -66,6 +68,8 @@ describe("Chat Controller - Next Chat Feature", () => {
             expect(session.status).toBe("skipped");
             expect(session.endReason).toBe("next_chat");
             expect(session.endedBy.toString()).toBe(userId.toString());
+            expect(Array.isArray(session.messages)).toBe(true);
+            expect(session.messages).toHaveLength(0);
 
             // Verify users are back in queue
             const queueCount = await Queue.countDocuments({

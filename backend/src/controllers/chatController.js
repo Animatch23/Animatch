@@ -1,16 +1,68 @@
+import mongoose from "mongoose";
 import ChatSession from "../models/ChatSession.js";
 import Queue from "../models/Queue.js";
 import { io } from "../server.js";
 
+const normalizeObjectId = (value) => {
+    if (!value) return null;
+    if (value instanceof mongoose.Types.ObjectId) {
+        return value;
+    }
+    if (typeof value === "string" && mongoose.Types.ObjectId.isValid(value)) {
+        return new mongoose.Types.ObjectId(value);
+    }
+    return null;
+};
+
+const upsertQueueEntry = async (userId) => {
+    const normalized = normalizeObjectId(userId);
+    if (!normalized) {
+        return null;
+    }
+
+    return Queue.findOneAndUpdate(
+        { userId: normalized },
+        {
+            $set: {
+                status: "waiting",
+                chatId: null,
+            },
+        },
+        {
+            new: true,
+            upsert: true,
+            setDefaultsOnInsert: true,
+        }
+    );
+};
+
+const emitEventSafely = (recipientId, event, payload) => {
+    if (!recipientId) {
+        return;
+    }
+    try {
+        io.to(recipientId.toString()).emit(event, payload);
+    } catch (err) {
+        console.error(`Failed to emit ${event} to ${recipientId}:`, err);
+    }
+};
+
 export const nextChat = async (req, res) => {
     try {
-        const userId = req.user.id;
+        const requesterId = normalizeObjectId(req.user?.id);
+
+        if (!requesterId) {
+            return res.status(401).json({
+                success: false,
+                message: "User authentication required to end chat",
+            });
+        }
 
         // Find active chat session
         const activeSession = await ChatSession.findOne({
-            participants: userId,
-            status: "active"
-        }).populate("participants", "email");
+            participants: requesterId,
+            status: "active",
+        }).populate("participants", "email _id");
 
         if (!activeSession) {
             return res.status(404).json({ 
@@ -20,53 +72,43 @@ export const nextChat = async (req, res) => {
         }
 
         // Get the other participant
+        const requesterIdStr = requesterId.toString();
         const otherParticipant = activeSession.participants.find(
-            p => p._id.toString() !== userId
+            (participant) => participant._id.toString() !== requesterIdStr
         );
+        const partnerId = normalizeObjectId(otherParticipant?._id);
 
         // End the current session
         activeSession.status = "skipped";
         activeSession.endedAt = new Date();
-        activeSession.endedBy = userId;
+        activeSession.endedBy = requesterId;
         activeSession.endReason = "next_chat";
+        activeSession.messages = [];
         await activeSession.save();
 
         // Notify the other user via WebSocket
-        if (otherParticipant) {
-            io.to(otherParticipant._id.toString()).emit("chat_ended", {
-                reason: "next_chat",
-                message: "Your chat partner has moved to the next chat",
-                sessionId: activeSession._id
-            });
-        }
+        emitEventSafely(partnerId, "chat_ended", {
+            reason: "next_chat",
+            message: "Your chat partner has moved to the next chat",
+            sessionId: activeSession._id,
+        });
 
         // Add both users back to queue
-        const queuePromises = [userId, otherParticipant?._id].filter(Boolean).map(async (id) => {
-            // Use updateOne with upsert to avoid duplicates
-            return Queue.updateOne(
-                { userId: id },
-                { 
-                    $setOnInsert: { userId: id },
-                    $set: { status: "waiting", chatId: null }
-                },
-                { upsert: true }
-            );
-        });
-
-        await Promise.all(queuePromises);
+        await Promise.all([
+            upsertQueueEntry(requesterId),
+            upsertQueueEntry(partnerId),
+        ]);
 
         // Notify both users they're back in queue
-        io.to(userId.toString()).emit("returned_to_queue", {
+        emitEventSafely(requesterId, "returned_to_queue", {
             message: "You've been added back to the queue",
-            matched: false
+            matched: false,
         });
 
-        if (otherParticipant) {
-            io.to(otherParticipant._id.toString()).emit("returned_to_queue", {
-                message: "You've been added back to the queue",
-                matched: false
-            });
-        }
+        emitEventSafely(partnerId, "returned_to_queue", {
+            message: "You've been added back to the queue",
+            matched: false,
+        });
 
         res.status(200).json({
             success: true,
@@ -89,12 +131,19 @@ export const nextChat = async (req, res) => {
 
 export const getActiveChat = async (req, res) => {
     try {
-        const userId = req.user.id;
+        const requesterId = normalizeObjectId(req.user?.id);
+
+        if (!requesterId) {
+            return res.status(401).json({
+                success: false,
+                message: "User authentication required to lookup chat",
+            });
+        }
 
         const activeSession = await ChatSession.findOne({
-            participants: userId,
-            status: "active"
-        }).populate("participants", "email");
+            participants: requesterId,
+            status: "active",
+        }).populate("participants", "email _id");
 
         if (!activeSession) {
             return res.status(404).json({
@@ -108,7 +157,8 @@ export const getActiveChat = async (req, res) => {
             data: {
                 sessionId: activeSession._id,
                 participants: activeSession.participants,
-                startedAt: activeSession.startedAt
+                startedAt: activeSession.startedAt,
+                status: activeSession.status,
             }
         });
 
