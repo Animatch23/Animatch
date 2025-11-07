@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import { unmatchUser } from "../services/api";
 
 export default function ChatInterface({ onDisconnect }) {
   const [messages, setMessages] = useState([
@@ -15,8 +16,10 @@ export default function ChatInterface({ onDisconnect }) {
   const [statusLog, setStatusLog] = useState([]); // system log lines
   const [showActionMenu, setShowActionMenu] = useState(false);
   const [confirmBlockOpen, setConfirmBlockOpen] = useState(false);
+  const [confirmUnmatchOpen, setConfirmUnmatchOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
   const [reportReason, setReportReason] = useState("");
+  const [isUnmatching, setIsUnmatching] = useState(false);
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
   const menuCloseTimeoutRef = useRef(null);
@@ -237,6 +240,47 @@ export default function ChatInterface({ onDisconnect }) {
     setConfirmBlockOpen(true);
   };
 
+  const unmatchUserAction = () => {
+    // Open unmatch confirmation modal
+    setShowActionMenu(false);
+    setConfirmUnmatchOpen(true);
+  };
+
+  const handleConfirmUnmatch = async () => {
+    setIsUnmatching(true);
+    
+    try {
+      const response = await unmatchUser();
+      
+      // Log success
+      setStatusLog((prev) => [
+        ...prev, 
+        `✅ Successfully unmatched from ${response.data?.partnerUsername || 'partner'}`
+      ]);
+      
+      // Close modal
+      setConfirmUnmatchOpen(false);
+      
+      // Clear current messages
+      setMessages([]);
+      
+      // Simulate reconnection to queue
+      setTimeout(() => {
+        simulateRequeue();
+      }, 1000);
+      
+    } catch (error) {
+      console.error('[Unmatch] Error:', error);
+      setStatusLog((prev) => [
+        ...prev, 
+        `❌ Failed to unmatch: ${error.message || 'Unknown error'}`
+      ]);
+      setConfirmUnmatchOpen(false);
+    } finally {
+      setIsUnmatching(false);
+    }
+  };
+
   const reportUser = () => {
     // Open report modal
     setShowActionMenu(false);
@@ -343,8 +387,15 @@ export default function ChatInterface({ onDisconnect }) {
             >
               <button
                 type="button"
-                onClick={blockUser}
+                onClick={unmatchUserAction}
                 className="w-full text-left px-3 py-2 hover:bg-gray-100 transition"
+              >
+                Unmatch user
+              </button>
+              <button
+                type="button"
+                onClick={blockUser}
+                className="w-full text-left px-3 py-2 hover:bg-gray-100 border-t transition"
               >
                 Block user
               </button>
@@ -556,6 +607,46 @@ export default function ChatInterface({ onDisconnect }) {
                 className="flex-1 bg-rose-600 hover:bg-rose-700 text-white py-3 rounded-2xl"
               >
                 Block
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Confirm Unmatch Modal */}
+      {confirmUnmatchOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/40" onClick={() => !isUnmatching && setConfirmUnmatchOpen(false)} />
+          <div className="relative bg-white w-[90%] max-w-md rounded-2xl p-6 shadow-xl">
+            <h2 className="text-2xl font-bold text-[#286633] text-center mb-2">Unmatch from chat?</h2>
+            <p className="text-center text-gray-600 mb-2">This will permanently end your current conversation.</p>
+            <p className="text-center text-gray-500 text-sm mb-6">Chat history will be deleted and you cannot re-enter this chat.</p>
+            <div className="flex gap-4">
+              <button
+                type="button"
+                onClick={() => setConfirmUnmatchOpen(false)}
+                disabled={isUnmatching}
+                className="flex-1 bg-gray-300 text-white py-3 rounded-2xl disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmUnmatch}
+                disabled={isUnmatching}
+                className="flex-1 bg-red-600 hover:bg-red-700 text-white py-3 rounded-2xl disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                {isUnmatching ? (
+                  <>
+                    <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Unmatching...
+                  </>
+                ) : (
+                  'Unmatch'
+                )}
               </button>
             </div>
           </div>
