@@ -2,8 +2,8 @@ import mongoose from "mongoose";
 
 const ChatSessionSchema = new mongoose.Schema({
   participants: [{
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User'
+    type: String, // Store email addresses directly (consistent with Match model)
+    required: true
   }],
   active: {
     type: Boolean,
@@ -15,6 +15,18 @@ const ChatSessionSchema = new mongoose.Schema({
   },
   endedAt: {
     type: Date
+  },
+  unmatched: {
+    type: Boolean,
+    default: false
+  },
+  unmatchedBy: {
+    type: String, // userId who initiated unmatch
+    default: null
+  },
+  unmatchedAt: {
+    type: Date,
+    default: null
   }
 });
 

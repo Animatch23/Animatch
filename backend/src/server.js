@@ -10,6 +10,7 @@ import testRoute from "./routes/testRoute.js";
 import uploadRoutes from "./routes/uploadRoute.js";
 import termRoutes from "./routes/termsRoutes.js";
 import matchRoutes from "./routes/matchRoutes.js";
+import unmatchRoutes from "./routes/unmatchRoutes.js";
 
 if (process.env.NODE_ENV === 'test') {
   dotenv.config({ path: '.env.test' });
@@ -119,6 +120,7 @@ app.use("/api/upload", uploadRoutes);
 app.use('/api/uploads', express.static('uploads'));
 app.use('/api/test-uploads', express.static('test-uploads'));
 app.use("/api/terms", termRoutes);
+app.use("/api/unmatch", unmatchRoutes);
 app.use("/api", matchRoutes);
 
 // API ping route

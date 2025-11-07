@@ -11,13 +11,21 @@ const matchSchema = new mongoose.Schema({
     },
     status: {
         type: String,
-        enum: ['active', 'ended'],
+        enum: ['active', 'ended', 'unmatched'],
         default: 'active',
         index: true // Add index for better query performance
     },
     createdAt: {
         type: Date,
         default: Date.now
+    },
+    unmatchedAt: {
+        type: Date,
+        default: null
+    },
+    unmatchedBy: {
+        type: String, // userId of person who initiated unmatch
+        default: null
     }
 });
 
