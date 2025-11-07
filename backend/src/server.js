@@ -12,10 +12,44 @@ connectDB();
 
 const app = express();
 
+// CORS configuration: allow known origins and any animatch*.vercel.app subdomains.
+const allowedOriginsEnv = process.env.ALLOWED_ORIGINS || '';
+const allowedOrigins = allowedOriginsEnv
+  .split(',')
+  .map(s => s.trim())
+  .filter(Boolean);
+
 app.use(
   cors({
-    origin: true, // reflect request origin
+    origin: (origin, callback) => {
+      // No origin (server-to-server, curl, Postman) -> allow
+      if (!origin) return callback(null, true);
+
+      // Exact allow list
+      if (allowedOrigins.includes(origin)) return callback(null, true);
+
+      // Allow localhost for development
+      if (origin.startsWith('http://localhost') || origin.startsWith('http://127.0.0.1')) {
+        return callback(null, true);
+      }
+
+      // Allow any animatch-* or animatch variant on vercel.app (helps with preview deploys)
+      try {
+        const lower = origin.toLowerCase();
+        if (lower.endsWith('.vercel.app') && lower.includes('animatch')) {
+          return callback(null, true);
+        }
+      } catch (e) {
+        // fallthrough to rejection
+      }
+
+      console.error('Blocked origin:', origin);
+      return callback(new Error('Not allowed by CORS'));
+    },
     credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    exposedHeaders: ['set-cookie'],
   })
 );
 // Guarantee header even if cors() skipped it
