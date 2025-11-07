@@ -4,9 +4,8 @@
   "main": "src/server.js",
   "type": "module",
   "scripts": {
-    "test": "set NODE_ENV=test&& node --experimental-vm-modules node_modules/jest/bin/jest.js",
-    "dev": "nodemon src/server.js",
     "test": "NODE_OPTIONS=--experimental-vm-modules jest --forceExit",
+    "dev": "nodemon src/server.js",
     "test:win": "set NODE_OPTIONS=--experimental-vm-modules && jest --forceExit",
     "test:watch": "set NODE_OPTIONS=--experimental-vm-modules && jest --watch",
     "test:debug": "set NODE_OPTIONS=--experimental-vm-modules && jest --detectOpenHandles",
@@ -37,6 +36,7 @@
     "eslint-plugin-react": "^7.37.5",
     "globals": "^16.4.0",
     "jest": "^30.1.3",
+    "mongodb-memory-server": "^10.3.0",
     "nodemon": "^3.1.10",
     "supertest": "^7.1.4"
   }
