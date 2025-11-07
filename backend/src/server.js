@@ -49,32 +49,54 @@ app.use(
 app.use(cookieParser());
 app.use(express.json());
 
-// SUPER DETAILED LOGGING MIDDLEWARE
-app.use((req, res, next) => {
-  const timestamp = new Date().toISOString();
-  console.log('╔════════════════════════════════════════════════════════════');
-  console.log(`║ [${timestamp}]`);
-  console.log(`║ Method: ${req.method}`);
-  console.log(`║ URL: ${req.url}`);
-  console.log(`║ Path: ${req.path}`);
-  console.log(`║ Origin: ${req.headers.origin || 'No origin header'}`);
-  console.log(`║ User-Agent: ${req.headers['user-agent']?.substring(0, 50) || 'No user agent'}...`);
-  console.log(`║ Content-Type: ${req.headers['content-type'] || 'No content type'}`);
-  console.log(`║ Query Params:`, JSON.stringify(req.query));
-  console.log(`║ Body Preview:`, JSON.stringify(req.body).substring(0, 100));
-  console.log('╚════════════════════════════════════════════════════════════');
-  
-  // Log response when it finishes
-  const originalSend = res.send;
-  res.send = function(data) {
-    console.log(`║ Response Status: ${res.statusCode}`);
-    console.log(`║ Response Preview:`, typeof data === 'string' ? data.substring(0, 100) : JSON.stringify(data).substring(0, 100));
-    console.log('╚════════════════════════════════════════════════════════════\n');
-    originalSend.call(this, data);
-  };
-  
-  next();
-});
+// SUPER DETAILED LOGGING MIDDLEWARE (disabled in test mode to avoid noise)
+if (process.env.NODE_ENV !== 'test') {
+  app.use((req, res, next) => {
+    const timestamp = new Date().toISOString();
+    console.log('╔════════════════════════════════════════════════════════════');
+    console.log(`║ [${timestamp}]`);
+    console.log(`║ Method: ${req.method}`);
+    console.log(`║ URL: ${req.url}`);
+    console.log(`║ Path: ${req.path}`);
+    console.log(`║ Origin: ${req.headers.origin || 'No origin header'}`);
+    console.log(`║ User-Agent: ${req.headers['user-agent']?.substring(0, 50) || 'No user agent'}...`);
+    console.log(`║ Content-Type: ${req.headers['content-type'] || 'No content type'}`);
+    console.log(`║ Query Params:`, JSON.stringify(req.query));
+    
+    // Safely handle body logging
+    try {
+      const bodyStr = req.body ? JSON.stringify(req.body) : '{}';
+      console.log(`║ Body Preview:`, bodyStr.substring(0, 100));
+    } catch (e) {
+      console.log(`║ Body Preview: [Unable to stringify body]`);
+    }
+    console.log('╚════════════════════════════════════════════════════════════');
+    
+    // Log response when it finishes
+    const originalSend = res.send;
+    res.send = function(data) {
+      console.log(`║ Response Status: ${res.statusCode}`);
+      
+      // Safely handle response data logging
+      let responsePreview = '';
+      if (typeof data === 'string') {
+        responsePreview = data.substring(0, 100);
+      } else if (data) {
+        try {
+          responsePreview = JSON.stringify(data).substring(0, 100);
+        } catch (e) {
+          responsePreview = '[Unable to stringify response]';
+        }
+      }
+      
+      console.log(`║ Response Preview:`, responsePreview);
+      console.log('╚════════════════════════════════════════════════════════════\n');
+      originalSend.call(this, data);
+    };
+    
+    next();
+  });
+}
 
 // Root route - test if server is running
 app.get("/", (req, res) => {
