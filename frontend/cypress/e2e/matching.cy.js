@@ -31,7 +31,7 @@ describe('Matching Feature', () => {
     cy.contains('button', 'View Terms & Conditions').click();
     cy.get('h2').contains('Terms and Conditions').should('be.visible');
     cy.get('.fixed.inset-0').click('topLeft');
-
+    //test
   });
 
 });
