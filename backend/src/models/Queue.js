@@ -19,6 +19,12 @@ const queueSchema = new mongoose.Schema({
         type: String,
         enum: ['waiting', 'matched'],
         default: 'waiting'
+    },
+    // Interest-based matchmaking fields - stored for quick access during matching
+    interests: {
+        course: { type: String, default: null },
+        dorm: { type: String, default: null },
+        organizations: { type: [String], default: [] }
     }
 });
 

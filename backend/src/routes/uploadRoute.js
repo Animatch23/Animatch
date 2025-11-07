@@ -2,6 +2,7 @@ import express from "express";
 import multer from "multer";
 import path from "path";
 import User from "../models/User.js";
+import Profile from "../models/Profile.js";
 import fs from 'fs';
 
 /**
@@ -132,6 +133,15 @@ router.post('/', upload.single('profilePhoto'), async (req, res) => {
         const newUser = new User(userData);
         await newUser.save();
         
+        // Create profile entry for the user
+        const profile = new Profile({
+            userId: newUser._id.toString(),
+            username: newUser.username,
+            pictureUrl: profilePicture?.url || null,
+            isBlurred: profilePicture?.isBlurred || true
+        });
+        await profile.save();
+        
         res.status(201).json({ message: "User created", user: newUser });
     } catch (err) {
         if (err instanceof multer.MulterError) {
@@ -141,6 +151,74 @@ router.post('/', upload.single('profilePhoto'), async (req, res) => {
             return res.status(400).json({ message: err.message });
         }
         res.status(500).json({ message: "Failed to create user.", error: err.message });
+    }
+});
+
+/**
+ * POST /upload/interests
+ * Updates user profile with interests (course, dorm, organizations)
+ * @route POST /interests
+ * @param {string} email - Required email to find user
+ * @param {Object} interests - Interests object with course, dorm, organizations
+ * @returns {Object} 200 - Interests updated successfully
+ * @returns {Object} 400 - Validation error
+ * @returns {Object} 404 - User not found
+ * @returns {Object} 500 - Server error
+ */
+router.post('/interests', async (req, res) => {
+    try {
+        const { email, interests } = req.body;
+        
+        console.log('[POST /upload/interests] Request received:', { email, interests });
+        
+        if (!email) {
+            return res.status(400).json({ message: "Email is required" });
+        }
+        
+        // Find user by email
+        const user = await User.findOne({ email });
+        if (!user) {
+            console.log('[POST /upload/interests] User not found:', email);
+            return res.status(404).json({ message: "User not found" });
+        }
+        
+        // Parse interests - frontend sends array of topics, we need to structure them
+        // For now, treat all as organizations until we have proper UI for course/dorm
+        const structuredInterests = {
+            course: interests.course || null,
+            dorm: interests.dorm || null,
+            organizations: Array.isArray(interests) ? interests : (interests.organizations || [])
+        };
+        
+        console.log('[POST /upload/interests] Structured interests:', structuredInterests);
+        
+        // Update or create profile with interests
+        const profile = await Profile.findOneAndUpdate(
+            { userId: user._id.toString() },
+            { 
+                $set: { 
+                    interests: structuredInterests 
+                } 
+            },
+            { 
+                new: true,
+                upsert: true,
+                setDefaultsOnInsert: true
+            }
+        );
+        
+        console.log('[POST /upload/interests] Profile updated successfully:', profile._id);
+        
+        res.status(200).json({ 
+            message: "Interests updated successfully", 
+            interests: profile.interests 
+        });
+    } catch (err) {
+        console.error('[POST /upload/interests] Error:', err);
+        res.status(500).json({ 
+            message: "Failed to update interests", 
+            error: err.message 
+        });
     }
 });
 

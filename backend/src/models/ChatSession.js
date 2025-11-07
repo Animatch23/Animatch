@@ -15,6 +15,22 @@ const ChatSessionSchema = new mongoose.Schema({
   },
   endedAt: {
     type: Date
+  },
+  // Metadata for interest-based matchmaking tracking
+  metadata: {
+    matchingStrategy: { 
+      type: String, 
+      enum: ['similarity-based', 'random-fallback', 'legacy'],
+      default: 'legacy' 
+    },
+    similarityScore: { 
+      type: Number, 
+      default: 0 
+    },
+    matchedAt: { 
+      type: Date, 
+      default: Date.now 
+    }
   }
 });
 
