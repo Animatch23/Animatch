@@ -1,0 +1,10 @@
+# Server
+PORT=27017
+NODE_ENV=development
+
+# MongoDB connection (use either MONGODB_URI or MONGO_URI; server supports both)
+# Local Mongo example:
+MONGODB_URI=mongodb+srv://<db_username>:<db_password>@cluster0.hhvgmor.mongodb.net/?appName=Cluster0
+
+# JWT
+JWT_SECRET=abcdefg

@@ -11,6 +11,7 @@ on:
       - main
       - "frontend/**"
       - "**frontend**"
+      - "**sprint**"
   workflow_dispatch:
 
 jobs:

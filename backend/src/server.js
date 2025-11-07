@@ -1,20 +1,35 @@
 import express from "express";
-import mongoose from "mongoose";
 import dotenv from "dotenv";
 import cors from "cors";
-import authRoute from "./routes/authRoute.js"
+import cookieParser from "cookie-parser";
 import connectDB from "./config/db.js";
+import authRoute from "./routes/authRoute.js";
+import blurRoute from "./routes/blurRoute.js";
+import existRoute from "./routes/existRoute.js";
 import testRoute from "./routes/testRoute.js";
+import uploadRoutes from "./routes/uploadRoute.js";
 import termRoutes from "./routes/termsRoutes.js";
-import blurRoute from "./routes/blurRoute.js"
-import existRoute from "./routes/existRoute.js"
-import uploadRoutes from "./routes/uploadRoute.js"
+import queueRoutes from "./routes/queueRoutes.js";
 
 dotenv.config();
 
 const app = express();
 
-app.use(cors());
+app.use(
+  cors({
+    origin: true, // reflect request origin
+    credentials: true,
+  })
+);
+
+// Guarantee header even if cors() skipped it
+app.use((req, res, next) => {
+  res.setHeader("Access-Control-Allow-Origin", req.headers.origin || "*");
+  res.setHeader("Access-Control-Allow-Credentials", "true");
+  next();
+});
+
+app.use(cookieParser());
 app.use(express.json());
 
 // Routes
@@ -26,8 +41,15 @@ app.use("/api/upload", uploadRoutes);
 app.use('/api/uploads', express.static('uploads'));
 app.use('/api/test-uploads', express.static('test-uploads'));
 app.use("/api/terms", termRoutes);
+app.use("/api/queue", queueRoutes);
 
-const PORT = process.env.PORT || 3000;
+app.get("/api/ping", (req, res) => res.json({ pong: true }));
+
+app.use((req, res) => {
+  res.status(404).json({ message: "Route not found" });
+});
+
+const PORT = process.env.PORT || 5000;
 
 const start = async () => {
     try {
@@ -44,5 +66,4 @@ if (process.env.NODE_ENV !== 'test') {
     start();
 }
 
-// Export the app for testing
 export default app;

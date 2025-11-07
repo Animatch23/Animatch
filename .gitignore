@@ -60,3 +60,28 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Jest
+.jest/
+__snapshots__/
+
+# Babel
+.babel-cache/
+
+# MongoDB memory server
+.mongodb-data/
+
+# Coverage reports
+coverage/
+
+# IDE-specific files
+.vscode/
+.idea/
+
+# Logs
+logs/
+*.log
+
+# Temp files
+*.tmp
+.temp/

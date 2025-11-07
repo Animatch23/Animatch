@@ -9,5 +9,8 @@
     "install:backend": "cd backend && npm install",
     "install:frontend": "cd frontend && npm install",
     "install:all": "npm run install:backend && npm run install:frontend"
+  },
+  "devDependencies": {
+    "newman": "^6.2.1"
   }
 }
