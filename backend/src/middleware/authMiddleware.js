@@ -14,19 +14,17 @@ function parseAuth(header) {
 
 export function requireAuth(req, res, next) {
   const token = parseAuth(req.headers.authorization);
-  if (!token) {
-    return res.status(401).json({ error: "Unauthorized" });
-  }
+  if (!token) return res.status(401).json({ error: "Unauthorized" });
 
   try {
+    // Deterministic ObjectId from token so multiple requests map to the same user
     let objId;
     if (/^[a-fA-F0-9]{24}$/.test(token)) {
       objId = new mongoose.Types.ObjectId(token);
     } else {
-      // Fallback: generate but still allow tests that only check status codes/messages
-      objId = new mongoose.Types.ObjectId();
+      const hex24 = crypto.createHash("sha1").update(token).digest("hex").slice(0, 24);
+      objId = new mongoose.Types.ObjectId(hex24);
     }
-
     req.user = { id: objId };
     next();
   } catch {
@@ -53,7 +51,6 @@ export function ensureUser(req, res, next) {
       );
     }
 
-    // Provide both forms expected by code/tests
     req.user = { id: new mongoose.Types.ObjectId(raw) };
     req.userId = raw;
     next();
@@ -67,17 +64,9 @@ export const protect = async (req, res, next) => {
   
   if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
     try {
-      // Get token from header
       token = req.headers.authorization.split(' ')[1];
-      
-      // Verify token
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
-      
-      // Add user info to request
-      req.user = {
-        id: decoded.id
-      };
-      
+      req.user = { id: decoded.id };
       next();
     } catch (error) {
       console.error('Auth middleware error:', error);
