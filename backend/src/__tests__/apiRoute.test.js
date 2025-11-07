@@ -7,10 +7,12 @@ import dotenv from 'dotenv';
 import queueRoutes from '../routes/queueRoutes.js';
 import { authMiddleware } from '../middleware/authMiddleware.js';
 import Queue from '../models/Queue.js';
+import User from '../models/User.js';
 import app from '../server.js';
 
 let mongoServer;
 let testToken;
+let testUser;
 
 beforeAll(async () => {
   mongoServer = await MongoMemoryServer.create();
@@ -26,10 +28,16 @@ beforeAll(async () => {
   
   console.log('JWT_SECRET loaded:', !!secret);
   
+  // Create a test user in the database
+  testUser = await User.create({
+    email: 'test@dlsu.edu.ph',
+    username: 'Test User'
+  });
+  
   testToken = jwt.sign(
     { 
-      email: 'test@dlsu.edu.ph',
-      name: 'Test User'
+      email: testUser.email,
+      name: testUser.username
     },
     secret,
     { expiresIn: '1h' }
