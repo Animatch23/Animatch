@@ -1,11 +1,23 @@
 "use client";
 
 import { useEffect } from "react";
-import TermsModal from "../../components/TermsModal";
+import { useCallback } from "react";
 import { useGoogleLogin } from '@react-oauth/google';
 import { useRouter } from 'next/navigation';
 
 export default function LoginPage() {
+  const handleLogin = useCallback(() => {
+    // FRONTEND-ONLY PLACEHOLDER AUTH FLAG
+    // In a future implementation this will be replaced by real auth (e.g. NextAuth).
+    try {
+      localStorage.setItem("animatch_logged_in", "true");
+    } catch (e) {
+      console.warn("Unable to persist login flag", e);
+    }
+    // Redirect to a post-login page (match intro)
+    window.location.href = "/match";
+  }, []);
+
   const router = useRouter();
 
   // Handle the redirect callback when user returns from Google
@@ -93,19 +105,19 @@ export default function LoginPage() {
       <div className="flex w-full lg:w-1/2 justify-center items-center bg-white">
         <div className="w-full max-w-md px-8">
           {/* Logo */}
-          <div className="flex items-center mb-6">
-            <img src="dlsu logo.png" alt="AniMatch Logo" className="w-10 h-10 mr-2" />
-            <h1 className="text-2xl font-bold">
-              <span className="text-green-800">Ani</span>
-              <span className="text-red-600">Match</span>
-            </h1>
-          </div>
+            <div className="flex items-center mb-6">
+              <img src="dlsu logo.png" alt="AniMatch Logo" className="w-10 h-10 mr-2" />
+              <h1 className="text-2xl font-bold">
+                <span className="text-green-800">Ani</span>
+                <span className="text-red-600">Match</span>
+              </h1>
+            </div>
 
-          {/* Heading */}
-          <h2 className="text-3xl font-bold text-green-800 mb-2">Hello!</h2>
-          <p className="text-sm text-gray-600 mb-6">
-            Log in and start matching using AniMatch.
-          </p>
+            {/* Heading */}
+            <h2 className="text-3xl font-bold text-green-800 mb-2">Hello!</h2>
+            <p className="text-sm text-gray-600 mb-6">
+              Log in and start matching using AniMatch.
+            </p>
 
           {/* Google Login Button */}
           <button onClick={() => login()}
@@ -131,8 +143,10 @@ export default function LoginPage() {
             Login with your DLSU Google Account
           </button>
 
-          {/* Terms and Conditions Modal */}
-          <TermsModal />
+            {/* T&C removed from login page to restrict visibility until after login */}
+            <p className="text-[11px] text-gray-400 mt-4 text-center">
+              By continuing you confirm you're a DLSU student. Terms & Conditions will be available after login.
+            </p>
         </div>
       </div>
     </div>

@@ -5,6 +5,7 @@ import cors from "cors";
 import authRoute from "./routes/authRoute.js"
 import connectDB from "./config/db.js";
 import testRoute from "./routes/testRoute.js";
+import termRoutes from "./routes/termsRoutes.js";
 import blurRoute from "./routes/blurRoute.js"
 import existRoute from "./routes/existRoute.js"
 import uploadRoutes from "./routes/uploadRoute.js"
@@ -24,6 +25,8 @@ app.use("/api/test", testRoute);
 app.use("/api/upload", uploadRoutes);
 app.use('/api/uploads', express.static('uploads'));
 app.use('/api/test-uploads', express.static('test-uploads'));
+app.use("/api/terms", termRoutes);
+
 const PORT = process.env.PORT || 3000;
 
 const start = async () => {
