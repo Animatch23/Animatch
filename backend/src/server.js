@@ -22,7 +22,7 @@ const app = express();
 
 app.use(
   cors({
-    origin: true, // reflect request origin
+    origin: true, 
     credentials: true,
   })
 );
