@@ -135,7 +135,7 @@ export default function ProfileSetup() {
         {/* Title */}
         <h1 className="text-3xl font-bold text-green-800 mb-2">Profile Setup</h1>
         <p className="text-sm text-gray-600 mb-8">
-          Let's set up your AniMatch profile to get started
+          Let&apos;s set up your AniMatch profile to get started
         </p>
 
         {/* Photo upload */}
