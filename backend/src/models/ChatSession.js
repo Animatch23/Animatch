@@ -15,6 +15,14 @@ const ChatSessionSchema = new mongoose.Schema({
   },
   endedAt: {
     type: Date
+  },
+  savedBy: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  }],
+  isSaved: {
+    type: Boolean,
+    default: false
   }
 });
 
