@@ -1,6 +1,7 @@
 import mongoose from "mongoose";
 import Queue from "../models/Queue.js";
 import ChatSession from "../models/ChatSession.js";
+import User from "../models/User.js";
 
 // Join the matchmaking queue
 export const joinQueue = async (req, res) => {
@@ -72,15 +73,15 @@ export const checkQueueStatus = async (req, res) => {
       });
     }
 
-    const queueEntry = await Queue.findOne({ userId });
+    const queueEntry = await Queue.findOne({ userId: req.user.id });
 
     // If not in queue
     if (!queueEntry) {
-      return res.json({ inQueue: false });
+      return res.json({ inQueue: false, matched: false });
     }
 
     // Try to match
-    const match = await findMatch(userId);
+    const match = await findMatch(req.user.id);
     if (match) {
       return res.json({
         matched: true,
@@ -89,7 +90,7 @@ export const checkQueueStatus = async (req, res) => {
     }
 
     // Still waiting
-    const waitTime = Date.now() - queueEntry.joinedAt;
+    const waitTime = Date.now() - queueEntry.createdAt;
     return res.json({
       inQueue: true,
       waitTime,
@@ -106,8 +107,16 @@ async function findMatch(userId) {
   const userActive = await ChatSession.findOne({ participants: userId, active: true });
   if (userActive) return userActive;
 
+  const currentUser = await User.findById(userId).select('blockList');
+  if (!currentUser) return null;
+
   // Count potential partners
-  const candidatesQuery = { userId: { $ne: userId } };
+  const candidatesQuery = {
+    userId: {
+      $ne: userId, // Not themself
+      $nin: currentUser.blockList // Not in their blocklist
+    }
+  };
   const count = await Queue.countDocuments(candidatesQuery);
   if (!count) return null;
 
@@ -115,6 +124,11 @@ async function findMatch(userId) {
   const randomSkip = Math.floor(Math.random() * count);
   const otherUser = await Queue.findOne(candidatesQuery).skip(randomSkip);
   if (!otherUser) return null;
+
+  const otherUserDoc = await User.findById(otherUser.userId).select('blockList');
+  if (!otherUserDoc || otherUserDoc.blockList.some(id => id.equals(userId))) {
+    return null;
+  }
 
   // Ensure the other user has no active chat
   const otherActive = await ChatSession.findOne({ participants: otherUser.userId, active: true });

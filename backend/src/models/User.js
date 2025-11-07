@@ -19,7 +19,11 @@ const userSchema = new mongoose.Schema({
     profilePicture: {
         type: profilePictureSchema,
         default: null    
-    }
+    },
+    blockList: [{
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User'
+    }]
 });
 
 const User = mongoose.model("User", userSchema);

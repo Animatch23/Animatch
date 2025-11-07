@@ -2,7 +2,8 @@ import request from 'supertest';
 import mongoose from 'mongoose';
 import app from '../server.js';
 import ChatSession from '../models/ChatSession.js';
-import User from '../models/User.js'
+import User from '../models/User.js';
+import Queue from '../models/Queue.js';
 
 beforeAll(async () => {
     await mongoose.connect(process.env.MONGO_URL);
@@ -10,6 +11,12 @@ beforeAll(async () => {
 
 afterAll(async () => {
     await mongoose.disconnect();
+});
+
+afterEach(async () => {
+    await User.deleteMany({});
+    await ChatSession.deleteMany({});
+    await Queue.deleteMany({});
 });
 
 describe('POST /api/chat/:sessionId/save', () => {
@@ -39,7 +46,9 @@ describe('POST /api/chat/:sessionId/save', () => {
     });
 
     afterEach(async () => {
+        await User.deleteMany({});
         await ChatSession.deleteMany({});
+        await Queue.deleteMany({});
     });
 
     // --- Test 1: Happy Path - Mutual Save ---

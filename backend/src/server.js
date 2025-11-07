@@ -5,6 +5,7 @@ import connectDB from "./config/db.js";
 import testRoutes from "./routes/testRoute.js";
 import queueRoutes from "./routes/queueRoutes.js";
 import chatRoutes from "./routes/chatRoutes.js";
+import userRoutes from './routes/userRoutes.js'; 
 import cookieParser from "cookie-parser";
 import cron from 'node-cron';
 import { expireChats } from './controllers/cronController.js';
@@ -38,6 +39,7 @@ app.use(ensureUser);
 app.use("/api/test", testRoutes);
 app.use("/api/queue", queueRoutes);
 app.use('/api/chat', chatRoutes);
+app.use('/api/users', userRoutes);
 
 app.get("/api/ping", (req, res) => res.json({ pong: true }));
 

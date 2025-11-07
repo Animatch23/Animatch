@@ -3,6 +3,7 @@ import { MongoMemoryServer } from 'mongodb-memory-server';
 import Queue from '../models/Queue.js';
 import ChatSession from '../models/ChatSession.js';
 import { joinQueue, leaveQueue, checkQueueStatus } from '../controllers/queueController.js';
+import User from '../models/User.js';
 
 let mongoServer;
 
@@ -52,6 +53,7 @@ afterAll(async () => {
 beforeEach(async () => {
   await Queue.deleteMany({});
   await ChatSession.deleteMany({});
+  await User.deleteMany({});
 });
 
 describe('Queue Controller Tests', () => {
@@ -68,5 +70,55 @@ describe('Queue Controller Tests', () => {
     const queueEntries = await Queue.find({});
     expect(queueEntries.length).toBe(1);
     expect(queueEntries[0].userId.toString()).toBe(mockUser1.id.toString());
+  });
+});
+
+describe('Matchmaking with Blocklist (US #10)', () => {
+
+  test('should not match a user with someone on their blocklist', async () => {
+    const user1 = { id: new mongoose.Types.ObjectId() };
+    const user3 = { id: new mongoose.Types.ObjectId() };
+
+    await User.create([
+      { _id: user1.id, username: 'user1', blockList: [user3.id] },
+      { _id: user3.id, username: 'user3', blockList: [] },
+    ]);
+
+    const req1 = mockRequest(user1);
+    const res1 = mockResponse();
+    const req3 = mockRequest(user3);
+    const res3 = mockResponse();
+
+    await joinQueue(req1, res1);
+    
+    await joinQueue(req3, res3);
+
+    await checkQueueStatus(req1, res1);
+
+    expect(res1._jsonData.matched).toBe(false);
+  });
+
+  test('should successfully match two users who have not blocked each other', async () => {
+    const user1 = { id: new mongoose.Types.ObjectId() };
+    const user2 = { id: new mongoose.Types.ObjectId() };
+
+    await User.create([
+      { _id: user1.id, username: 'user1', blockList: [] },
+      { _id: user2.id, username: 'user2', blockList: [] },
+    ]);
+
+    const req1 = mockRequest(user1);
+    const res1 = mockResponse();
+    const req2 = mockRequest(user2);
+    const res2 = mockResponse();
+
+    await joinQueue(req1, res1);
+    
+    await joinQueue(req2, res2);
+
+    await checkQueueStatus(req1, res1);
+
+    expect(res1._jsonData.matched).toBe(true);
+    expect(res1._jsonData.chatSession).toBeDefined();
   });
 });
