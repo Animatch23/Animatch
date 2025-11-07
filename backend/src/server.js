@@ -6,42 +6,47 @@ import testRoutes from "./routes/testRoute.js";
 import queueRoutes from "./routes/queueRoutes.js";
 import cookieParser from "cookie-parser";
 import { ensureUser } from "./middleware/authMiddleware.js";
+import { createServer } from "http";
+import { Server } from "socket.io";
+import chatRoutes from "./routes/chatRoutes.js";
+
 
 dotenv.config();
 connectDB();
 
 const app = express();
-
-app.use(
-  cors({
-    origin: true, // reflect request origin
-    credentials: true,
-  })
-);
-// Guarantee header even if cors() skipped it
-app.use((req, res, next) => {
-  if (!res.get("Access-Control-Allow-Origin")) {
-    res.set("Access-Control-Allow-Origin", "*");
-  }
-  next();
+const httpServer = createServer(app);
+export const io = new Server(httpServer, {
+    cors: {
+        origin: process.env.FRONTEND_URL || "http://localhost:3000",
+        methods: ["GET", "POST"]
+    }
 });
 
-app.use(cookieParser());
+app.use(cors());
 app.use(express.json());
-app.use(ensureUser);
 
+// Routes
 app.use("/api/test", testRoutes);
+app.use("/api/auth", authRoutes);
 app.use("/api/queue", queueRoutes);
+app.use("/api/chat", chatRoutes);
 
-app.get("/api/ping", (req, res) => res.json({ pong: true }));
+// WebSocket connection handling
+io.on("connection", (socket) => {
+    console.log("User connected:", socket.id);
 
-app.use((req, res) => {
-  res.status(404).json({ message: "Route not found" });
+    socket.on("join_room", (userId) => {
+        socket.join(userId);
+        console.log(`User ${userId} joined their room`);
+    });
+
+    socket.on("disconnect", () => {
+        console.log("User disconnected:", socket.id);
+    });
 });
 
 const PORT = process.env.PORT || 5000;
-if (!process.env.JEST_WORKER_ID) {
-  app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
-}
+httpServer.listen(PORT, () => console.log(`Server running on port ${PORT}`));
 
 export default app;
