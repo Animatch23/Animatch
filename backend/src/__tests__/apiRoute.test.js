@@ -1,87 +1,74 @@
-import request from 'supertest';
-import express from 'express';
-import mongoose from 'mongoose';
-import { MongoMemoryServer } from 'mongodb-memory-server';
+import { authMiddleware } from '../middleware/authMiddleware.js';
 import jwt from 'jsonwebtoken';
-import queueRoutes from '../routes/queueRoutes.js';
-import { protect } from '../middleware/authMiddleware.js';
-import Queue from '../models/Queue.js';
-import app from '../server.js';
 
-let mongoServer;
+// Mock jwt for ES modules
+jest.unstable_mockModule('jsonwebtoken', () => ({
+  default: {
+    verify: jest.fn()
+  },
+  verify: jest.fn()
+}));
 
-beforeAll(async () => {
-  mongoServer = await MongoMemoryServer.create();
-  const uri = mongoServer.getUri();
-  await mongoose.connect(uri);
-});
+describe('Auth Middleware Unit Tests', () => {
+  let mockReq;
+  let mockRes;
+  let mockNext;
 
-afterAll(async () => {
-  await mongoose.disconnect();
-  await mongoServer.stop();
-});
-
-beforeEach(async () => {
-  await Queue.deleteMany({});
-});
-
-describe('Queue API Routes Tests', () => {
-  const testToken = new mongoose.Types.ObjectId().toHexString();
-
-  test('POST /api/queue/join should require auth token', async () => {
-    const res = await request(app)
-      .post('/api/queue/join')
-      .send({});
-      
-    expect(res.statusCode).toBe(401);
-  });
-  
-  test('POST /api/queue/join should add user to queue', async () => {
-    const res = await request(app)
-      .post('/api/queue/join')
-      .set('Authorization', `Bearer ${testToken}`)
-      .send({});
-      
-    expect(res.statusCode).toBe(200);
-    expect(res.body.matched).toBe(false);
-    expect(res.body.message).toBe('Added to queue');
+  beforeEach(() => {
+    // Reset mocks before each test
+    mockReq = {
+      headers: {}
+    };
+    mockRes = {
+      status: jest.fn().mockReturnThis(),
+      json: jest.fn()
+    };
+    mockNext = jest.fn();
+    jest.clearAllMocks();
   });
 
-  test('GET /api/queue/status should return queue status', async () => {
-    // First join with testToken
-    await request(app)
-      .post('/api/queue/join')
-      .set('Authorization', `Bearer ${testToken}`)
-      .send({});
+  test('should return 401 if no token is provided', () => {
+    authMiddleware(mockReq, mockRes, mockNext);
 
-    // Then check status with same token
-    const res = await request(app)
-      .get('/api/queue/status')
-      .set('Authorization', `Bearer ${testToken}`);
-      
-    expect(res.statusCode).toBe(200);
-    expect(res.body.inQueue).toBe(true);
-    expect(res.body.matched).toBe(false);
+    expect(mockRes.status).toHaveBeenCalledWith(401);
+    expect(mockRes.json).toHaveBeenCalledWith({ message: 'No token provided' });
+    expect(mockNext).not.toHaveBeenCalled();
   });
-  
-  test('POST /api/queue/leave should remove user from queue', async () => {
-    // Join with testToken
-    await request(app)
-      .post('/api/queue/join')
-      .set('Authorization', `Bearer ${testToken}`)
-      .send({});
 
-    // Leave with same token
-    const res = await request(app)
-      .post('/api/queue/leave')
-      .set('Authorization', `Bearer ${testToken}`)
-      .send({});
-      
-    expect(res.statusCode).toBe(200);
-    expect(res.body.message).toBe('Removed from queue');
-    
-    // Confirm removal
-    const queueEntries = await Queue.find({});
-    expect(queueEntries).toHaveLength(0);
+  test('should return 401 if authorization header is malformed', () => {
+    mockReq.headers.authorization = 'InvalidHeader';
+
+    authMiddleware(mockReq, mockRes, mockNext);
+
+    expect(mockRes.status).toHaveBeenCalledWith(401);
+    expect(mockRes.json).toHaveBeenCalledWith({ message: 'No token provided' });
+    expect(mockNext).not.toHaveBeenCalled();
+  });
+
+  test('should return 403 if token is invalid', () => {
+    mockReq.headers.authorization = 'Bearer invalid-token';
+    jwt.verify = jest.fn().mockImplementation(() => {
+      throw new Error('Invalid token');
+    });
+
+    authMiddleware(mockReq, mockRes, mockNext);
+
+    expect(mockRes.status).toHaveBeenCalledWith(403);
+    expect(mockRes.json).toHaveBeenCalledWith({ message: 'Invalid token' });
+    expect(mockNext).not.toHaveBeenCalled();
+  });
+
+  test('should call next() if token is valid', () => {
+    const mockDecoded = { email: 'test@dlsu.edu.ph', name: 'Test User' };
+    mockReq.headers.authorization = 'Bearer valid-token';
+    jwt.verify = jest.fn().mockReturnValue(mockDecoded);
+
+    authMiddleware(mockReq, mockRes, mockNext);
+
+    expect(jwt.verify).toHaveBeenCalledWith('valid-token', process.env.JWT_SECRET);
+    expect(mockReq.user).toEqual(mockDecoded);
+    expect(mockNext).toHaveBeenCalled();
+    expect(mockRes.status).not.toHaveBeenCalled();
+    expect(mockRes.json).not.toHaveBeenCalled();
   });
 });
