@@ -18,7 +18,7 @@ if (process.env.NODE_ENV === 'test') {
 }
 
 const app = express();
-
+app.set('trust proxy',1)
 // CORS configuration: allow known origins and any animatch*.vercel.app subdomains.
 // If ALLOWED_ORIGINS env var is set, use it; otherwise use default list
 // comment
@@ -27,8 +27,8 @@ const allowedOrigins = allowedOriginsEnv
   ? allowedOriginsEnv.split(',').map(s => s.trim()).filter(Boolean)
   : [
       'http://localhost:3000',
-      'https://animatch-git-us-3-animatch-dlsus-projects.vercel.app',
       'https://animatch-dlsus-projects.vercel.app',
+      'https://animatch-git-sprint-1-animatch-dlsus-projects.vercel.app/',
     ];
 
 app.use(
