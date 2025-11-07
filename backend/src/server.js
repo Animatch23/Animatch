@@ -12,8 +12,6 @@ import termRoutes from "./routes/termsRoutes.js";
 import queueRoutes from "./routes/queueRoutes.js";
 import matchRoutes from "./routes/matchRoutes.js";
 
-
-// Load appropriate .env file based on NODE_ENV
 if (process.env.NODE_ENV === 'test') {
   dotenv.config({ path: '.env.test' });
 } else {
@@ -22,19 +20,16 @@ if (process.env.NODE_ENV === 'test') {
 
 const app = express();
 
-// CORS configuration - allow both local and production frontends
 const allowedOrigins = [
   'http://localhost:3000',
   'https://animatch-git-us-3-animatch-dlsus-projects.vercel.app',
-  'https://animatch-dlsus-projects.vercel.app', // Add your main Vercel domain too
+  'https://animatch-dlsus-projects.vercel.app',
 ];
 
 app.use(
   cors({
     origin: function (origin, callback) {
-      // Allow requests with no origin (like mobile apps or curl requests)
       if (!origin) return callback(null, true);
-      
       if (allowedOrigins.includes(origin)) {
         callback(null, true);
       } else {
@@ -47,13 +42,11 @@ app.use(
   })
 );
 
-// Handle preflight requests
-app.options('*', cors());
+// Remove invalid app.options('*', cors()) line
 
 app.use(cookieParser());
 app.use(express.json());
 
-// Routes
 app.use("/api/auth", authRoute);
 app.use("/api/blur", blurRoute);
 app.use("/api/exist", existRoute);
@@ -74,18 +67,17 @@ app.use((req, res) => {
 const PORT = process.env.PORT || 5000;
 
 const start = async () => {
-    try {
-        await connectDB();
-        app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
-    } catch (err) {
-        console.error("Failed to start server:", err);
-        process.exit(1);
-    }
+  try {
+    await connectDB();
+    app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+  } catch (err) {
+    console.error("Failed to start server:", err);
+    process.exit(1);
+  }
 };
 
-// Only start the server when NOT in test mode
 if (process.env.NODE_ENV !== 'test') {
-    start();
+  start();
 }
 
 export default app;
