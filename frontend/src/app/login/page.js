@@ -1,26 +1,15 @@
 "use client";
 
-import { useEffect } from "react";
-import { useCallback } from "react";
+import { useEffect, useState } from "react";
 import { useGoogleLogin } from '@react-oauth/google';
 import { useRouter } from 'next/navigation';
+import TermsModal from "@/components/TermsModal";
 
 export default function LoginPage() {
-  const handleLogin = useCallback(() => {
-    // FRONTEND-ONLY PLACEHOLDER AUTH FLAG
-    // In a future implementation this will be replaced by real auth (e.g. NextAuth).
-    try {
-      localStorage.setItem("animatch_logged_in", "true");
-    } catch (e) {
-      console.warn("Unable to persist login flag", e);
-    }
-    // Redirect to a post-login page (match intro)
-    window.location.href = "/match";
-  }, []);
-
   const router = useRouter();
+  const [showTerms, setShowTerms] = useState(false);
+  const [pendingUserData, setPendingUserData] = useState(null);
 
-  // Handle the redirect callback when user returns from Google
   useEffect(() => {
     const handleRedirectCallback = async () => {
       const urlParams = new URLSearchParams(window.location.search);
@@ -36,7 +25,6 @@ export default function LoginPage() {
             body: JSON.stringify({ code }),
           });
 
-          // Check if authentication was successful
           if (!response.ok) {
             console.error("Authentication failed");
             window.history.replaceState({}, document.title, "/login");
@@ -45,7 +33,6 @@ export default function LoginPage() {
 
           const data = await response.json();
 
-          // Validate that we received a token
           if (!data.token) {
             console.error("No token received");
             window.history.replaceState({}, document.title, "/login");
@@ -54,29 +41,26 @@ export default function LoginPage() {
 
           const sessionToken = data.token;
           const email = data.email;
-          localStorage.setItem("sessionToken", sessionToken);
 
           // Clean up URL
           window.history.replaceState({}, document.title, "/login");
 
-          // POST HTTP request for checking if an email exists in the database
-          const checkEmail = async (email) => {
-            const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/exist`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ email }),
-            });
-            const data = await response.json();
-            return data.exists;
-          }
+          // Check if user exists
+          const checkEmailResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/exist`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email }),
+          });
+          const existData = await checkEmailResponse.json();
+          const exists = existData.exists;
 
-          const exists = await checkEmail(email);
           if (exists) {
-            // Redirect to match AFTER getting the token
+            // Existing user - store token and go to match
+            localStorage.setItem("sessionToken", sessionToken);
             router.push('/match');
           } else {
-            // Redirect to profile-setup AFTER getting the token
-            router.push('/profile-setup');
+            setPendingUserData({ email, sessionToken });
+            setShowTerms(true);
           }
         } catch (error) {
           console.error("Error during authentication:", error);
@@ -87,6 +71,20 @@ export default function LoginPage() {
     handleRedirectCallback();
   }, [router]);
 
+  const handleTermsAccept = () => {
+    sessionStorage.setItem("pendingEmail", pendingUserData.email);
+    sessionStorage.setItem("pendingToken", pendingUserData.sessionToken);
+    
+    // Redirect to profile setup
+    router.push('/profile-setup');
+  };
+
+  const handleTermsCancel = () => {
+    // Clear pending data and stay on login
+    setShowTerms(false);
+    setPendingUserData(null);
+  };
+
   const login = useGoogleLogin({
     flow: "auth-code",
     ux_mode: "redirect",
@@ -94,7 +92,7 @@ export default function LoginPage() {
   });
 
   return (
-      <div className="flex h-screen">
+    <div className="flex h-screen">
       {/* Left Side Background */}
       <div
         className="hidden lg:block w-1/2 bg-cover bg-center"
@@ -105,25 +103,24 @@ export default function LoginPage() {
       <div className="flex w-full lg:w-1/2 justify-center items-center bg-white">
         <div className="w-full max-w-md px-8">
           {/* Logo */}
-            <div className="flex items-center mb-6">
-              <img src="dlsu logo.png" alt="AniMatch Logo" className="w-10 h-10 mr-2" />
-              <h1 className="text-2xl font-bold">
-                <span className="text-green-800">Ani</span>
-                <span className="text-red-600">Match</span>
-              </h1>
-            </div>
+          <div className="flex items-center mb-6">
+            <img src="dlsu logo.png" alt="AniMatch Logo" className="w-10 h-10 mr-2" />
+            <h1 className="text-2xl font-bold">
+              <span className="text-green-800">Ani</span>
+              <span className="text-red-600">Match</span>
+            </h1>
+          </div>
 
-            {/* Heading */}
-            <h2 className="text-3xl font-bold text-green-800 mb-2">Hello!</h2>
-            <p className="text-sm text-gray-600 mb-6">
-              Log in and start matching using AniMatch.
-            </p>
+          {/* Heading */}
+          <h2 className="text-3xl font-bold text-green-800 mb-2">Hello!</h2>
+          <p className="text-sm text-gray-600 mb-6">
+            Log in and start matching using AniMatch.
+          </p>
 
           {/* Google Login Button */}
           <button onClick={() => login()}
             className="w-full flex items-center justify-center gap-2 bg-green-100 hover:bg-green-200 text-green-900 font-medium p-3 rounded-md shadow-sm transition-colors"
           >
-            {/* Envelope Icon */}
             <svg
               xmlns="http://www.w3.org/2000/svg"
               className="w-5 h-5"
@@ -143,12 +140,21 @@ export default function LoginPage() {
             Login with your DLSU Google Account
           </button>
 
-            {/* T&C removed from login page to restrict visibility until after login */}
-            <p className="text-[11px] text-gray-400 mt-4 text-center">
-              By continuing you confirm you're a DLSU student. Terms & Conditions will be available after login.
-            </p>
+          <p className="text-[11px] text-gray-400 mt-4 text-center">
+            By continuing you confirm you're a DLSU student. Terms & Conditions will be available after login.
+          </p>
         </div>
       </div>
+
+      {/* Terms Modal for new users */}
+      {showTerms && (
+        <TermsModal
+          defaultOpen={true}
+          showTrigger={false}
+          onAccept={handleTermsAccept}
+          onCancel={handleTermsCancel}
+        />
+      )}
     </div>
   );
 }

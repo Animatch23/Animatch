@@ -1,4 +1,4 @@
-import User from "../models/userModel.js";
+import User from "../models/User.js";
 
 // Update user's terms acceptance status
 export const acceptTerms = async (req, res) => {
@@ -9,18 +9,19 @@ export const acceptTerms = async (req, res) => {
       return res.status(400).json({ message: "User ID is required" });
     }
     
-    const updatedUser = await User.findByIdAndUpdate(
-      userId,
+    // Update EXISTING user with terms accepted (don't create new user)
+    const updatedUser = await User.findOneAndUpdate(
+      { email: userId },
       { 
         termsAccepted: true,
         termsAcceptedDate: new Date(),
         termsAcceptedVersion: version || "1.0"
       },
-      { new: true }
+      { new: true } // Remove upsert - user must already exist
     );
     
     if (!updatedUser) {
-      return res.status(404).json({ message: "User not found" });
+      return res.status(404).json({ message: "User not found. Profile must be created first." });
     }
     
     return res.status(200).json({
@@ -44,7 +45,7 @@ export const getTermsStatus = async (req, res) => {
   try {
     const { userId } = req.params;
     
-    const user = await User.findById(userId);
+    const user = await User.findOne({ email: userId });
     
     if (!user) {
       return res.status(404).json({ message: "User not found" });

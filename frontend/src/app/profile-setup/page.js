@@ -1,7 +1,6 @@
 "use client";
 
-import { useState } from "react";
-import { jwtDecode } from "jwt-decode";
+import { useState, useEffect } from "react";
 import { useRouter } from 'next/navigation';
 
 export default function ProfileSetup() {
@@ -11,6 +10,23 @@ export default function ProfileSetup() {
   const [photoFile, setPhotoFile] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState({});
+  const [email, setEmail] = useState(null);
+  const [token, setToken] = useState(null);
+
+  useEffect(() => {
+    // Get pending email and token from sessionStorage
+    const pendingEmail = sessionStorage.getItem("pendingEmail");
+    const pendingToken = sessionStorage.getItem("pendingToken");
+    
+    if (!pendingEmail || !pendingToken) {
+      // If no pending data, redirect to login
+      router.push("/login");
+      return;
+    }
+    
+    setEmail(pendingEmail);
+    setToken(pendingToken);
+  }, [router]);
 
   const handlePhotoChange = (e) => {
     const file = e.target.files[0];
@@ -48,67 +64,70 @@ export default function ProfileSetup() {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleContinue = async () => {
+  const handleSubmit = async () => {
     if (!validateForm()) return;
 
     setIsSubmitting(true);
     
     try {
-      // Prepare form data for backend
-      const formData = new FormData();
-
-      const token = localStorage.getItem("sessionToken");
-      let email = null;
-
-      if (token) {
-        const decoded = jwtDecode(token);
-        email = decoded.email;
-        console.log("User email:", email);
-        formData.append('email', email);
+      if (!email) {
+        throw new Error("Email not found");
       }
 
+      // Create profile using upload route
+      const formData = new FormData();
+      formData.append('email', email);
       formData.append('username', username);
+      
+      // Add photo file if it exists
       if (photoFile) {
         formData.append('profilePhoto', photoFile);
       }
 
-      // Submits the formData to the backend for account creation.
-      try {
-        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/upload`, {
-          method: 'POST',
-          body: formData,
-        });
+      const profileResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/upload`, {
+        method: 'POST',
+        body: formData,
+      });
 
-        if (response.ok) {
-          const result = await response.json();
-          console.log("Form submitted successfully:", result);
-        } else {
-          console.error("Form submission failed:", response.statusText);
-        } 
-      } catch (error) {
-        console.error("Error:", error);
+      if (!profileResponse.ok) {
+        const errorData = await profileResponse.json();
+        throw new Error(errorData.message || "Failed to save profile");
       }
+
+      // Accept terms and conditions AFTER user is created
+      const termsResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/terms/accept`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: email,
+          version: "1.0"
+        }),
+      });
+
+      if (!termsResponse.ok) {
+        throw new Error("Failed to accept terms");
+      }
+
+      // NOW store the session token in localStorage
+      localStorage.setItem("sessionToken", token);
       
-      // For now, just log the data
-      console.log("Email:", email);
-      console.log("Username:", username);
-      console.log("Photo file:", photoFile);
-      console.log("FormData prepared for backend:", formData);
-      
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // TODO: Navigate to dashboard after successful save
-      console.log("Profile setup completed!");
-      router.push("/match"); // Navigate to match for the timebeing.
-      
+      // Clear sessionStorage
+      sessionStorage.removeItem("pendingEmail");
+      sessionStorage.removeItem("pendingToken");
+
+      console.log("Profile setup completed successfully!");
+      router.push("/match");
+
     } catch (error) {
-      console.error("Error saving profile:", error);
-      setErrors({ submit: "Failed to save profile. Please try again." });
-    } finally {
+      console.error("Error during profile setup:", error);
+      setErrors({ submit: error.message || "Failed to complete setup. Please try again." });
       setIsSubmitting(false);
     }
   };
+
+  if (!email) {
+    return null; // or a loading spinner
+  }
 
   return (
     <div className="flex items-center justify-center min-h-screen bg-gray-100">
@@ -193,10 +212,10 @@ export default function ProfileSetup() {
           </div>
         )}
 
-        {/* Continue button */}
+        {/* Submit button */}
         <div className="flex justify-end">
           <button
-            onClick={handleContinue}
+            onClick={handleSubmit}
             disabled={isSubmitting || !username.trim()}
             className={`px-8 py-3 rounded-full shadow-md font-medium transition-colors ${
               isSubmitting || !username.trim()
@@ -204,7 +223,7 @@ export default function ProfileSetup() {
                 : 'bg-green-800 hover:bg-green-900 text-white'
             }`}
           >
-            {isSubmitting ? 'Setting up...' : 'Continue'}
+            {isSubmitting ? 'Setting up...' : 'Complete Setup'}
           </button>
         </div>
       </div>

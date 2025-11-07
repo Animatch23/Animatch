@@ -1,12 +1,13 @@
 {
-  "devDependencies": {
-    "cross-env": "^10.1.0",
-    "jest": "^30.2.0",
-    "mongodb-memory-server": "^10.2.2",
-    "supertest": "^7.1.4"
-  },
+  "name": "animatch",
+  "version": "1.0.0",
+  "private": true,
   "scripts": {
-    "test": "jest",
-    "test:watch": "jest --watchAll"
+    "dev": "concurrently -n \"BACK,FRONT\" -c \"bgBlue.bold,bgMagenta.bold\" \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev:backend": "cd backend && npm run dev",
+    "dev:frontend": "cd frontend && npm run dev",
+    "install:backend": "cd backend && npm install",
+    "install:frontend": "cd frontend && npm install",
+    "install:all": "npm run install:backend && npm run install:frontend"
   }
 }

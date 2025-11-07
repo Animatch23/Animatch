@@ -7,13 +7,34 @@ import { useEffect, useState } from "react";
  * Props:
  * - defaultOpen?: boolean — if true, open the modal on mount (default: false)
  * - showTrigger?: boolean — if true, render the inline trigger text/button (default: true)
+ * - onAccept?: function — callback when user clicks Accept
+ * - onCancel?: function — callback when user clicks Cancel or closes modal
  */
-export default function TermsModal({ defaultOpen = false, showTrigger = true, onAccept }) {
+export default function TermsModal({ 
+  defaultOpen = false, 
+  showTrigger = true, 
+  onAccept,
+  onCancel 
+}) {
   const [isOpen, setIsOpen] = useState(defaultOpen);
 
   useEffect(() => {
     setIsOpen(defaultOpen);
   }, [defaultOpen]);
+
+  const handleClose = () => {
+    setIsOpen(false);
+    if (onCancel) {
+      onCancel();
+    }
+  };
+
+  const handleAccept = () => {
+    if (onAccept) {
+      onAccept();
+    }
+    setIsOpen(false);
+  };
 
   return (
     <>
@@ -38,14 +59,14 @@ export default function TermsModal({ defaultOpen = false, showTrigger = true, on
           onClick={(e) => {
             // Close modal when clicking on backdrop
             if (e.target === e.currentTarget) {
-              setIsOpen(false);
+              handleClose();
             }
           }}
         >
           <div className="bg-white rounded-lg shadow-lg w-11/12 md:w-2/3 lg:w-1/2 max-w-2xl p-6 relative max-h-[80vh] flex flex-col">
             {/* Close button */}
             <button
-              onClick={() => setIsOpen(false)}
+              onClick={handleClose}
               className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition-colors"
               aria-label="Close modal"
             >
@@ -62,7 +83,6 @@ export default function TermsModal({ defaultOpen = false, showTrigger = true, on
             {/* Scrollable content */}
             <div className="bg-green-50 p-4 rounded-md flex-1 overflow-y-auto mb-6">
               <div className="space-y-4 text-sm text-gray-700">
-                {/* Placeholder content - replace with actual terms */}
                 <div>
                   <h3 className="font-semibold text-green-800 mb-2">1. Acceptance of Terms</h3>
                   <p>
@@ -124,7 +144,7 @@ export default function TermsModal({ defaultOpen = false, showTrigger = true, on
 
                 <div className="pt-2 border-t border-green-200">
                   <p className="text-xs text-gray-500">
-                    Last updated: October 1, 2025
+                    Last updated: November 7, 2024
                   </p>
                 </div>
               </div>
@@ -133,20 +153,14 @@ export default function TermsModal({ defaultOpen = false, showTrigger = true, on
             {/* Buttons */}
             <div className="flex justify-end gap-3">
               <button
-                onClick={() => setIsOpen(false)}
-                className="px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors"
+                onClick={handleClose}
+                className="px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors font-medium"
               >
                 Cancel
               </button>
               <button
-                onClick={() => {
-                  if (onAccept) {
-                    onAccept();
-                  } else {
-                    setIsOpen(false);
-                  }
-                }}
-                className="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-md transition-colors"
+                onClick={handleAccept}
+                className="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-md transition-colors font-medium"
               >
                 Accept
               </button>

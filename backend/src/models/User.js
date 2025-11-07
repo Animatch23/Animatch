@@ -14,7 +14,8 @@ const profilePictureSchema = new mongoose.Schema({
 const userSchema = new mongoose.Schema({
     email: {
         type: String,
-        required: true
+        required: true,
+        unique: true
     },
     username: {
         type: String,
@@ -24,6 +25,20 @@ const userSchema = new mongoose.Schema({
         type: profilePictureSchema,
         default: null    
     },
+    termsAccepted: {
+        type: Boolean,
+        default: false
+    },
+    termsAcceptedDate: {
+        type: Date,
+        default: null
+    },
+    termsAcceptedVersion: {
+        type: String,
+        default: null
+    }
+}, { 
+    timestamps: true 
 });
 
 const User = mongoose.model("User", userSchema);
