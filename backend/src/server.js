@@ -21,6 +21,7 @@ const app = express();
 
 // CORS configuration: allow known origins and any animatch*.vercel.app subdomains.
 // If ALLOWED_ORIGINS env var is set, use it; otherwise use default list
+// comment
 const allowedOriginsEnv = process.env.ALLOWED_ORIGINS || '';
 const allowedOrigins = allowedOriginsEnv
   ? allowedOriginsEnv.split(',').map(s => s.trim()).filter(Boolean)
