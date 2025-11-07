@@ -16,6 +16,10 @@ router.post("/google", async (req, res) => {
             return res.status(400).json({ message: "Authorization code is required" });
         }
 
+        console.log("Received auth code, exchanging with Google...");
+        console.log("GOOGLE_CLIENT_ID:", process.env.GOOGLE_CLIENT_ID?.substring(0, 20) + "...");
+        console.log("GOOGLE_REDIRECT_URI:", process.env.GOOGLE_REDIRECT_URI);
+
         // Create a new client for each request with all parameters
         const client = new OAuth2Client(
             process.env.GOOGLE_CLIENT_ID,
@@ -24,7 +28,9 @@ router.post("/google", async (req, res) => {
         );
 
         // Exchange authorization code for tokens
+        console.log("Calling getToken...");
         const { tokens } = await client.getToken(code);
+        console.log("Got tokens from Google");
         
         const idToken = tokens.id_token;
 
@@ -37,8 +43,11 @@ router.post("/google", async (req, res) => {
         const payload = ticket.getPayload();
         const email = payload.email;
 
+        console.log("Authenticated user:", email);
+
         // Restricts to DLSU accs only
         if (!email.endsWith("@dlsu.edu.ph")) {
+            console.log("Rejected non-DLSU email:", email);
             return res.status(403).json({ message: "Access denied: not a DLSU email" });
         }
 
@@ -49,10 +58,20 @@ router.post("/google", async (req, res) => {
             { expiresIn: "24h" }
         );
 
+        console.log("Session token created successfully");
         res.json({ token: sessionToken, email: email});
     } catch (err) {
         console.error("Google authentication error:", err);
-        res.status(401).json({ message: "Invalid Google token", error: err.message });
+        console.error("Error details:", {
+            message: err.message,
+            stack: err.stack,
+            code: err.code
+        });
+        res.status(401).json({ 
+            message: "Invalid Google token", 
+            error: err.message,
+            details: process.env.NODE_ENV === 'production' ? undefined : err.stack
+        });
     }
 });
 
