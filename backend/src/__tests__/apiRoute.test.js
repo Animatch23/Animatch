@@ -1,8 +1,13 @@
 import { authMiddleware } from '../middleware/authMiddleware.js';
 import jwt from 'jsonwebtoken';
 
-// Mock jwt
-jest.mock('jsonwebtoken');
+// Mock jwt for ES modules
+jest.unstable_mockModule('jsonwebtoken', () => ({
+  default: {
+    verify: jest.fn()
+  },
+  verify: jest.fn()
+}));
 
 describe('Auth Middleware Unit Tests', () => {
   let mockReq;
@@ -42,7 +47,7 @@ describe('Auth Middleware Unit Tests', () => {
 
   test('should return 403 if token is invalid', () => {
     mockReq.headers.authorization = 'Bearer invalid-token';
-    jwt.verify.mockImplementation(() => {
+    jwt.verify = jest.fn().mockImplementation(() => {
       throw new Error('Invalid token');
     });
 
@@ -56,7 +61,7 @@ describe('Auth Middleware Unit Tests', () => {
   test('should call next() if token is valid', () => {
     const mockDecoded = { email: 'test@dlsu.edu.ph', name: 'Test User' };
     mockReq.headers.authorization = 'Bearer valid-token';
-    jwt.verify.mockReturnValue(mockDecoded);
+    jwt.verify = jest.fn().mockReturnValue(mockDecoded);
 
     authMiddleware(mockReq, mockRes, mockNext);
 
