@@ -1,77 +1,69 @@
-import request from 'supertest';
-import mongoose from 'mongoose';
+import { authMiddleware } from '../middleware/authMiddleware.js';
 import jwt from 'jsonwebtoken';
-import Queue from '../models/Queue.js';
-import User from '../models/User.js';
-import app from '../server.js';
 
-let testToken;
-let testUser;
+// Mock jwt
+jest.mock('jsonwebtoken');
 
-beforeAll(async () => {
-  // Wait for the app's database connection to be ready
-  if (mongoose.connection.readyState === 0) {
-    await new Promise(resolve => setTimeout(resolve, 1000));
-  }
-  
-  const secret = process.env.JWT_SECRET;
-  
-  if (!secret) {
-    throw new Error('JWT_SECRET is not defined in test environment');
-  }
-  
-  console.log('JWT_SECRET loaded:', !!secret);
-  
-  // Clean up any existing test user
-  await User.deleteMany({ email: 'test@dlsu.edu.ph' });
-  
-  // Create a test user in the database
-  testUser = await User.create({
-    email: 'test@dlsu.edu.ph',
-    username: 'Test User'
-  });
-  
-  testToken = jwt.sign(
-    { 
-      email: testUser.email,
-      name: testUser.username
-    },
-    secret,
-    { expiresIn: '1h' }
-  );
-  
-  console.log('Token generated successfully');
-});
+describe('Auth Middleware Unit Tests', () => {
+  let mockReq;
+  let mockRes;
+  let mockNext;
 
-afterAll(async () => {
-  // Clean up test user
-  if (testUser) {
-    await User.deleteMany({ email: 'test@dlsu.edu.ph' });
-  }
-  await Queue.deleteMany({});
-});
-
-beforeEach(async () => {
-  await Queue.deleteMany({});
-});
-
-describe('Queue API Routes Tests', () => {
-  test('POST /api/queue/join should require auth token', async () => {
-    const res = await request(app)
-      .post('/api/queue/join')
-      .send({});
-      
-    expect(res.statusCode).toBe(401);
-    expect(res.body.message).toBe('No token provided');
+  beforeEach(() => {
+    // Reset mocks before each test
+    mockReq = {
+      headers: {}
+    };
+    mockRes = {
+      status: jest.fn().mockReturnThis(),
+      json: jest.fn()
+    };
+    mockNext = jest.fn();
+    jest.clearAllMocks();
   });
 
-  test('POST /api/queue/join should reject invalid token', async () => {
-    const res = await request(app)
-      .post('/api/queue/join')
-      .set('Authorization', 'Bearer invalid-token')
-      .send({});
-      
-    expect(res.statusCode).toBe(403);
-    expect(res.body.message).toBe('Invalid token');
+  test('should return 401 if no token is provided', () => {
+    authMiddleware(mockReq, mockRes, mockNext);
+
+    expect(mockRes.status).toHaveBeenCalledWith(401);
+    expect(mockRes.json).toHaveBeenCalledWith({ message: 'No token provided' });
+    expect(mockNext).not.toHaveBeenCalled();
+  });
+
+  test('should return 401 if authorization header is malformed', () => {
+    mockReq.headers.authorization = 'InvalidHeader';
+
+    authMiddleware(mockReq, mockRes, mockNext);
+
+    expect(mockRes.status).toHaveBeenCalledWith(401);
+    expect(mockRes.json).toHaveBeenCalledWith({ message: 'No token provided' });
+    expect(mockNext).not.toHaveBeenCalled();
+  });
+
+  test('should return 403 if token is invalid', () => {
+    mockReq.headers.authorization = 'Bearer invalid-token';
+    jwt.verify.mockImplementation(() => {
+      throw new Error('Invalid token');
+    });
+
+    authMiddleware(mockReq, mockRes, mockNext);
+
+    expect(mockRes.status).toHaveBeenCalledWith(403);
+    expect(mockRes.json).toHaveBeenCalledWith({ message: 'Invalid token' });
+    expect(mockNext).not.toHaveBeenCalled();
+  });
+
+  test('should call next() if token is valid', () => {
+    const mockDecoded = { email: 'test@dlsu.edu.ph', name: 'Test User' };
+    mockReq.headers.authorization = 'Bearer valid-token';
+    jwt.verify.mockReturnValue(mockDecoded);
+
+    authMiddleware(mockReq, mockRes, mockNext);
+
+    expect(jwt.verify).toHaveBeenCalledWith('valid-token', process.env.JWT_SECRET);
+    expect(mockReq.user).toEqual(mockDecoded);
+    expect(mockNext).toHaveBeenCalled();
+    expect(mockRes.status).not.toHaveBeenCalled();
+    expect(mockRes.json).not.toHaveBeenCalled();
   });
 });
