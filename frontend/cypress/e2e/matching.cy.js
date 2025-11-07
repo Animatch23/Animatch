@@ -1,6 +1,6 @@
 describe('Matching Feature', () => {
   beforeEach(() => {
-    cy.visit('/match');
+    cy.completeProfileSetup()
   });
 
   it('should display match intro page', () => {
@@ -17,9 +17,21 @@ describe('Matching Feature', () => {
     cy.url().should('include', '/match/queue');
   });
 
-  it('should navigate to profile setup on Select Interests click', () => {
-    cy.contains('a', 'Select Interests').click();
-    cy.url().should('include', '/profile-setup');
+
+  it('shows Terms & Conditions modal when clicked and can close it', () => {
+    cy.contains('button', 'View Terms & Conditions').click();
+    // Assert modal appears
+    cy.get('h2').contains('Terms and Conditions').should('be.visible');
+    // Optional: backdrop check
+    cy.get('.fixed.inset-0').should('exist');
+    // Close via X button
+    cy.get('button[aria-label="Close modal"]').click();
+
+    // Reopen and close by clicking backdrop
+    cy.contains('button', 'View Terms & Conditions').click();
+    cy.get('h2').contains('Terms and Conditions').should('be.visible');
+    cy.get('.fixed.inset-0').click('topLeft');
+
   });
 
 });

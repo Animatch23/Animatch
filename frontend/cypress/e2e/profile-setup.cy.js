@@ -39,4 +39,10 @@ describe('Profile-Setup', () => {
     cy.uploadFile('input[type="file"]', 'testFileFormat.pdf', 'application/pdf');
     cy.contains('Please select a valid image file').should('be.visible');
   });
+
+  it('should upload photo and enter username', () => {
+    cy.uploadFile('input[type="file"]', 'TEST.png', 'image/png');
+    cy.get('input[placeholder="Username *"]').type(' ');
+    cy.get('button').contains('Complete Setup').should('be.disabled');
+  });
 });

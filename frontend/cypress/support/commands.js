@@ -27,3 +27,21 @@ Cypress.Commands.add("login", () => {
 });
 
 
+// ...existing code...
+Cypress.Commands.add('completeProfileSetup', (username) => {
+  const uniqueEmail = `test_${Date.now()}_${Cypress._.random(1e9)}@dlsu.edu.ph`;
+  const uniqueUsername = username || `user_${Date.now()}_${Cypress._.random(1e4)}`;
+
+  cy.login();
+  cy.mockSession(uniqueEmail);
+
+  cy.visit('/terms');
+  cy.contains('Accept & Continue').click();
+
+  cy.get('input[placeholder="Username *"]').type(uniqueUsername);
+  cy.get('button').contains('Complete Setup').click();
+});
+// ...existing code...
+
+
+
