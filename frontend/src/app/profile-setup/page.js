@@ -94,20 +94,7 @@ export default function ProfileSetup() {
         throw new Error(errorData.message || "Failed to save profile");
       }
 
-      // Accept terms and conditions AFTER user is created
-      const termsResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/terms/accept`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId: email,
-          version: "1.0"
-        }),
-      });
-
-      if (!termsResponse.ok) {
-        throw new Error("Failed to accept terms");
-      }
-
+      // Terms already accepted at /terms route
       // NOW store the session token in localStorage
       localStorage.setItem("sessionToken", token);
       

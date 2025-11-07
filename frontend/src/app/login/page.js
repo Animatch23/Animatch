@@ -1,14 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useGoogleLogin } from '@react-oauth/google';
 import { useRouter } from 'next/navigation';
-import TermsModal from "@/components/TermsModal";
 
 export default function LoginPage() {
   const router = useRouter();
-  const [showTerms, setShowTerms] = useState(false);
-  const [pendingUserData, setPendingUserData] = useState(null);
 
   useEffect(() => {
     const handleRedirectCallback = async () => {
@@ -68,9 +65,11 @@ export default function LoginPage() {
             // Use window.location for more reliable redirect in production
             window.location.href = '/match';
           } else {
-            console.log("New user, showing terms modal");
-            setPendingUserData({ email, sessionToken });
-            setShowTerms(true);
+            // New user - store pending data and redirect to /terms route
+            console.log("New user, redirecting to /terms");
+            sessionStorage.setItem("pendingEmail", email);
+            sessionStorage.setItem("pendingToken", sessionToken);
+            router.push('/terms');
           }
         } catch (error) {
           console.error("Error during authentication:", error);
@@ -80,20 +79,6 @@ export default function LoginPage() {
     };
     handleRedirectCallback();
   }, [router]);
-
-  const handleTermsAccept = () => {
-    sessionStorage.setItem("pendingEmail", pendingUserData.email);
-    sessionStorage.setItem("pendingToken", pendingUserData.sessionToken);
-    
-    // Redirect to profile setup
-    router.push('/profile-setup');
-  };
-
-  const handleTermsCancel = () => {
-    // Clear pending data and stay on login
-    setShowTerms(false);
-    setPendingUserData(null);
-  };
 
   const login = useGoogleLogin({
     flow: "auth-code",
@@ -156,16 +141,6 @@ export default function LoginPage() {
           </p>
         </div>
       </div>
-
-      {/* Terms Modal for new users */}
-      {showTerms && (
-        <TermsModal
-          defaultOpen={true}
-          showTrigger={false}
-          onAccept={handleTermsAccept}
-          onCancel={handleTermsCancel}
-        />
-      )}
     </div>
   );
 }
