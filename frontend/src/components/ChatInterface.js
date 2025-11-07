@@ -227,11 +227,8 @@ export default function ChatInterface({ onDisconnect }) {
   };
 
   const handleLeaveChat = () => {
-    // Prefer in-chat logs flow; still call optional prop for hooks
-    simulateRequeue();
-    if (typeof onDisconnect === "function") {
-      try { onDisconnect(); } catch (_) {}
-    }
+    // Open unmatch confirmation modal instead of directly leaving
+    setConfirmUnmatchOpen(true);
   };
 
   const blockUser = () => {
@@ -241,9 +238,7 @@ export default function ChatInterface({ onDisconnect }) {
   };
 
   const unmatchUserAction = () => {
-    // Open unmatch confirmation modal
-    setShowActionMenu(false);
-    setConfirmUnmatchOpen(true);
+    // Removed - unmatch now triggered via Leave Chat button
   };
 
   const handleConfirmUnmatch = async () => {
@@ -387,15 +382,8 @@ export default function ChatInterface({ onDisconnect }) {
             >
               <button
                 type="button"
-                onClick={unmatchUserAction}
-                className="w-full text-left px-3 py-2 hover:bg-gray-100 transition"
-              >
-                Unmatch user
-              </button>
-              <button
-                type="button"
                 onClick={blockUser}
-                className="w-full text-left px-3 py-2 hover:bg-gray-100 border-t transition"
+                className="w-full text-left px-3 py-2 hover:bg-gray-100 transition"
               >
                 Block user
               </button>
@@ -613,12 +601,12 @@ export default function ChatInterface({ onDisconnect }) {
         </div>
       )}
 
-      {/* Confirm Unmatch Modal */}
+      {/* Confirm Unmatch Modal (triggered by Leave Chat button) */}
       {confirmUnmatchOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           <div className="absolute inset-0 bg-black/40" onClick={() => !isUnmatching && setConfirmUnmatchOpen(false)} />
           <div className="relative bg-white w-[90%] max-w-md rounded-2xl p-6 shadow-xl">
-            <h2 className="text-2xl font-bold text-[#286633] text-center mb-2">Unmatch from chat?</h2>
+            <h2 className="text-2xl font-bold text-[#286633] text-center mb-2">Leave chat?</h2>
             <p className="text-center text-gray-600 mb-2">This will permanently end your current conversation.</p>
             <p className="text-center text-gray-500 text-sm mb-6">Chat history will be deleted and you cannot re-enter this chat.</p>
             <div className="flex gap-4">
@@ -642,10 +630,10 @@ export default function ChatInterface({ onDisconnect }) {
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                     </svg>
-                    Unmatching...
+                    Leaving...
                   </>
                 ) : (
-                  'Unmatch'
+                  'Leave Chat'
                 )}
               </button>
             </div>
