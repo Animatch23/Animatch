@@ -10,6 +10,8 @@ import testRoute from "./routes/testRoute.js";
 import uploadRoutes from "./routes/uploadRoute.js";
 import termRoutes from "./routes/termsRoutes.js";
 import queueRoutes from "./routes/queueRoutes.js";
+import matchRoutes from "./routes/matchRoutes.js";
+
 
 // Load appropriate .env file based on NODE_ENV
 if (process.env.NODE_ENV === 'test') {
@@ -47,6 +49,7 @@ app.use('/api/uploads', express.static('uploads'));
 app.use('/api/test-uploads', express.static('test-uploads'));
 app.use("/api/terms", termRoutes);
 app.use("/api/queue", queueRoutes);
+app.use("/api", matchRoutes);
 
 app.get("/api/ping", (req, res) => res.json({ pong: true }));
 

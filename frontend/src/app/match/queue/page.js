@@ -1,18 +1,143 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 
-// Queue page: full-screen green with cancel top-left and circular loader
 export default function MatchQueuePage() {
   const router = useRouter();
+  const pollingIntervalRef = useRef(null);
+  const hasJoinedQueue = useRef(false);
 
-  // Simulate match found after a delay (UI-only)
   useEffect(() => {
-    const t = setTimeout(() => router.push("/match/chat"), 8000);
-    return () => clearTimeout(t);
+    // Check authentication
+    const token = localStorage.getItem("sessionToken");
+    if (!token) {
+      router.push("/login");
+      return;
+    }
+
+    // Join queue on mount
+    joinQueue();
+
+    // Cleanup on unmount
+    return () => {
+      stopPolling();
+      leaveQueue();
+    };
   }, [router]);
 
+  const joinQueue = async () => {
+    if (hasJoinedQueue.current) return;
+    hasJoinedQueue.current = true;
+
+    try {
+      const token = localStorage.getItem("sessionToken");
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/queue/join`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          localStorage.removeItem("sessionToken");
+          router.push("/login");
+          return;
+        }
+        console.error("Failed to join queue:", data.message);
+        router.push("/match");
+        return;
+      }
+
+      if (data.matched) {
+        // Immediate match found
+        handleMatchFound(data);
+      } else {
+        // Start polling for match
+        startPolling();
+      }
+    } catch (error) {
+      console.error("Queue join error:", error);
+      router.push("/match");
+    }
+  };
+
+  const startPolling = () => {
+    // Poll every 2 seconds
+    pollingIntervalRef.current = setInterval(async () => {
+      try {
+        const token = localStorage.getItem("sessionToken");
+        const response = await fetch(
+          `${process.env.NEXT_PUBLIC_API_URL}/api/queue/status`,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          }
+        );
+
+        if (!response.ok) {
+          if (response.status === 401) {
+            stopPolling();
+            localStorage.removeItem("sessionToken");
+            router.push("/login");
+            return;
+          }
+          return;
+        }
+
+        const data = await response.json();
+
+        if (data.matched) {
+          stopPolling();
+          handleMatchFound(data);
+        }
+      } catch (error) {
+        console.error("Polling error:", error);
+      }
+    }, 2000);
+  };
+
+  const stopPolling = () => {
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current);
+      pollingIntervalRef.current = null;
+    }
+  };
+
+  const handleMatchFound = (data) => {
+    // Redirect to chat with matchId
+    router.push(`/match/chat?matchId=${data.matchId}`);
+  };
+
+  const handleCancel = async () => {
+    stopPolling();
+    await leaveQueue();
+    router.push("/match");
+  };
+
+  const leaveQueue = async () => {
+    try {
+      const token = localStorage.getItem("sessionToken");
+      if (!token) return;
+
+      await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/queue/leave`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+    } catch (error) {
+      console.error("Error leaving queue:", error);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-[#286633] text-white relative overflow-hidden">
@@ -22,7 +147,7 @@ export default function MatchQueuePage() {
           type="button"
           aria-label="Cancel matching"
           className="p-2 rounded-md hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/40"
-          onClick={() => router.push("/match")}
+          onClick={handleCancel}
         >
           <svg viewBox="0 0 24 24" className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
             <path d="M6 6l12 12M18 6L6 18" />

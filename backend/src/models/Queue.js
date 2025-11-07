@@ -1,12 +1,24 @@
-import mongoose from "mongoose";
+import mongoose from 'mongoose';
 
-const QueueSchema = new mongoose.Schema(
-  {
-    userId: { type: mongoose.Schema.Types.ObjectId, required: true, unique: true, index: true },
-    status: { type: String, enum: ["waiting", "matched"], default: "waiting", index: true },
-    chatId: { type: mongoose.Schema.Types.ObjectId, ref: "ChatSession", default: null },
-  },
-  { timestamps: true }
-);
+const queueSchema = new mongoose.Schema({
+    userId: {
+        type: String,
+        required: true,
+        unique: true
+    },
+    username: {
+        type: String,
+        required: true
+    },
+    joinedAt: {
+        type: Date,
+        default: Date.now
+    },
+    status: {
+        type: String,
+        enum: ['waiting', 'matched'],
+        default: 'waiting'
+    }
+});
 
-export default mongoose.models.Queue || mongoose.model("Queue", QueueSchema);
+export default mongoose.model('Queue', queueSchema);
