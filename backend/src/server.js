@@ -20,19 +20,33 @@ if (process.env.NODE_ENV === 'test') {
 
 const app = express();
 
+// CORS configuration - allow both local and production frontends
+const allowedOrigins = [
+  'http://localhost:3000',
+  'https://animatch-git-us-3-animatch-dlsus-projects.vercel.app',
+  'https://animatch-dlsus-projects.vercel.app', // Add your main Vercel domain too
+];
+
 app.use(
   cors({
-    origin: true, 
+    origin: function (origin, callback) {
+      // Allow requests with no origin (like mobile apps or curl requests)
+      if (!origin) return callback(null, true);
+      
+      if (allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error('Not allowed by CORS'));
+      }
+    },
     credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
   })
 );
 
-// Guarantee header even if cors() skipped it
-app.use((req, res, next) => {
-  res.setHeader("Access-Control-Allow-Origin", req.headers.origin || "*");
-  res.setHeader("Access-Control-Allow-Credentials", "true");
-  next();
-});
+// Handle preflight requests
+app.options('*', cors());
 
 app.use(cookieParser());
 app.use(express.json());
