@@ -16,6 +16,7 @@ export default function LoginPage() {
       const code = urlParams.get('code');
       
       if (code) {
+        console.log("Auth code received, exchanging for token...");
         try {
           const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/google`, {
             method: "POST",
@@ -25,13 +26,17 @@ export default function LoginPage() {
             body: JSON.stringify({ code }),
           });
 
+          console.log("Auth response status:", response.status);
+
           if (!response.ok) {
-            console.error("Authentication failed");
+            const errorData = await response.json().catch(() => ({}));
+            console.error("Authentication failed:", errorData);
             window.history.replaceState({}, document.title, "/login");
             return;
           }
 
           const data = await response.json();
+          console.log("Auth data received:", { hasToken: !!data.token, email: data.email });
 
           if (!data.token) {
             console.error("No token received");
@@ -46,6 +51,7 @@ export default function LoginPage() {
           window.history.replaceState({}, document.title, "/login");
 
           // Check if user exists
+          console.log("Checking if user exists...");
           const checkEmailResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/exist`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -53,12 +59,16 @@ export default function LoginPage() {
           });
           const existData = await checkEmailResponse.json();
           const exists = existData.exists;
+          console.log("User exists:", exists);
 
           if (exists) {
             // Existing user - store token and go to match
+            console.log("Existing user, storing token and redirecting to /match");
             localStorage.setItem("sessionToken", sessionToken);
-            router.push('/match');
+            // Use window.location for more reliable redirect in production
+            window.location.href = '/match';
           } else {
+            console.log("New user, showing terms modal");
             setPendingUserData({ email, sessionToken });
             setShowTerms(true);
           }
@@ -88,7 +98,7 @@ export default function LoginPage() {
   const login = useGoogleLogin({
     flow: "auth-code",
     ux_mode: "redirect",
-    redirect_uri: process.env.GOOGLE_REDIRECT_URI,
+    redirect_uri: process.env.NEXT_PUBLIC_GOOGLE_REDIRECT_URI,
   });
 
   return (
