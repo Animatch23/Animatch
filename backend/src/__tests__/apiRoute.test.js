@@ -1,13 +1,6 @@
+import { jest } from '@jest/globals';
 import { authMiddleware } from '../middleware/authMiddleware.js';
 import jwt from 'jsonwebtoken';
-
-// Mock jwt for ES modules
-jest.unstable_mockModule('jsonwebtoken', () => ({
-  default: {
-    verify: jest.fn()
-  },
-  verify: jest.fn()
-}));
 
 describe('Auth Middleware Unit Tests', () => {
   let mockReq;
