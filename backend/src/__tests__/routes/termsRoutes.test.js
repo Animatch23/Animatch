@@ -20,16 +20,16 @@ describe('Terms Routes Integration Tests', () => {
 
   describe('POST /api/terms/accept', () => {
     it('should accept terms and conditions for a user', async () => {
-      // Create a test user
+      // Create a test user with username
       const user = await User.create({
         email: 'test@example.com',
-        // Add other required fields
+        username: 'testuser' // Add username
       });
 
       const response = await request(app)
         .post('/api/terms/accept')
         .send({
-          userId: user._id.toString(),
+          userId: user.email, // Use email, not _id
           version: '1.0'
         });
 
@@ -44,14 +44,51 @@ describe('Terms Routes Integration Tests', () => {
       expect(updatedUser.termsAcceptedVersion).toBe('1.0');
     });
 
-    // More tests...
+    it('should return 400 if userId is missing', async () => {
+      const response = await request(app)
+        .post('/api/terms/accept')
+        .send({
+          version: '1.0'
+        });
+
+      expect(response.status).toBe(400);
+      expect(response.body.message).toBe("User ID is required");
+    });
+
+    it('should return 404 if user not found', async () => {
+      const response = await request(app)
+        .post('/api/terms/accept')
+        .send({
+          userId: 'nonexistent@example.com',
+          version: '1.0'
+        });
+
+      expect(response.status).toBe(404);
+    });
   });
 
   describe('GET /api/terms/:userId', () => {
-    // Tests for GET endpoint
-  });
+    it('should get terms status for a user', async () => {
+      const user = await User.create({
+        email: 'test@example.com',
+        username: 'testuser',
+        termsAccepted: true,
+        termsAcceptedVersion: '1.0'
+      });
 
-  afterAll(async () => {
-    await disconnectTestDB();
+      const response = await request(app)
+        .get(`/api/terms/${user.email}`);
+
+      expect(response.status).toBe(200);
+      expect(response.body.termsAccepted).toBe(true);
+      expect(response.body.termsAcceptedVersion).toBe('1.0');
+    });
+
+    it('should return 404 if user not found', async () => {
+      const response = await request(app)
+        .get('/api/terms/nonexistent@example.com');
+
+      expect(response.status).toBe(404);
+    });
   });
 });

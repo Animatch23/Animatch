@@ -19,15 +19,15 @@ describe('Terms Controller Tests', () => {
 
   describe('acceptTerms', () => {
     it('should update user with terms acceptance details', async () => {
-      // Create a test user
+      // Create a test user with username
       const user = await User.create({
         email: 'test@example.com',
-        // Add other required fields
+        username: 'testuser' // Add username
       });
 
       const req = {
         body: {
-          userId: user._id.toString(),
+          userId: user.email, 
           version: '1.0'
         }
       };
@@ -78,10 +78,9 @@ describe('Terms Controller Tests', () => {
     });
 
     it('should return 404 if user is not found', async () => {
-      const nonExistentId = new mongoose.Types.ObjectId();
       const req = {
         body: {
-          userId: nonExistentId.toString()
+          userId: 'nonexistent@example.com' // Use email instead of ObjectId
         }
       };
 
@@ -97,12 +96,34 @@ describe('Terms Controller Tests', () => {
   });
 
   describe('getTermsStatus', () => {
-    // Tests for getTermsStatus function
-    // Similar to above tests
-  });
+    it('should get terms status for a user', async () => {
+      const user = await User.create({
+        email: 'test@example.com',
+        username: 'testuser',
+        termsAccepted: true,
+        termsAcceptedVersion: '1.0'
+      });
 
-  afterAll(async () => {
-    await disconnectTestDB();
-  });
+      const req = {
+        params: {
+          userId: user.email
+        }
+      };
 
+      const res = {
+        status: jest.fn().mockReturnThis(),
+        json: jest.fn()
+      };
+
+      await getTermsStatus(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          termsAccepted: true,
+          termsAcceptedVersion: '1.0'
+        })
+      );
+    });
+  });
 });

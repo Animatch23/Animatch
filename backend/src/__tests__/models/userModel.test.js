@@ -18,7 +18,7 @@ describe('User Model Tests', () => {
   it('should create a user with default terms acceptance values', async () => {
     const userData = {
       email: 'test@example.com',
-      // Add other required fields based on your schema
+      username: 'testuser' 
     };
 
     const newUser = await User.create(userData);
@@ -31,7 +31,7 @@ describe('User Model Tests', () => {
   it('should update terms acceptance fields', async () => {
     const user = await User.create({
       email: 'test@example.com',
-      // Add other required fields
+      username: 'testuser' 
     });
 
     user.termsAccepted = true;
@@ -44,8 +44,4 @@ describe('User Model Tests', () => {
     expect(updatedUser.termsAcceptedDate).toBeInstanceOf(Date);
     expect(updatedUser.termsAcceptedVersion).toBe("1.0");
   });
-});
-
-afterAll(async () => {
-  await disconnectTestDB();
 });
