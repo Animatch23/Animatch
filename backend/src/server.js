@@ -20,29 +20,37 @@ if (process.env.NODE_ENV === 'test') {
 
 const app = express();
 
+// CORS configuration - allow both local and production frontends
 const allowedOrigins = [
   'http://localhost:3000',
   'https://animatch-git-us-3-animatch-dlsus-projects.vercel.app',
   'https://animatch-dlsus-projects.vercel.app',
 ];
 
+// More permissive CORS configuration for production
 app.use(
   cors({
     origin: function (origin, callback) {
+      // Allow requests with no origin (like mobile apps, Postman, or curl)
       if (!origin) return callback(null, true);
-      if (allowedOrigins.includes(origin)) {
+      
+      // Check if origin is in allowed list
+      if (allowedOrigins.indexOf(origin) !== -1) {
         callback(null, true);
       } else {
+        console.log('Blocked origin:', origin);
         callback(new Error('Not allowed by CORS'));
       }
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
+    exposedHeaders: ['set-cookie'],
   })
 );
 
-// Remove invalid app.options('*', cors()) line
+// Handle preflight requests explicitly
+app.options('*', cors());
 
 app.use(cookieParser());
 app.use(express.json());
@@ -69,6 +77,7 @@ const PORT = process.env.PORT || 5000;
 const start = async () => {
   try {
     await connectDB();
+    console.log(`Allowed origins: ${allowedOrigins.join(', ')}`);
     app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
   } catch (err) {
     console.error("Failed to start server:", err);
