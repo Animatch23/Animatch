@@ -30,5 +30,5 @@ for branch in branches:
     
     print(run(["git", "add", "."]))    
     print(run(["git", "commit", "-m", "Add gitignore for backend node modules"]))
-    print(run(["git", "push", f"origin/{branch}"]))    
+    print(run(["git", "push", f"origin {branch}"]))    
     print("\n")
