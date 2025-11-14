@@ -11,7 +11,8 @@
     "lint": "eslint",
     "cypress:open": "cypress open",
     "cypress:run": "cypress run",
-    "playwright": "python playwright/runner.py",
+    "playwright": "cross-env HEADLESS=true python playwright/runner.py",
+    "playwright:headless": "cross-env HEADLESS=false python playwright/runner.py",
     "test:e2e": "start-server-and-test dev http://localhost:3000 cypress:run"
   },
   "dependencies": {
@@ -30,6 +31,7 @@
     "@eslint/eslintrc": "^3",
     "@tailwindcss/postcss": "^4",
     "@typescript-eslint/parser": "^8.46.3",
+    "cross-env": "^10.1.0",
     "cypress": "^15.6.0",
     "cypress-file-upload": "^5.0.8",
     "eslint": "^9",

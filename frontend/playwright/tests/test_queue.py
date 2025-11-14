@@ -12,10 +12,12 @@ from helpers.login import mock_session, login
 
 faker = Faker()
 
+HEADLESS = os.environ.get("HEADLESS", "true").lower() == "true"
+
 def run():
     try:
         with sync_playwright() as p:
-            browser = p.chromium.launch()
+            browser = p.chromium.launch(headless=HEADLESS)
             page = browser.new_page()
             
             mock_session(page)
@@ -41,7 +43,7 @@ def run():
     
 def test_queue():
     results = []
-    with ThreadPoolExecutor(max_workers=3) as executor:
+    with ThreadPoolExecutor(max_workers=2) as executor:
         futures = [executor.submit(run) for _ in range(2)]
         for future in as_completed(futures):
             result = future.result()
