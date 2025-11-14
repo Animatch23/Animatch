@@ -20,15 +20,4 @@ branches.append(current)
 
 for branch in branches:
     print(run(["git", "switch", branch]))    
-    gitignore_path = os.path.join("backend", ".gitignore")
     
-    if not os.path.exists(gitignore_path):
-        with open(gitignore_path, "w") as f:
-            f.write("/node_modules\n")
-        print(f"backend/.gitignore created for {branch}")
-        
-    
-    print(run(["git", "add", "."]))    
-    print(run(["git", "commit", "-m", "Add gitignore for backend node modules"]))
-    print(run(f"git push origin {branch}"))
-    print("\n")
