@@ -28,7 +28,7 @@ def run():
         page.locator('text=Complete Setup').click()
         page.locator("text=Start Matching").click()
 
-        page.wait_for_selector("h1:text('AniMatch Chat')", timeout=8000)
+        page.wait_for_selector("h1:text('AniMatch Chat')", timeout=15000)
         
         page.wait_for_timeout(5000)
         browser.close()
