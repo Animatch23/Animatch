@@ -7,8 +7,7 @@ tests = [
     os.path.join(tests_dir, "test_queue.py")
 ]
 
-if __name__ == "__main__":
-    for test in tests:
-        pytest_cmd = ["-v", test]
-        exit_code = pytest.main(pytest_cmd)
+for test in tests:
+    pytest_cmd = ["-v", test]
+    exit_code = pytest.main(pytest_cmd)
         
