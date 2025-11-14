@@ -11,7 +11,7 @@
     "lint": "eslint",
     "cypress:open": "cypress open",
     "cypress:run": "cypress run",
-    "playwright": "node playwright/runner.js",
+    "playwright": "python playwright/runner.py",
     "test:e2e": "start-server-and-test dev http://localhost:3000 cypress:run"
   },
   "dependencies": {
