@@ -1,6 +1,7 @@
 {
   "name": "frontend",
   "version": "0.1.0",
+  "type": "module",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -10,6 +11,7 @@
     "lint": "eslint",
     "cypress:open": "cypress open",
     "cypress:run": "cypress run",
+    "playwright": "node playwright/runner.js",
     "test:e2e": "start-server-and-test dev http://localhost:3000 cypress:run"
   },
   "dependencies": {
