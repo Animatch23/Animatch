@@ -20,4 +20,5 @@ branches.append(current)
 
 for branch in branches:
     print(run(["git", "switch", branch]))    
-    
+    print(run("npm install", cwd="backend"))
+    print(run("npm install", cwd="frontend"))
