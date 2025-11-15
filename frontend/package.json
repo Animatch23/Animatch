@@ -12,7 +12,7 @@
     "cypress:open": "cypress open",
     "cypress:run": "cypress run",
     "playwright": "npx playwright test",
-    "playwright:headless": "npx playwright test --headed",
+    "playwright:headed": "npx playwright test --headed",
     "test:e2e": "start-server-and-test dev http://localhost:3000 cypress:run"
   },
   "dependencies": {

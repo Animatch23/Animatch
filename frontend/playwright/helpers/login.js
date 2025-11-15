@@ -1,8 +1,6 @@
-// helpers/login.js
 import jwt from "jsonwebtoken";
 import { faker } from "@faker-js/faker";
 
-// same as Python's SECRET_KEY
 const SECRET_KEY = "some_random_secret_key_for_development";
 
 export function generateFakeJwt(email) {
