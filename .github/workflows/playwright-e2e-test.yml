@@ -78,6 +78,10 @@ jobs:
           GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
           GOOGLE_REDIRECT_URI: ${{ secrets.GOOGLE_REDIRECT_URI }}
 
+      - name: Install Playwright
+        working-directory: ./frontend
+        run: npx playwright install
+
       - name: Run Playwright tests
         working-directory: ./frontend
         run: npm run playwright
