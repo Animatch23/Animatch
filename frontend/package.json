@@ -1,6 +1,7 @@
 {
   "name": "frontend",
   "version": "0.1.0",
+  "type": "module",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -10,6 +11,8 @@
     "lint": "eslint",
     "cypress:open": "cypress open",
     "cypress:run": "cypress run",
+    "playwright": "npx playwright test",
+    "playwright:headed": "npx playwright test --headed",
     "test:e2e": "start-server-and-test dev http://localhost:3000 cypress:run"
   },
   "dependencies": {
@@ -25,9 +28,13 @@
     "tailwindcss": "^4"
   },
   "devDependencies": {
+    "@faker-js/faker": "^10.1.0",
+    "@playwright/test": "^1.56.1",
+    "jsonwebtoken": "^9.0.2",
     "@eslint/eslintrc": "^3",
     "@tailwindcss/postcss": "^4",
     "@typescript-eslint/parser": "^8.46.3",
+    "cross-env": "^10.1.0",
     "cypress": "^15.6.0",
     "cypress-file-upload": "^5.0.8",
     "eslint": "^9",
