@@ -2,7 +2,6 @@ import express from "express";
 import multer from "multer";
 import path from "path";
 import User from "../models/User.js";
-import Profile from "../models/Profile.js";
 import fs from 'fs';
 
 /**
@@ -115,6 +114,7 @@ router.post('/', upload.single('profilePhoto'), async (req, res) => {
         const email = req.body.email;
         const username = req.body.username;
         const acceptTermsFlag = req.body.acceptTerms === 'true' || req.body.acceptTerms === true;
+        const interestsRaw = req.body.interests;
         
         validateEmailInput(email);
         validateUsernameInput(username);
@@ -122,6 +122,20 @@ router.post('/', upload.single('profilePhoto'), async (req, res) => {
         const uploadDir = getUploadDir();
         const profilePicture = createProfilePictureObject(req.file, uploadDir);
         const userData = createUserData(email, username, profilePicture);
+        
+        // Parse interests if provided (handle JSON from multipart/form-data)
+        if (interestsRaw) {
+            try {
+                const parsed = typeof interestsRaw === 'string' ? JSON.parse(interestsRaw) : interestsRaw;
+                userData.interests = {
+                    course: parsed.course || "",
+                    dorm: parsed.dorm || "",
+                    organizations: Array.isArray(parsed.organizations) ? parsed.organizations : []
+                };
+            } catch (e) {
+                console.warn("Failed to parse interests:", e);
+            }
+        }
         
         // If acceptTerms flag is set, include terms acceptance
         if (acceptTermsFlag) {
@@ -132,15 +146,6 @@ router.post('/', upload.single('profilePhoto'), async (req, res) => {
         
         const newUser = new User(userData);
         await newUser.save();
-        
-        // Create profile entry for the user
-        const profile = new Profile({
-            userId: newUser._id.toString(),
-            username: newUser.username,
-            pictureUrl: profilePicture?.url || null,
-            isBlurred: profilePicture?.isBlurred || true
-        });
-        await profile.save();
         
         res.status(201).json({ message: "User created", user: newUser });
     } catch (err) {
@@ -155,21 +160,17 @@ router.post('/', upload.single('profilePhoto'), async (req, res) => {
 });
 
 /**
- * POST /upload/interests
- * Updates user profile with interests (course, dorm, organizations)
- * @route POST /interests
+ * POST /upload/update-profile
+ * Updates user profile with interests
+ * @route POST /update-profile
  * @param {string} email - Required email to find user
- * @param {Object} interests - Interests object with course, dorm, organizations
- * @returns {Object} 200 - Interests updated successfully
- * @returns {Object} 400 - Validation error
- * @returns {Object} 404 - User not found
- * @returns {Object} 500 - Server error
+ * @param {Object} interests - Structured interests object { course, dorm, organizations }
  */
-router.post('/interests', async (req, res) => {
+const updateProfileHandler = async (req, res) => {
     try {
         const { email, interests } = req.body;
         
-        console.log('[POST /upload/interests] Request received:', { email, interests });
+        console.log('[POST /upload/update-profile] Request received:', { email, interests });
         
         if (!email) {
             return res.status(400).json({ message: "Email is required" });
@@ -178,48 +179,51 @@ router.post('/interests', async (req, res) => {
         // Find user by email
         const user = await User.findOne({ email });
         if (!user) {
-            console.log('[POST /upload/interests] User not found:', email);
+            console.log('[POST /upload/update-profile] User not found:', email);
             return res.status(404).json({ message: "User not found" });
         }
-        
-        // Parse interests - frontend sends array of topics, we need to structure them
-        // For now, treat all as organizations until we have proper UI for course/dorm
-        const structuredInterests = {
-            course: interests.course || null,
-            dorm: interests.dorm || null,
-            organizations: Array.isArray(interests) ? interests : (interests.organizations || [])
+
+        // Validate and structure interests
+        const interestsToSave = {
+            course: interests?.course || "",
+            dorm: interests?.dorm || "",
+            organizations: Array.isArray(interests?.organizations) ? interests.organizations : []
         };
         
-        console.log('[POST /upload/interests] Structured interests:', structuredInterests);
-        
-        // Update or create profile with interests
-        const profile = await Profile.findOneAndUpdate(
-            { userId: user._id.toString() },
+        // Update User model (Source of Truth)
+        const updatedUser = await User.findOneAndUpdate(
+            { email },
             { 
                 $set: { 
-                    interests: structuredInterests 
+                    interests: interestsToSave
                 } 
             },
             { 
-                new: true,
-                upsert: true,
-                setDefaultsOnInsert: true
+                new: true
             }
         );
         
-        console.log('[POST /upload/interests] Profile updated successfully:', profile._id);
+        console.log('[POST /upload/update-profile] User updated successfully:', updatedUser._id);
+        console.log('Saved interests:', updatedUser.interests);
         
         res.status(200).json({ 
-            message: "Interests updated successfully", 
-            interests: profile.interests 
+            message: "Profile updated successfully", 
+            user: {
+                interests: updatedUser.interests
+            }
         });
     } catch (err) {
-        console.error('[POST /upload/interests] Error:', err);
+        console.error('[POST /upload/update-profile] Error:', err);
         res.status(500).json({ 
-            message: "Failed to update interests", 
+            message: "Failed to update profile", 
             error: err.message 
         });
     }
-});
+};
+
+router.post('/update-profile', updateProfileHandler);
+
+// Legacy route support (redirects to update-profile logic if needed, or just handles interests)
+router.post('/interests', updateProfileHandler);
 
 export default router;

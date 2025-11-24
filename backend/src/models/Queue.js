@@ -22,8 +22,8 @@ const queueSchema = new mongoose.Schema({
     },
     // Interest-based matchmaking fields - stored for quick access during matching
     interests: {
-        course: { type: String, default: null },
-        dorm: { type: String, default: null },
+        course: { type: String, default: "" },
+        dorm: { type: String, default: "" },
         organizations: { type: [String], default: [] }
     }
 });

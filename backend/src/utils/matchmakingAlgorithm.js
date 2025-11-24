@@ -11,12 +11,12 @@
  * Calculate similarity score between two users based on their interests
  * 
  * Scoring system:
- * - Same course: +3 points
- * - Same dorm: +2 points
- * - Each shared organization: +1 point
+ * - Same Course: +3 points
+ * - Same Dorm: +2 points
+ * - Each shared Organization: +1 point
  * 
- * @param {Object} userInterests - Current user's interests
- * @param {Object} candidateInterests - Candidate user's interests
+ * @param {Object} userInterests - Current user's interests { course, dorm, organizations }
+ * @param {Object} candidateInterests - Candidate user's interests { course, dorm, organizations }
  * @returns {number} Similarity score (0 = no match, higher = more similar)
  */
 export function calculateSimilarityScore(userInterests, candidateInterests) {
@@ -27,28 +27,28 @@ export function calculateSimilarityScore(userInterests, candidateInterests) {
         return score;
     }
 
-    // Course match (highest priority)
-    if (userInterests.course && 
-        candidateInterests.course && 
-        userInterests.course.toLowerCase() === candidateInterests.course.toLowerCase()) {
+    // 1. Check Course Match (High Priority)
+    if (userInterests.course && candidateInterests.course && 
+        userInterests.course.trim().toLowerCase() === candidateInterests.course.trim().toLowerCase()) {
         score += 3;
     }
 
-    // Dorm match (medium priority)
-    if (userInterests.dorm && 
-        candidateInterests.dorm && 
-        userInterests.dorm.toLowerCase() === candidateInterests.dorm.toLowerCase()) {
+    // 2. Check Dorm Match (Medium Priority)
+    if (userInterests.dorm && candidateInterests.dorm && 
+        userInterests.dorm.trim().toLowerCase() === candidateInterests.dorm.trim().toLowerCase()) {
         score += 2;
     }
 
-    // Organization matches (lower priority, but can accumulate)
-    if (Array.isArray(userInterests.organizations) && 
-        Array.isArray(candidateInterests.organizations)) {
-        const userOrgs = userInterests.organizations.map(org => org.toLowerCase());
-        const candidateOrgs = candidateInterests.organizations.map(org => org.toLowerCase());
-        
-        const sharedOrgs = userOrgs.filter(org => candidateOrgs.includes(org));
-        score += sharedOrgs.length;
+    // 3. Check Organizations Match (Cumulative)
+    if (Array.isArray(userInterests.organizations) && Array.isArray(candidateInterests.organizations)) {
+        const userOrgs = new Set(userInterests.organizations.map(o => o.trim().toLowerCase()));
+        const candidateOrgs = new Set(candidateInterests.organizations.map(o => o.trim().toLowerCase()));
+
+        for (const org of userOrgs) {
+            if (candidateOrgs.has(org)) {
+                score += 1;
+            }
+        }
     }
 
     return score;

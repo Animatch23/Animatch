@@ -479,10 +479,8 @@ describe('Matchmaking Algorithm Tests', () => {
         organizations: [' Anime Club ']
       };
       
-      // Note: Current implementation doesn't trim whitespace
-      // This test documents the current behavior
       const score = calculateSimilarityScore(user1, user2);
-      expect(score).toBe(0); // Whitespace causes mismatch
+      expect(score).toBe(6); // Whitespace should be ignored
     });
   });
 });

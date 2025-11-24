@@ -1,7 +1,6 @@
-import mongoose from "mongoose";
+import User from "../models/User.js";
 import Queue from "../models/Queue.js";
 import ChatSession from "../models/ChatSession.js";
-import Profile from "../models/Profile.js";
 import { findBestMatch, calculateSimilarityScore, getMatchingStrategy } from "../utils/matchmakingAlgorithm.js";
 
 // Join the matchmaking queue
@@ -16,9 +15,10 @@ export const joinQueue = async (req, res) => {
     const idStr = userIdObj.toString();
     console.log(`[joinQueue] User ${idStr} attempting to join queue`);
 
-    // Fetch user's profile to get interests
-    const profile = await Profile.findOne({ userId: idStr });
-    const interests = profile?.interests || { course: null, dorm: null, organizations: [] };
+    // Fetch user's interests from User model
+    const user = await User.findById(userIdObj);
+    const interests = user?.interests || {};
+    const username = user?.username || "Anonymous";
     
     console.log(`[joinQueue] User ${idStr} interests:`, interests);
 
@@ -27,6 +27,7 @@ export const joinQueue = async (req, res) => {
       { 
         $setOnInsert: { userId: userIdObj }, 
         $set: { 
+          username: username,
           status: "waiting", 
           chatId: null,
           interests: interests // Store interests in queue for matching
@@ -154,7 +155,7 @@ async function findMatch(userId) {
     return null;
   }
 
-  const userInterests = currentUser.interests || { course: null, dorm: null, organizations: [] };
+  const userInterests = currentUser.interests || {};
   console.log(`[findMatch] User ${userId} interests:`, userInterests);
 
   // Find all potential candidates (excluding current user)

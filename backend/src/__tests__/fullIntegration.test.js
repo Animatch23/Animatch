@@ -10,7 +10,6 @@
 import mongoose from 'mongoose';
 import { MongoMemoryServer } from 'mongodb-memory-server';
 import User from '../models/User.js';
-import Profile from '../models/Profile.js';
 import Queue from '../models/Queue.js';
 import ChatSession from '../models/ChatSession.js';
 import { joinQueue, checkQueueStatus } from '../controllers/queueController.js';
@@ -22,29 +21,17 @@ const testUsers = [
   {
     email: 'alice@test.com',
     username: 'Alice',
-    interests: {
-      course: 'Computer Science',
-      dorm: 'Dorm A',
-      organizations: ['Anime Club', 'Gaming Society']
-    }
+    interests: ['Computer Science', 'Dorm A', 'Anime Club', 'Gaming Society']
   },
   {
     email: 'bob@test.com',
     username: 'Bob',
-    interests: {
-      course: 'Computer Science',
-      dorm: 'Dorm B',
-      organizations: ['Tech Club']
-    }
+    interests: ['Computer Science', 'Dorm B', 'Tech Club']
   },
   {
     email: 'charlie@test.com',
     username: 'Charlie',
-    interests: {
-      course: 'Business',
-      dorm: 'Dorm C',
-      organizations: ['Finance Club']
-    }
+    interests: ['Business', 'Dorm C', 'Finance Club']
   }
 ];
 
@@ -82,7 +69,6 @@ afterAll(async () => {
 
 beforeEach(async () => {
   await User.deleteMany({});
-  await Profile.deleteMany({});
   await Queue.deleteMany({});
   await ChatSession.deleteMany({});
 });
@@ -100,17 +86,10 @@ describe('Full Integration: Profile Setup → Matching', () => {
       // Create user
       const user = new User({
         email: userData.email,
-        username: userData.username
-      });
-      await user.save();
-      
-      // Create profile with interests
-      const profile = new Profile({
-        userId: user._id.toString(),
         username: userData.username,
         interests: userData.interests
       });
-      await profile.save();
+      await user.save();
       
       createdUsers.push(user);
       console.log(`  ✓ Created user: ${userData.username} with interests:`, userData.interests);
@@ -185,36 +164,22 @@ describe('Full Integration: Profile Setup → Matching', () => {
     console.log('\n=== Testing Random Fallback ===\n');
     
     // Create two users with completely different interests
-    const user1 = new User({ email: 'user1@test.com', username: 'User1' });
+    const user1 = new User({ 
+        email: 'user1@test.com', 
+        username: 'User1',
+        interests: ['Computer Science', 'Dorm A', 'Anime Club']
+    });
     await user1.save();
     
-    const profile1 = new Profile({
-      userId: user1._id.toString(),
-      username: 'User1',
-      interests: {
-        course: 'Computer Science',
-        dorm: 'Dorm A',
-        organizations: ['Anime Club']
-      }
+    const user2 = new User({ 
+        email: 'user2@test.com', 
+        username: 'User2',
+        interests: ['Business', 'Dorm B', 'Finance Club']
     });
-    await profile1.save();
-    
-    const user2 = new User({ email: 'user2@test.com', username: 'User2' });
     await user2.save();
     
-    const profile2 = new Profile({
-      userId: user2._id.toString(),
-      username: 'User2',
-      interests: {
-        course: 'Business',
-        dorm: 'Dorm B',
-        organizations: ['Finance Club']
-      }
-    });
-    await profile2.save();
-    
-    console.log('User1 interests:', profile1.interests);
-    console.log('User2 interests:', profile2.interests);
+    console.log('User1 interests:', user1.interests);
+    console.log('User2 interests:', user2.interests);
     console.log('(No common interests)');
     
     // Both join queue
@@ -246,37 +211,25 @@ describe('Full Integration: Profile Setup → Matching', () => {
     console.log('\n=== Testing Interest Persistence ===\n');
     
     // Create user
+    const originalInterests = ['Computer Science', 'Dorm A', 'Anime Club', 'Gaming Society', 'Tech Club'];
+
     const user = new User({
       email: 'test@test.com',
-      username: 'TestUser'
-    });
-    await user.save();
-    
-    // Create profile with interests
-    const originalInterests = {
-      course: 'Computer Science',
-      dorm: 'Dorm A',
-      organizations: ['Anime Club', 'Gaming Society', 'Tech Club']
-    };
-    
-    const profile = new Profile({
-      userId: user._id.toString(),
       username: 'TestUser',
       interests: originalInterests
     });
-    await profile.save();
+    await user.save();
     
-    console.log('Created profile with interests:', originalInterests);
+    console.log('Created user with interests:', originalInterests);
     
-    // Fetch profile from database
-    const fetchedProfile = await Profile.findOne({ userId: user._id.toString() });
+    // Fetch user from database
+    const fetchedUser = await User.findOne({ email: 'test@test.com' });
     
-    console.log('Fetched profile interests:', fetchedProfile.interests);
+    console.log('Fetched user interests:', fetchedUser.interests);
     
     // Verify interests persisted correctly
-    expect(fetchedProfile.interests.course).toBe(originalInterests.course);
-    expect(fetchedProfile.interests.dorm).toBe(originalInterests.dorm);
-    expect(fetchedProfile.interests.organizations).toEqual(originalInterests.organizations);
+    expect(fetchedUser.interests).toEqual(expect.arrayContaining(originalInterests));
+    expect(fetchedUser.interests.length).toBe(originalInterests.length);
     
     console.log('✓ All interests persisted correctly\n');
   });
