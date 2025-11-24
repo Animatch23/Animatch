@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 
 export default function MatchQueuePage() {
@@ -8,126 +8,23 @@ export default function MatchQueuePage() {
   const pollingIntervalRef = useRef(null);
   const hasJoinedQueue = useRef(false);
 
-  useEffect(() => {
-    // Check authentication
-    const token = localStorage.getItem("sessionToken");
-    if (!token) {
-      router.push("/login");
-      return;
-    }
-
-    // Join queue on mount
-    joinQueue();
-
-    // Cleanup on unmount
-    return () => {
-      stopPolling();
-      leaveQueue();
-    };
-  }, [router]);
-
-  const joinQueue = async () => {
-    if (hasJoinedQueue.current) return;
-    hasJoinedQueue.current = true;
-
-    try {
-      const token = localStorage.getItem("sessionToken");
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/queue/join`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        if (response.status === 401) {
-          localStorage.removeItem("sessionToken");
-          router.push("/login");
-          return;
-        }
-        console.error("Failed to join queue:", data.message);
-        router.push("/match");
-        return;
-      }
-
-      if (data.matched) {
-        // Immediate match found
-        handleMatchFound(data);
-      } else {
-        // Start polling for match
-        startPolling();
-      }
-    } catch (error) {
-      console.error("Queue join error:", error);
-      router.push("/match");
-    }
-  };
-
-  const startPolling = () => {
-    // Poll every 2 seconds
-    pollingIntervalRef.current = setInterval(async () => {
-      try {
-        const token = localStorage.getItem("sessionToken");
-        const response = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/api/queue/status`,
-          {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          }
-        );
-
-        if (!response.ok) {
-          if (response.status === 401) {
-            stopPolling();
-            localStorage.removeItem("sessionToken");
-            router.push("/login");
-            return;
-          }
-          return;
-        }
-
-        const data = await response.json();
-
-        if (data.matched) {
-          stopPolling();
-          handleMatchFound(data);
-        }
-      } catch (error) {
-        console.error("Polling error:", error);
-      }
-    }, 2000);
-  };
-
-  const stopPolling = () => {
+  // 1. Define shared functions using useCallback so they are stable
+  // (We need these for both the UI buttons AND the useEffect cleanup)
+  
+  const stopPolling = useCallback(() => {
     if (pollingIntervalRef.current) {
       clearInterval(pollingIntervalRef.current);
       pollingIntervalRef.current = null;
     }
-  };
+  }, []);
 
-  const handleMatchFound = (data) => {
-    // Redirect to chat with matchId
-    router.push(`/match/chat?matchId=${data.matchId}`);
-  };
-
-  const handleCancel = async () => {
-    stopPolling();
-    await leaveQueue();
-    router.push("/match");
-  };
-
-  const leaveQueue = async () => {
+  const leaveQueue = useCallback(async () => {
     try {
       const token = localStorage.getItem("sessionToken");
       if (!token) return;
 
+      // We use fetch with keepalive: true if supported, or just standard fetch
+      // Note: In a cleanup context, sometimes sendBeacon is better, but fetch works in most modern browsers
       await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/queue/leave`, {
         method: "POST",
         headers: {
@@ -137,6 +34,115 @@ export default function MatchQueuePage() {
     } catch (error) {
       console.error("Error leaving queue:", error);
     }
+  }, []);
+
+  useEffect(() => {
+    // Check authentication
+    const token = localStorage.getItem("sessionToken");
+    if (!token) {
+      router.push("/login");
+      return;
+    }
+
+    // 2. Define internal logic functions (join/poll) INSIDE the effect.
+    // This prevents dependency cycles and infinite loops.
+
+    const handleMatchFound = (data) => {
+      stopPolling(); // Use the stable outer function
+      router.push(`/match/chat?matchId=${data.matchId}`);
+    };
+
+    const startPolling = () => {
+      // Poll every 2 seconds
+      pollingIntervalRef.current = setInterval(async () => {
+        try {
+          const currentToken = localStorage.getItem("sessionToken");
+          const response = await fetch(
+            `${process.env.NEXT_PUBLIC_API_URL}/api/queue/status`,
+            {
+              headers: {
+                Authorization: `Bearer ${currentToken}`,
+              },
+            }
+          );
+
+          if (!response.ok) {
+            if (response.status === 401) {
+              stopPolling();
+              localStorage.removeItem("sessionToken");
+              router.push("/login");
+              return;
+            }
+            return;
+          }
+
+          const data = await response.json();
+
+          if (data.matched) {
+            handleMatchFound(data);
+          }
+        } catch (error) {
+          console.error("Polling error:", error);
+        }
+      }, 2000);
+    };
+
+    const joinQueue = async () => {
+      if (hasJoinedQueue.current) return;
+      hasJoinedQueue.current = true;
+
+      try {
+        const currentToken = localStorage.getItem("sessionToken");
+        const response = await fetch(
+          `${process.env.NEXT_PUBLIC_API_URL}/api/queue/join`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${currentToken}`,
+            },
+          }
+        );
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          if (response.status === 401) {
+            localStorage.removeItem("sessionToken");
+            router.push("/login");
+            return;
+          }
+          console.error("Failed to join queue:", data.message);
+          router.push("/match");
+          return;
+        }
+
+        if (data.matched) {
+          handleMatchFound(data);
+        } else {
+          startPolling();
+        }
+      } catch (error) {
+        console.error("Queue join error:", error);
+        router.push("/match");
+      }
+    };
+
+    // 3. Kick off the process
+    joinQueue();
+
+    // 4. Cleanup on unmount
+    return () => {
+      stopPolling();
+      leaveQueue();
+    };
+  }, [router, stopPolling, leaveQueue]); // Dependencies are now stable
+
+  // UI Event Handler
+  const handleCancel = async () => {
+    stopPolling();
+    await leaveQueue();
+    router.push("/match");
   };
 
   return (
@@ -164,7 +170,6 @@ export default function MatchQueuePage() {
             <circle cx="50" cy="50" r="40" fill="none" stroke="rgba(255,255,255,0.35)" strokeWidth="12" />
             {/* Rotating arc with rounded ends */}
             <g className="animate-spin origin-center [transform-box:fill-box]" style={{ animationDuration: "1.5s" }}>
-              {/* Fallback rotation for browsers that ignore CSS transforms on SVG */}
               <animateTransform attributeName="transform" type="rotate" from="0 50 50" to="360 50 50" dur="1.5s" repeatCount="indefinite" />
               <circle
                 cx="50"

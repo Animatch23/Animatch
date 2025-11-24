@@ -264,7 +264,7 @@ export default function ProfileSetup() {
         <div className="flex items-start justify-between mb-6">
           <div>
             <h1 className="text-3xl font-bold text-green-800">Profile Setup</h1>
-            <p className="text-sm text-gray-600">Let's set up your AniMatch profile to get started</p>
+            <p className="text-sm text-gray-600">Let&apos;s set up your AniMatch profile to get started</p>
           </div>
           <div className="text-sm text-gray-500">Step {step} of 2</div>
         </div>
