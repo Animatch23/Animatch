@@ -21,17 +21,29 @@ const testUsers = [
   {
     email: 'alice@test.com',
     username: 'Alice',
-    interests: ['Computer Science', 'Dorm A', 'Anime Club', 'Gaming Society']
+    interests: {
+      course: 'Computer Science',
+      dorm: 'Dorm A',
+      organizations: ['Anime Club', 'Gaming Society']
+    }
   },
   {
     email: 'bob@test.com',
     username: 'Bob',
-    interests: ['Computer Science', 'Dorm B', 'Tech Club']
+    interests: {
+      course: 'Computer Science',
+      dorm: 'Dorm B',
+      organizations: ['Tech Club']
+    }
   },
   {
     email: 'charlie@test.com',
     username: 'Charlie',
-    interests: ['Business', 'Dorm C', 'Finance Club']
+    interests: {
+      course: 'Business',
+      dorm: 'Dorm C',
+      organizations: ['Finance Club']
+    }
   }
 ];
 
@@ -167,14 +179,22 @@ describe('Full Integration: Profile Setup → Matching', () => {
     const user1 = new User({ 
         email: 'user1@test.com', 
         username: 'User1',
-        interests: ['Computer Science', 'Dorm A', 'Anime Club']
+        interests: {
+          course: 'Computer Science',
+          dorm: 'Dorm A',
+          organizations: ['Anime Club']
+        }
     });
     await user1.save();
     
     const user2 = new User({ 
         email: 'user2@test.com', 
         username: 'User2',
-        interests: ['Business', 'Dorm B', 'Finance Club']
+        interests: {
+          course: 'Business',
+          dorm: 'Dorm B',
+          organizations: ['Finance Club']
+        }
     });
     await user2.save();
     
@@ -211,7 +231,11 @@ describe('Full Integration: Profile Setup → Matching', () => {
     console.log('\n=== Testing Interest Persistence ===\n');
     
     // Create user
-    const originalInterests = ['Computer Science', 'Dorm A', 'Anime Club', 'Gaming Society', 'Tech Club'];
+    const originalInterests = {
+      course: 'Computer Science',
+      dorm: 'Dorm A',
+      organizations: ['Anime Club', 'Gaming Society', 'Tech Club']
+    };
 
     const user = new User({
       email: 'test@test.com',
@@ -228,8 +252,9 @@ describe('Full Integration: Profile Setup → Matching', () => {
     console.log('Fetched user interests:', fetchedUser.interests);
     
     // Verify interests persisted correctly
-    expect(fetchedUser.interests).toEqual(expect.arrayContaining(originalInterests));
-    expect(fetchedUser.interests.length).toBe(originalInterests.length);
+    expect(fetchedUser.interests.course).toBe(originalInterests.course);
+    expect(fetchedUser.interests.dorm).toBe(originalInterests.dorm);
+    expect(fetchedUser.interests.organizations).toEqual(expect.arrayContaining(originalInterests.organizations));
     
     console.log('✓ All interests persisted correctly\n');
   });
