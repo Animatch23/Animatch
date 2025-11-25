@@ -15,6 +15,7 @@ export default function MatchQueuePage() {
   const authTokenRef = useRef("");
   const pollTimerRef = useRef(null);
   const isUnmountedRef = useRef(false);
+  const isJoiningRef = useRef(false);
 
   useEffect(() => {
     const token = localStorage.getItem("sessionToken");
@@ -86,7 +87,13 @@ export default function MatchQueuePage() {
     };
 
     const joinQueue = async () => {
+      // Prevent multiple simultaneous join requests
+      if (isJoiningRef.current) {
+        return;
+      }
+
       try {
+        isJoiningRef.current = true;
         setStatus("joining");
         setError("");
 
@@ -127,6 +134,8 @@ export default function MatchQueuePage() {
         }
         setError(err instanceof Error ? err.message : "Failed to join queue");
         setStatus("error");
+      } finally {
+        isJoiningRef.current = false;
       }
     };
 

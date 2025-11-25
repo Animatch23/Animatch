@@ -12,6 +12,7 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
 
+  // Redirect if already logged in
   useEffect(() => {
     const token = localStorage.getItem("sessionToken");
     if (token) {
@@ -30,6 +31,7 @@ export default function LoginPage() {
       setError("");
 
       try {
+        // 1. Exchange Google Code for Token
         const response = await fetch(`${API_BASE}/api/auth/google`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -48,44 +50,15 @@ export default function LoginPage() {
           throw new Error("Invalid authentication response");
         }
 
+        // 2. Save Session
         localStorage.setItem("sessionToken", token);
         localStorage.setItem("userEmail", email);
 
+        // Clean the URL (remove ?code=...)
         window.history.replaceState({}, document.title, "/login");
 
-          // Check if user exists
-          console.log("Checking if user exists...");
-          const checkEmailResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/exist`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ email }),
-          });
-          const existData = await checkEmailResponse.json();
-          const exists = existData.exists;
-          console.log("User exists:", exists);
-
-          if (exists) {
-            // Existing user - store token and go to match
-            console.log("Existing user, storing token and redirecting to /match");
-            localStorage.setItem("sessionToken", sessionToken);
-            localStorage.setItem("userEmail", email);
-            // Use window.location for more reliable redirect in production
-            window.location.href = '/match';
-          } else {
-            // New user - store pending data (including temp token) and redirect to /terms
-            console.log("New user, redirecting to /terms");
-            sessionStorage.setItem("pendingEmail", email);
-            sessionStorage.setItem("pendingToken", sessionToken);
-            router.push('/terms');
-          }
-        } catch (error) {
-          console.error("Error during authentication:", error);
-          window.history.replaceState({}, document.title, "/login");
-        }
-      }
-    };
-    handleRedirectCallback();
-  }, [router]);
+        // 3. Check if User Exists in DB
+        console.log("Checking if user exists...");
         const existResponse = await fetch(`${API_BASE}/api/exist`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -93,11 +66,25 @@ export default function LoginPage() {
         });
 
         const existData = await existResponse.json();
-        const destination = existData.exists ? "/match" : "/profile-setup";
-        router.replace(destination);
+        const exists = existData.exists;
+        console.log("User exists:", exists);
+
+        // 4. Handle Redirection
+        if (exists) {
+          // Existing user -> Go to match
+          // Using window.location for a hard refresh/reliable redirect often helps with auth state
+          window.location.href = "/match"; 
+        } else {
+          // New user -> Go to profile setup
+          // (Or /terms if that was your intended flow, but /profile-setup is standard)
+          router.push("/profile-setup");
+        }
+
       } catch (err) {
         console.error("Login error:", err);
         setError(err instanceof Error ? err.message : "Login failed. Please try again.");
+        // Clean URL on error too so user can try again cleanly
+        window.history.replaceState({}, document.title, "/login");
       } finally {
         setIsLoading(false);
       }
@@ -105,6 +92,7 @@ export default function LoginPage() {
     [router]
   );
 
+  // Listen for Google Callback Code in URL
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const code = params.get("code");
@@ -115,6 +103,8 @@ export default function LoginPage() {
 
   const startGoogleLogin = useGoogleLogin({
     flow: "auth-code",
+    ux_mode: "redirect",
+    redirect_uri: typeof window !== 'undefined' ? window.location.origin + '/login' : undefined,
     onSuccess: async ({ code }) => {
       if (code) {
         await exchangeAuthCode(code);
