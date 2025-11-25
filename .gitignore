@@ -9,6 +9,30 @@ node_modules/
 
 # testing
 /coverage
+.jest-cache/
+**/mongodb-memory-server-*
+.nyc_output/
+**/.env.test
+**/.env.test.local
+
+# Test generated files
+**/globalConfig.json
+
+# IDE specific files
+.vscode/
+.idea/
+*.sublime-*
+
+# OS specific
+Thumbs.db
+
+# Jest reports beyond basic coverage
+/reports/
+/test-results/
+/junit.xml
+
+# MongoDB memory server temp files
+**/mongo-*
 
 # next.js
 /.next/
