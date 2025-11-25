@@ -106,4 +106,47 @@ describe('POST /api/chat/:sessionId/save', () => {
         expect(res.headers['set-cookie']).toBeDefined();
         expect(res.headers['set-cookie'][0]).toContain('uid=');
     });
+
+        // --- Test 5: Idempotency - Same User Saves Twice ---
+    it('should not duplicate the save vote if the same user clicks save twice', async () => {
+        const sessionId = chatSession._id.toHexString();
+
+        // User 1 saves first time
+        await request(app)
+            .post(`/api/chat/${sessionId}/save`)
+            .set('Cookie', cookie1);
+
+        // User 1 saves second time
+        const res = await request(app)
+            .post(`/api/chat/${sessionId}/save`)
+            .set('Cookie', cookie1);
+
+        expect(res.status).toBe(200);
+        // Should still only be 1 save, not 2
+        expect(res.body.chat.savedBy).toHaveLength(1);
+        expect(res.body.chat.savedBy[0]).toBe(user1Id);
+        expect(res.body.chat.isSaved).toBe(false);
+    });
+
+        // --- Test 6: Failure Case - Chat is Inactive ---
+    it('should return 400/403 if the chat is no longer active', async () => {
+        const sessionId = chatSession._id.toHexString();
+
+        // Manually set chat to inactive in DB
+        chatSession.active = false;
+        await chatSession.save();
+
+        //just to be sure hehe
+        const inactiveChat = await ChatSession.findById(sessionId);
+        expect(inactiveChat.active).toBe(false);
+
+        
+        const res = await request(app)
+            .post(`/api/chat/${sessionId}/save`)
+            .set('Cookie', cookie1);
+
+        // Assuming your controller checks for 'active' status
+        expect(res.status).toBe(400); // or 403, depending on your controller logic
+        expect(res.body.msg).toMatch(/inactive|ended/i);
+    });
 });
