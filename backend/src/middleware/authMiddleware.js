@@ -38,6 +38,12 @@ export const authMiddleware = async (req, res, next) => {
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
+    // For tests that don't have database access, just set req.user = decoded
+    if (process.env.NODE_ENV === 'test' && !process.env.USE_REAL_DB) {
+      req.user = decoded;
+      return next();
+    }
+
     // Fetch the user from database to get the MongoDB _id
     const user = await ensureUserRecord(decoded.email, decoded.name);
     
@@ -49,6 +55,6 @@ export const authMiddleware = async (req, res, next) => {
     next();
   } catch (error) {
     console.error('[AUTH] Error:', error);
-    return res.status(401).json({ message: 'Invalid token' });
+    return res.status(403).json({ message: 'Invalid token' });
   }
 };

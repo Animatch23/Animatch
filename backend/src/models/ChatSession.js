@@ -8,8 +8,7 @@ const ChatSessionSchema = new mongoose.Schema({
   }],
   active: {
     type: Boolean,
-    default: true,
-    index: true
+    default: true
   },
   startedAt: {
     type: Date,
@@ -23,8 +22,7 @@ const ChatSessionSchema = new mongoose.Schema({
     default: function() {
       // Set expiry to 24 hours from creation
       return new Date(Date.now() + 24 * 60 * 60 * 1000);
-    },
-    index: true
+    }
   },
   savedByUsers: [{
     type: mongoose.Schema.Types.ObjectId,

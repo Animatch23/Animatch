@@ -218,6 +218,11 @@ export const leaveQueue = async (req, res) => {
 };
 
 /**
+ * Check queue status (alias for getQueueStatus for backward compatibility)
+ */
+export const checkQueueStatus = getQueueStatus;
+
+/**
  * Get active match info
  */
 export const getActiveMatch = async (req, res) => {
