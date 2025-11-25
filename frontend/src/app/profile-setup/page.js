@@ -1,227 +1,136 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-
-const API_BASE = process.env.NEXT_PUBLIC_API_URL;
 
 export default function ProfileSetup() {
   const router = useRouter();
-  const [username, setUsername] = useState("");
-  const [photo, setPhoto] = useState(null);
-  const [photoFile, setPhotoFile] = useState(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [errors, setErrors] = useState({});
+
+  const [displayName, setDisplayName] = useState("");
+  const [bio, setBio] = useState("");
+  const [image, setImage] = useState(null);
   const [email, setEmail] = useState(null);
-  const [token, setToken] = useState(null);
+  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
-    // Get pending email and token from sessionStorage
-    const pendingEmail = sessionStorage.getItem("pendingEmail");
-    const pendingToken = sessionStorage.getItem("pendingToken");
-    const termsAccepted = sessionStorage.getItem("termsAccepted");
-    
-    if (!pendingEmail || !pendingToken || !termsAccepted) {
-      // If no pending data or terms not accepted, redirect to login
-      router.push("/login");
-      return;
-    }
-    
-    setEmail(pendingEmail);
-    setToken(pendingToken);
-  }, [router]);
+    const storedEmail =
+      typeof window !== "undefined"
+        ? localStorage.getItem("userEmail")
+        : null;
 
-  const handlePhotoChange = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      // Validate file size (max 5MB)
-      if (file.size > 5 * 1024 * 1024) {
-        setErrors({ ...errors, photo: "Image must be less than 5MB" });
-        return;
-      }
-      
-      // Validate file type
-      if (!file.type.startsWith('image/')) {
-        setErrors({ ...errors, photo: "Please select a valid image file" });
-        return;
-      }
+    setEmail(storedEmail);
+  }, []);
 
-      setPhoto(URL.createObjectURL(file)); // preview
-      setPhotoFile(file); // actual file for upload
-      setErrors({ ...errors, photo: null }); // clear error
-    }
-  };
-
-  const validateForm = () => {
-    const newErrors = {};
-    
-    if (!username.trim()) {
-      newErrors.username = "Username is required";
-    } else if (username.length < 3) {
-      newErrors.username = "Username must be at least 3 characters";
-    } else if (!/^[a-zA-Z0-9_]+$/.test(username)) {
-      newErrors.username = "Username can only contain letters, numbers, and underscores";
-    }
-
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
+  const handleImageChange = (e) => {
+    setImage(e.target.files[0]);
   };
 
   const handleContinue = async () => {
-    if (!validateForm()) return;
+    if (!displayName || !bio || !image) {
+      alert("Please complete all fields.");
+      return;
+    }
 
-    setIsSubmitting(true);
-    
+    setIsLoading(true);
+
     try {
-      if (!API_BASE) {
-        throw new Error("API URL is not configured");
+      const storedEmail =
+        typeof window !== "undefined"
+          ? localStorage.getItem("userEmail")
+          : null;
+
+      if (!storedEmail) {
+        alert("Missing email. Please log in again.");
+        setIsLoading(false);
+        return;
       }
 
-      const email = typeof window !== "undefined" ? localStorage.getItem("userEmail") : null;
-      if (!email) {
-        throw new Error("Your session expired. Please log in again.");
-      }
-
-      // Create profile using upload route WITH terms acceptance
       const formData = new FormData();
-      formData.append("email", email);
-      formData.append("username", username.trim());
-      formData.append('acceptTerms', 'true'); // Include terms acceptance
-      if (photoFile) {
-        formData.append("profilePhoto", photoFile);
+      formData.append("email", storedEmail);
+      formData.append("displayName", displayName);
+      formData.append("bio", bio);
+      formData.append("image", image);
+
+      const response = await fetch(
+        "https://animatch-api.vercel.app/api/profile/setup",
+        {
+          method: "POST",
+          body: formData,
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error("Profile setup error:", errorData);
+        alert(errorData.error || "Failed to set up profile.");
+        setIsLoading(false);
+        return;
       }
 
-      const response = await fetch(`${API_BASE}/api/upload`, {
-        method: "POST",
-        body: formData,
-      });
+      const data = await response.json();
+      console.log("Profile setup successful:", data);
 
-      if (!profileResponse.ok) {
-        const errorData = await profileResponse.json();
-        throw new Error(errorData.message || "Failed to save profile");
-      }
+      localStorage.setItem("userEmail", storedEmail);
 
-      console.log("Profile created successfully with terms accepted!");
-      
-      // NOW store the session token in localStorage (only after successful profile creation)
-      localStorage.setItem("sessionToken", token);
-      localStorage.setItem("userEmail", email);
-      
-      // Clear sessionStorage
-      sessionStorage.removeItem("pendingEmail");
-      sessionStorage.removeItem("pendingToken");
-      sessionStorage.removeItem("termsAccepted");
-
-      console.log("Profile setup completed successfully! Redirecting to match...");
-      
-      // Use window.location for more reliable redirect
-      window.location.href = '/match';
-
+      router.push("/preferences");
     } catch (error) {
-      console.error("Error saving profile:", error);
-      setErrors({ submit: error instanceof Error ? error.message : "Failed to save profile. Please try again." });
+      console.error("Error during fetch:", error);
+      alert("Something went wrong.");
     } finally {
-      setIsSubmitting(false);
+      setIsLoading(false);
     }
   };
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-gray-100">
-      <div className="bg-white p-10 rounded-lg shadow-lg w-full max-w-xl text-center">
-        {/* Title */}
-        <h1 className="text-3xl font-bold text-green-800 mb-2">Profile Setup</h1>
+    <div className="flex justify-center items-center min-h-screen bg-gray-50">
+      <div className="bg-white p-10 rounded-xl shadow-lg w-full max-w-md">
+        <h1 className="text-2xl font-bold text-gray-800 mb-4">
+          Profile Setup
+        </h1>
         <p className="text-sm text-gray-600 mb-8">
-          Let's set up your AniMatch profile to get started
+          Let&apos;s set up your AniMatch profile to get started
         </p>
 
-        {/* Photo upload */}
-        <div className="mb-6">
-          <label className="cursor-pointer flex flex-col items-center">
-            <div className="w-32 h-32 bg-green-50 border-2 border-dashed border-green-300 rounded-lg flex items-center justify-center mb-3 shadow-sm hover:bg-green-100 transition-colors">
-              {photo ? (
-                <img
-                  src={photo}
-                  alt="Profile Preview"
-                  className="w-32 h-32 rounded-lg object-cover"
-                />
-              ) : (
-                <div className="text-center">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    className="h-12 w-12 text-green-600 mx-auto mb-2"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M12 6v6m0 0v6m0-6h6m-6 0H6"
-                    />
-                  </svg>
-                  <span className="text-sm text-green-700">Upload Photo</span>
-                </div>
-              )}
-            </div>
-            <span className="text-green-800 font-medium text-sm">
-              {photo ? "Change Photo" : "Add Profile Photo"}
-            </span>
-            <span className="text-xs text-gray-500 mt-1">
-              JPG, PNG or GIF (max 5MB)
-            </span>
-            <input 
-              type="file" 
-              accept="image/*" 
-              onChange={handlePhotoChange} 
-              className="hidden" 
-            />
-          </label>
-          {errors.photo && (
-            <p className="text-red-500 text-xs mt-2">{errors.photo}</p>
-          )}
-        </div>
-
-        {/* Username input */}
-        <div className="mb-6">
+        {/* Display Name */}
+        <label className="block mb-4">
+          <span className="text-gray-700">Display Name</span>
           <input
             type="text"
-            placeholder="Username *"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            className={`w-full px-4 py-3 bg-gray-50 border rounded-md outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-colors text-black placeholder-gray-400 ${
-              errors.username ? 'border-red-500' : 'border-gray-300'
-            }`}
+            className="mt-1 block w-full border rounded-md p-2"
+            value={displayName}
+            onChange={(e) => setDisplayName(e.target.value)}
           />
-          {errors.username && (
-            <p className="text-red-500 text-xs mt-2 text-left">{errors.username}</p>
-          )}
-          <p className="text-xs text-gray-500 mt-1 text-left">
-            This will be your display name on AniMatch
-          </p>
-        </div>
+        </label>
 
-        {/* Error message */}
-        {errors.submit && (
-          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md">
-            <p className="text-red-600 text-sm">{errors.submit}</p>
-          </div>
-        )}
+        {/* Bio */}
+        <label className="block mb-4">
+          <span className="text-gray-700">Bio</span>
+          <textarea
+            className="mt-1 block w-full border rounded-md p-2"
+            value={bio}
+            onChange={(e) => setBio(e.target.value)}
+            placeholder="Tell us something about yourself"
+          />
+        </label>
 
-        {/* Continue button */}
-        <div className="flex justify-end">
-          <button
-            onClick={handleContinue}
-            disabled={isSubmitting || !username.trim()}
-            className={`px-8 py-3 rounded-full shadow-md font-medium transition-colors ${
-              isSubmitting || !username.trim()
-                ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                : 'bg-green-800 hover:bg-green-900 text-white'
-            }`}
-          >
-            {isSubmitting ? 'Setting up...' : 'Continue'}
-          </button>
-        </div>
+        {/* Image Upload */}
+        <label className="block mb-6">
+          <span className="text-gray-700">Profile Picture</span>
+          <input
+            type="file"
+            accept="image/*"
+            className="mt-1 block w-full"
+            onChange={handleImageChange}
+          />
+        </label>
+
+        <button
+          onClick={handleContinue}
+          disabled={isLoading}
+          className="w-full bg-blue-600 text-white py-2 rounded-md hover:bg-blue-700"
+        >
+          {isLoading ? "Saving..." : "Continue"}
+        </button>
       </div>
     </div>
   );
