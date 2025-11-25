@@ -1,5 +1,6 @@
 "use client";
-import { GoogleOAuthProvider } from '@react-oauth/google';
+
+import { GoogleOAuthProvider } from "@react-oauth/google";
 
 export default function Providers({ children }) {
   return (

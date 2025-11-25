@@ -4,6 +4,7 @@ import cors from "cors";
 import cookieParser from "cookie-parser";
 import { createServer } from "http";
 import { Server } from "socket.io";
+import jwt from "jsonwebtoken";
 import connectDB from "./config/db.js";
 
 // Routes
@@ -16,6 +17,9 @@ import existRoute from "./routes/existRoute.js";
 import uploadRoutes from "./routes/uploadRoute.js";
 import termRoutes from "./routes/termsRoutes.js";
 import matchRoutes from "./routes/matchRoutes.js";
+import ChatSession from "./models/ChatSession.js";
+import Message from "./models/Message.js";
+import User from "./models/User.js";
 
 // Load environment variables
 if (process.env.NODE_ENV === "test") {
@@ -36,6 +40,18 @@ const allowedOrigins = allowedOriginsEnv
       "https://animatch-dlsus-projects.vercel.app",
       "https://animatch-git-sprint-1-animatch-dlsus-projects.vercel.app",
     ];
+
+// HTTP server
+const httpServer = createServer(app);
+
+// Socket.IO setup with CORS
+const io = new Server(httpServer, {
+  cors: {
+    origin: allowedOrigins,
+    credentials: true,
+    methods: ['GET', 'POST']
+  }
+});
 
 app.use(
   cors({
@@ -128,47 +144,164 @@ app.use((err, req, res, next) => {
   });
 });
 
-// HTTP server with Socket.IO
-const httpServer = createServer(app);
+// Socket.IO Authentication Middleware
+io.use(async (socket, next) => {
+  try {
+    const token = socket.handshake.auth.token;
+    
+    if (!token) {
+      return next(new Error('Authentication required'));
+    }
 
-export const io = new Server(httpServer, {
-  cors: {
-    origin: process.env.FRONTEND_URL || "http://localhost:3000",
-    methods: ["GET", "POST"],
-    credentials: true,
-  },
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const user = await User.findOne({ email: decoded.email });
+    
+    if (!user) {
+      return next(new Error('User not found'));
+    }
+
+    socket.userId = user._id.toString();
+    socket.userEmail = user.email;
+    next();
+  } catch (error) {
+    console.error('Socket authentication error:', error);
+    next(new Error('Invalid token'));
+  }
 });
 
-// Socket.IO connection handler
-io.on("connection", (socket) => {
-  console.log("User connected:", socket.id);
+// Socket.IO Connection Handler
+io.on('connection', async (socket) => {
+  console.log(`[SOCKET] User connected: ${socket.userId}`);
   
-  socket.on("join_room", (userId) => {
-    socket.join(userId);
-    console.log(`User ${userId} joined their room`);
+  // Store userId on socket for easy access
+  socket.socketUserId = socket.userId;
+
+  // Handle explicit chat room joining
+  socket.on('chat:join', async ({ chatSessionId }) => {
+    try {
+      console.log(`[SOCKET] User ${socket.userId} attempting to join room ${chatSessionId}`);
+      
+      // Verify user is participant in this chat
+      // Note: Using 'status' instead of 'active' based on merged model
+      const chatSession = await ChatSession.findOne({
+        _id: chatSessionId,
+        participants: socket.userId,
+        status: 'active' 
+      });
+
+      if (!chatSession) {
+        socket.emit('chat:error', { message: 'Chat session not found or inactive' });
+        return;
+      }
+
+      // Join the room
+      socket.join(chatSessionId);
+      socket.chatSessionId = chatSessionId;
+      console.log(`[SOCKET] User ${socket.userId} successfully joined room ${chatSessionId}`);
+      
+      socket.emit('chat:joined', { 
+        chatSessionId,
+        message: 'Successfully joined chat room'
+      });
+    } catch (error) {
+      console.error('[SOCKET] Error joining chat:', error);
+      socket.emit('chat:error', { message: 'Failed to join chat room' });
+    }
   });
-  
-  socket.on("disconnect", () => {
-    console.log("User disconnected:", socket.id);
+
+  // Handle sending messages
+  socket.on('chat:send-message', async (data) => {
+    try {
+      const { content, chatSessionId } = data;
+
+      if (!content || !chatSessionId) {
+        socket.emit('chat:error', { message: 'Invalid message data' });
+        return;
+      }
+
+      // Verify user is participant
+      const chatSession = await ChatSession.findOne({
+        _id: chatSessionId,
+        participants: socket.userId,
+        status: 'active'
+      });
+
+      if (!chatSession) {
+        socket.emit('chat:error', { message: 'Chat session not found or inactive' });
+        return;
+      }
+
+      // Create and save message
+      const message = new Message({
+        chatSessionId,
+        senderId: socket.userId,
+        content: content.trim().substring(0, 1000) // Enforce max length
+      });
+
+      await message.save();
+
+      // Emit to room (both participants) - use 'chat:message' to match frontend
+      const messagePayload = {
+        _id: message._id,
+        content: message.content,
+        sentAt: message.sentAt,
+        senderId: socket.userId.toString()
+      };
+      
+      io.to(chatSessionId).emit('chat:message', messagePayload);
+
+      console.log(`[SOCKET] Message sent in room ${chatSessionId} by ${socket.userId}`);
+    } catch (error) {
+      console.error('[SOCKET] Error sending message:', error);
+      socket.emit('chat:error', { message: 'Failed to send message' });
+    }
+  });
+
+  // Handle typing indicator
+  socket.on('chat:typing', (data) => {
+    if (socket.chatSessionId) {
+      // Emit to partner only (not to self)
+      socket.to(socket.chatSessionId).emit('chat:typing', {
+        isTyping: data.isTyping
+      });
+      console.log(`[SOCKET] Typing indicator: ${data.isTyping} in room ${socket.chatSessionId}`);
+    }
+  });
+
+  // Handle disconnection
+  socket.on('disconnect', () => {
+    console.log(`[SOCKET] User disconnected: ${socket.userId}`);
+    if (socket.chatSessionId) {
+      socket.to(socket.chatSessionId).emit('chat:partner-disconnected');
+    }
   });
 });
 
 // Server startup function
 export const startServer = async () => {
-  await connectDB();
-  const PORT = process.env.PORT || 5000;
-  return httpServer.listen(PORT, () => 
-    console.log(`Server running on port ${PORT}`)
-  );
+  try {
+    await connectDB();
+    const PORT = process.env.PORT || 5000;
+    
+    const server = httpServer.listen(PORT, '0.0.0.0', () => {
+      console.log('\n');
+      console.log('╔═══════════════════════════════════════════════════════════════════╗');
+      console.log('║              🚀 ANIMATCH BACKEND STARTING 🚀                      ║');
+      console.log('╚═══════════════════════════════════════════════════════════════════╝');
+      console.log(`║  ✅ SERVER IS LIVE ON PORT ${PORT}                               ║`);
+      console.log('╚═══════════════════════════════════════════════════════════════════╝');
+    });
+    return server;
+  } catch (err) {
+    console.error('Failed to start server:', err);
+    process.exit(1);
+  }
 };
 
 // Start server if not in test mode
 if (process.env.NODE_ENV !== "test") {
-  startServer().catch((err) => {
-    console.error("Failed to start server:", err);
-    process.exit(1);
-  });
+  startServer();
 }
 
 export default app;
-export { httpServer };
+export { httpServer, io };

@@ -1,141 +1,201 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+
+const API_BASE = process.env.NEXT_PUBLIC_API_URL;
+const POLL_INTERVAL_MS = 3000;
 
 export default function MatchQueuePage() {
   const router = useRouter();
-  const pollingIntervalRef = useRef(null);
-  const hasJoinedQueue = useRef(false);
+  const [status, setStatus] = useState("joining");
+  const [error, setError] = useState("");
+  const [position, setPosition] = useState(null);
+  const [isCancelling, setIsCancelling] = useState(false);
+  const authTokenRef = useRef("");
+  const pollTimerRef = useRef(null);
+  const isUnmountedRef = useRef(false);
+  const isJoiningRef = useRef(false);
 
   useEffect(() => {
-    // Check authentication
     const token = localStorage.getItem("sessionToken");
     if (!token) {
-      router.push("/login");
+      router.replace("/login");
       return;
     }
 
-    // Join queue on mount
-    joinQueue();
+    isUnmountedRef.current = false;
+    authTokenRef.current = token;
+    sessionStorage.removeItem("activeChatSessionId");
 
-    // Cleanup on unmount
-    return () => {
-      stopPolling();
-      leaveQueue();
+    if (!API_BASE) {
+      setError("API URL is not configured.");
+      setStatus("error");
+      return;
+    }
+
+    const handleMatch = (chatSessionId) => {
+      if (!chatSessionId) {
+        return;
+      }
+      sessionStorage.setItem("activeChatSessionId", chatSessionId);
+      router.replace(`/match/chat?session=${chatSessionId}`);
     };
-  }, [router]);
 
-  const joinQueue = async () => {
-    if (hasJoinedQueue.current) return;
-    hasJoinedQueue.current = true;
-
-    try {
-      const token = localStorage.getItem("sessionToken");
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/queue/join`,
-        {
-          method: "POST",
+    const pollStatus = async () => {
+      try {
+        const response = await fetch(`${API_BASE}/api/chat/queue/status`, {
+          method: "GET",
           headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
+            Authorization: `Bearer ${authTokenRef.current}`,
           },
+        });
+
+        const data = await response.json().catch(() => ({}));
+
+        if (!response.ok) {
+          throw new Error(data.message || "Failed to check queue status");
         }
-      );
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        if (response.status === 401) {
-          localStorage.removeItem("sessionToken");
-          router.push("/login");
+        if (isUnmountedRef.current) {
           return;
         }
-        console.error("Failed to join queue:", data.message);
-        router.push("/match");
+
+        if (data.matched && data.chatSessionId) {
+          setStatus("matched");
+          if (pollTimerRef.current) {
+            clearInterval(pollTimerRef.current);
+            pollTimerRef.current = null;
+          }
+          handleMatch(data.chatSessionId);
+          return;
+        }
+
+        setStatus("waiting");
+        setPosition(typeof data.position === "number" ? data.position : null);
+      } catch (err) {
+        if (isUnmountedRef.current) {
+          return;
+        }
+        setError(err instanceof Error ? err.message : "Failed to check queue status");
+        setStatus("error");
+        if (pollTimerRef.current) {
+          clearInterval(pollTimerRef.current);
+          pollTimerRef.current = null;
+        }
+      }
+    };
+
+    const joinQueue = async () => {
+      // Prevent multiple simultaneous join requests
+      if (isJoiningRef.current) {
         return;
       }
 
-      if (data.matched) {
-        // Immediate match found
-        handleMatchFound(data);
-      } else {
-        // Start polling for match
-        startPolling();
-      }
-    } catch (error) {
-      console.error("Queue join error:", error);
-      router.push("/match");
-    }
-  };
-
-  const startPolling = () => {
-    // Poll every 2 seconds
-    pollingIntervalRef.current = setInterval(async () => {
       try {
-        const token = localStorage.getItem("sessionToken");
-        const response = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/api/queue/status`,
-          {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          }
-        );
+        isJoiningRef.current = true;
+        setStatus("joining");
+        setError("");
+
+        const response = await fetch(`${API_BASE}/api/chat/queue/join`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${authTokenRef.current}`,
+          },
+        });
+
+        const data = await response.json().catch(() => ({}));
 
         if (!response.ok) {
-          if (response.status === 401) {
-            stopPolling();
-            localStorage.removeItem("sessionToken");
-            router.push("/login");
-            return;
-          }
+          throw new Error(data.message || "Failed to join queue");
+        }
+
+        if (isUnmountedRef.current) {
           return;
         }
 
-        const data = await response.json();
-
-        if (data.matched) {
-          stopPolling();
-          handleMatchFound(data);
+        if (data.matched && data.chatSessionId) {
+          setStatus("matched");
+          if (pollTimerRef.current) {
+            clearInterval(pollTimerRef.current);
+            pollTimerRef.current = null;
+          }
+          handleMatch(data.chatSessionId);
+          return;
         }
-      } catch (error) {
-        console.error("Polling error:", error);
-      }
-    }, 2000);
-  };
 
-  const stopPolling = () => {
-    if (pollingIntervalRef.current) {
-      clearInterval(pollingIntervalRef.current);
-      pollingIntervalRef.current = null;
+        setStatus("waiting");
+        setPosition(typeof data.position === "number" ? data.position : null);
+        pollTimerRef.current = window.setInterval(pollStatus, POLL_INTERVAL_MS);
+      } catch (err) {
+        if (isUnmountedRef.current) {
+          return;
+        }
+        setError(err instanceof Error ? err.message : "Failed to join queue");
+        setStatus("error");
+      } finally {
+        isJoiningRef.current = false;
+      }
+    };
+
+    joinQueue();
+
+    return () => {
+      isUnmountedRef.current = true;
+      if (pollTimerRef.current) {
+        clearInterval(pollTimerRef.current);
+        pollTimerRef.current = null;
+      }
+
+      if (API_BASE && authTokenRef.current) {
+        fetch(`${API_BASE}/api/chat/queue/leave`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${authTokenRef.current}`,
+          },
+        }).catch(() => {});
+      }
+    };
+  }, [router]);
+
+  const handleCancel = async () => {
+    if (!API_BASE || !authTokenRef.current || isCancelling) {
+      router.replace("/match");
+      return;
+    }
+
+    try {
+      setIsCancelling(true);
+      await fetch(`${API_BASE}/api/chat/queue/leave`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${authTokenRef.current}`,
+        },
+      }).catch(() => {});
+    } finally {
+      router.replace("/match");
     }
   };
 
-  const handleMatchFound = (data) => {
-    // Redirect to chat with matchId
-    router.push(`/match/chat?matchId=${data.matchId}`);
-  };
+  const getStatusLabel = () => {
+    if (error) {
+      return "We hit an issue while matching.";
+    }
 
-  const handleCancel = async () => {
-    stopPolling();
-    await leaveQueue();
-    router.push("/match");
-  };
-
-  const leaveQueue = async () => {
-    try {
-      const token = localStorage.getItem("sessionToken");
-      if (!token) return;
-
-      await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/queue/leave`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-    } catch (error) {
-      console.error("Error leaving queue:", error);
+    switch (status) {
+      case "joining":
+        return "Joining the queue...";
+      case "waiting":
+        return position && position > 1
+          ? `You are in the queue (position ${position}).`
+          : "Looking for a great match...";
+      case "matched":
+        return "Match found! Connecting you now...";
+      case "error":
+        return "We hit an issue while matching.";
+      default:
+        return "Preparing your match...";
     }
   };
 
@@ -149,6 +209,7 @@ export default function MatchQueuePage() {
           aria-label="Cancel matching"
           className="p-2 rounded-md hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/40"
           onClick={handleCancel}
+          disabled={isCancelling}
         >
           <svg viewBox="0 0 24 24" className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
             <path d="M6 6l12 12M18 6L6 18" />
@@ -157,15 +218,11 @@ export default function MatchQueuePage() {
       </div>
 
       {/* Center spinner with icon */}
-  <div className="flex flex-col items-center justify-center min-h-[calc(100vh-4rem)] gap-6">
+      <div className="flex flex-col items-center justify-center min-h-[calc(100vh-4rem)] gap-6 px-4 text-center">
         <div className="relative w-56 h-56">
-          {/* SVG spinner with rounded arc caps */}
           <svg viewBox="0 0 100 100" className="absolute inset-0 w-full h-full">
-            {/* Base ring */}
             <circle cx="50" cy="50" r="40" fill="none" stroke="rgba(255,255,255,0.35)" strokeWidth="12" />
-            {/* Rotating arc with rounded ends */}
             <g className="animate-spin origin-center [transform-box:fill-box]" style={{ animationDuration: "1.5s" }}>
-              {/* Fallback rotation for browsers that ignore CSS transforms on SVG */}
               <animateTransform attributeName="transform" type="rotate" from="0 50 50" to="360 50 50" dur="1.5s" repeatCount="indefinite" />
               <circle
                 cx="50"
@@ -180,7 +237,6 @@ export default function MatchQueuePage() {
             </g>
           </svg>
 
-          {/* Center icon */}
           <div className="absolute inset-0 flex items-center justify-center">
             <svg
               viewBox="0 0 64 64"
@@ -199,8 +255,20 @@ export default function MatchQueuePage() {
             </svg>
           </div>
         </div>
-        {/* Helper text under spinner */}
-        <div className="text-white/90 text-base">Finding a good match for you...</div>
+
+        <div className="space-y-3 max-w-lg">
+          <div className="text-lg font-medium text-white/95">{getStatusLabel()}</div>
+          {error && (
+            <div className="rounded-md border border-red-100 bg-red-50/80 px-4 py-3 text-sm text-red-900">
+              {error}
+            </div>
+          )}
+          {status === "waiting" && position && position > 1 && (
+            <div className="text-sm text-white/80">
+              Hang tight! There {position === 2 ? "is" : "are"} {position - 1} {position - 1 === 1 ? "person" : "people"} ahead of you.
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

@@ -9,12 +9,12 @@ export default function TermsPage() {
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    // Check if user has pending data from login
-    const pendingEmail = sessionStorage.getItem("pendingEmail");
-    const pendingToken = sessionStorage.getItem("pendingToken");
+    // Check if user has pending auth from OAuth
+    const token = sessionStorage.getItem("pendingToken");
+    const email = sessionStorage.getItem("pendingEmail");
     
-    if (!pendingEmail || !pendingToken) {
-      // If no pending data, redirect to login
+    if (!token || !email) {
+      // If no pending auth, redirect to login
       router.push("/login");
     }
   }, [router]);
@@ -24,9 +24,9 @@ export default function TermsPage() {
     setError(null);
 
     try {
-      const pendingEmail = sessionStorage.getItem("pendingEmail");
+      const email = sessionStorage.getItem("pendingEmail");
       
-      if (!pendingEmail) {
+      if (!email) {
         throw new Error("Session expired. Please login again.");
       }
 
@@ -47,9 +47,10 @@ export default function TermsPage() {
   };
 
   const handleCancel = () => {
-    // Clear pending data and redirect to login
-    sessionStorage.removeItem("pendingEmail");
+    // Clear pending auth and redirect to login
     sessionStorage.removeItem("pendingToken");
+    sessionStorage.removeItem("pendingEmail");
+    sessionStorage.removeItem("termsAccepted");
     router.push("/login");
   };
 
