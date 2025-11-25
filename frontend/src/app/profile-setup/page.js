@@ -32,6 +32,7 @@ export default function ProfileSetup() {
 
   // Interests state - structured for matchmaking
   const [course, setCourse] = useState("");
+  const [customCourse, setCustomCourse] = useState("");
   const [dorm, setDorm] = useState("");
   const [organizations, setOrganizations] = useState([]);
   const [orgInput, setOrgInput] = useState("");
@@ -142,12 +143,15 @@ export default function ProfileSetup() {
     if (!validateForm()) return;
     
     // Validate interests
-    if (step === 2 && (!course || !dorm || organizations.length === 0)) {
-      setErrors((e) => ({ 
-        ...e, 
-        interests: "Please select your course, dorm, and at least one organization" 
-      }));
-      return;
+    if (step === 2) {
+      const finalCourse = course === "Other" ? customCourse : course;
+      if (!finalCourse || !dorm || organizations.length === 0) {
+        setErrors((e) => ({ 
+          ...e, 
+          interests: "Please select your course, dorm, and at least one organization" 
+        }));
+        return;
+      }
     }
     
     setIsSubmitting(true);
@@ -184,7 +188,7 @@ export default function ProfileSetup() {
       const interestsData = {
         email,
         interests: {
-          course,
+          course: course === "Other" ? customCourse : course,
           dorm,
           organizations
         }
@@ -360,9 +364,17 @@ export default function ProfileSetup() {
                     <button
                       key={courseOption}
                       type="button"
-                      onClick={() => setCourse(courseOption)}
+                      onClick={() => {
+                        if (courseOption === "Other") {
+                          setCourse("Other");
+                          setCustomCourse("");
+                        } else {
+                          setCourse(courseOption);
+                          setCustomCourse("");
+                        }
+                      }}
                       className={`px-4 py-3 rounded-lg border-2 text-sm font-medium transition-all ${
-                        course === courseOption
+                        course === courseOption || (courseOption === "Other" && course === "Other")
                           ? 'border-green-600 bg-green-50 text-green-800'
                           : 'border-gray-200 bg-white text-gray-700 hover:border-green-300'
                       }`}
@@ -374,9 +386,11 @@ export default function ProfileSetup() {
                 {course === "Other" && (
                   <input
                     type="text"
+                    value={customCourse}
                     placeholder="Type your course..."
-                    onChange={(e) => setCourse(e.target.value)}
-                    className="mt-3 w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                    onChange={(e) => setCustomCourse(e.target.value)}
+                    className="mt-3 w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500 focus:border-green-500 text-black placeholder-gray-400 bg-white"
+                    autoFocus
                   />
                 )}
               </div>
@@ -440,7 +454,7 @@ export default function ProfileSetup() {
                     onChange={(e) => setOrgInput(e.target.value)}
                     onKeyDown={handleOrgKeyDown}
                     placeholder="Type a club/organization and press Enter..."
-                    className="w-full mb-3 px-4 py-2 bg-white border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm"
+                    className="w-full mb-3 px-4 py-2 bg-white border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm text-black placeholder-gray-400"
                   />
 
                   {/* Selected organizations */}
@@ -498,9 +512,9 @@ export default function ProfileSetup() {
                 <button
                   type="button"
                   onClick={handleSubmit}
-                  disabled={!course || !dorm || organizations.length === 0 || isSubmitting}
+                  disabled={!course || (course === "Other" && !customCourse.trim()) || !dorm || organizations.length === 0 || isSubmitting}
                   className={`px-6 py-3 rounded-lg font-semibold shadow-md transition-colors ${
-                    !course || !dorm || organizations.length === 0 || isSubmitting
+                    !course || (course === "Other" && !customCourse.trim()) || !dorm || organizations.length === 0 || isSubmitting
                       ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
                       : 'bg-green-700 hover:bg-green-800 text-white'
                   }`}
