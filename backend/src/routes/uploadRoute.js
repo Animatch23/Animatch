@@ -122,25 +122,28 @@ router.post('/', upload.single('profilePhoto'), async (req, res) => {
         const profilePicture = createProfilePictureObject(req.file, uploadDir);
         const userData = createUserData(email, username, profilePicture);
         
-        // If acceptTerms flag is set, include terms acceptance
-        if (acceptTermsFlag) {
-            userData.termsAccepted = true;
-            userData.termsAcceptedDate = new Date();
-            userData.termsAcceptedVersion = "1.0";
-        }
-
+        // Build update payload
         const updatePayload = {
             $set: {
                 username: userData.username,
             },
             $setOnInsert: {
                 email: userData.email,
-                profilePicture: userData.profilePicture,
             },
         };
 
+        // Add profile picture to $set if provided, otherwise to $setOnInsert
         if (profilePicture) {
             updatePayload.$set.profilePicture = profilePicture;
+        } else {
+            updatePayload.$setOnInsert.profilePicture = null;
+        }
+
+        // If acceptTerms flag is set, include terms acceptance in $set
+        if (acceptTermsFlag) {
+            updatePayload.$set.termsAccepted = true;
+            updatePayload.$set.termsAcceptedDate = new Date();
+            updatePayload.$set.termsAcceptedVersion = "1.0";
         }
 
         const updateResult = await User.findOneAndUpdate(
