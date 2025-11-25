@@ -26,10 +26,4 @@ router.get('/:chatSessionId/history', authenticate, getChatHistory);
 router.post('/:chatSessionId/end', authenticate, endChatSession);
 router.post('/:chatSessionId/save', authenticate, saveChatSession);
 
-export default router;import express from 'express';
-import { saveMatch } from '../controllers/chatController.js';
-
-const router = express.Router();
-router.post('/:sessionId/save', saveMatch);
-
 export default router;
