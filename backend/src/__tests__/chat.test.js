@@ -47,8 +47,8 @@ describe('POST /api/chat/:sessionId/save', () => {
         
         // Check User 1's save
         expect(res1.status).toBe(200);
-        expect(res1.body.chat.savedBy).toHaveLength(1);
-        expect(res1.body.chat.savedBy[0]).toBe(user1Id);
+        expect(res1.body.chat.savedByUsers).toHaveLength(1);
+        expect(res1.body.chat.savedByUsers[0]).toBe(user1Id);
         expect(res1.body.chat.isSaved).toBe(false);
 
         // User 2 saves
@@ -58,9 +58,9 @@ describe('POST /api/chat/:sessionId/save', () => {
 
         // Check User 2's save (mutual)
         expect(res2.status).toBe(200);
-        expect(res2.body.chat.savedBy).toHaveLength(2);
-        expect(res2.body.chat.savedBy).toContain(user1Id);
-        expect(res2.body.chat.savedBy).toContain(user2Id);
+        expect(res2.body.chat.savedByUsers).toHaveLength(2);
+        expect(res2.body.chat.savedByUsers).toContain(user1Id);
+        expect(res2.body.chat.savedByUsers).toContain(user2Id);
         expect(res2.body.chat.isSaved).toBe(true);
 
         // Final check in DB

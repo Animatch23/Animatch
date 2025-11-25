@@ -17,7 +17,7 @@ const ChatSessionSchema = new mongoose.Schema({
   endedAt: {
     type: Date
   },
-  savedBy: [{
+  savedByUsers: [{
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User'
   }],
@@ -31,14 +31,6 @@ const ChatSessionSchema = new mongoose.Schema({
       // Set expiry to 24 hours from creation
       return new Date(Date.now() + 24 * 60 * 60 * 1000);
     }
-  },
-  savedByUsers: [{
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User'
-  }],
-  isSaved: {
-    type: Boolean,
-    default: false
   }
 });
 
