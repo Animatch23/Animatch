@@ -12,6 +12,24 @@ export default function ProfileSetup() {
   const [photoFile, setPhotoFile] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState({});
+  const [email, setEmail] = useState(null);
+  const [token, setToken] = useState(null);
+
+  useEffect(() => {
+    // Get pending email and token from sessionStorage
+    const pendingEmail = sessionStorage.getItem("pendingEmail");
+    const pendingToken = sessionStorage.getItem("pendingToken");
+    const termsAccepted = sessionStorage.getItem("termsAccepted");
+    
+    if (!pendingEmail || !pendingToken || !termsAccepted) {
+      // If no pending data or terms not accepted, redirect to login
+      router.push("/login");
+      return;
+    }
+    
+    setEmail(pendingEmail);
+    setToken(pendingToken);
+  }, [router]);
 
   const handlePhotoChange = (e) => {
     const file = e.target.files[0];
@@ -64,9 +82,11 @@ export default function ProfileSetup() {
         throw new Error("Your session expired. Please log in again.");
       }
 
+      // Create profile using upload route WITH terms acceptance
       const formData = new FormData();
       formData.append("email", email);
       formData.append("username", username.trim());
+      formData.append('acceptTerms', 'true'); // Include terms acceptance
       if (photoFile) {
         formData.append("profilePhoto", photoFile);
       }
@@ -76,13 +96,27 @@ export default function ProfileSetup() {
         body: formData,
       });
 
-      const data = await response.json().catch(() => ({}));
-
-      if (!response.ok) {
-        throw new Error(data.message || "Failed to save profile. Please try again.");
+      if (!profileResponse.ok) {
+        const errorData = await profileResponse.json();
+        throw new Error(errorData.message || "Failed to save profile");
       }
 
-      router.replace("/match");
+      console.log("Profile created successfully with terms accepted!");
+      
+      // NOW store the session token in localStorage (only after successful profile creation)
+      localStorage.setItem("sessionToken", token);
+      localStorage.setItem("userEmail", email);
+      
+      // Clear sessionStorage
+      sessionStorage.removeItem("pendingEmail");
+      sessionStorage.removeItem("pendingToken");
+      sessionStorage.removeItem("termsAccepted");
+
+      console.log("Profile setup completed successfully! Redirecting to match...");
+      
+      // Use window.location for more reliable redirect
+      window.location.href = '/match';
+
     } catch (error) {
       console.error("Error saving profile:", error);
       setErrors({ submit: error instanceof Error ? error.message : "Failed to save profile. Please try again." });

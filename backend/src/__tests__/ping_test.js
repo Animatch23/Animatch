@@ -15,8 +15,11 @@ describe('Backend API Tests', () => {
   });
 
   it('should have CORS enabled', async () => {
-    const response = await request(app).get('/api/test');
+    const response = await request(app)
+      .get('/api/test')
+      .set('Origin', 'http://localhost:3000'); // Set origin header to trigger CORS
     expect(response.headers['access-control-allow-origin']).toBeDefined();
+    expect(response.headers['access-control-allow-origin']).toBe('http://localhost:3000');
   });
 
   it('should handle 404 for non-existent routes', async () => {

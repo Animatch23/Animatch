@@ -3,16 +3,25 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
+/**
+ * Client-side auth guard to protect routes.
+ * Checks for sessionToken in localStorage to verify authentication.
+ * Redirects to /login if not authenticated.
+ */
 export default function AuthGuard({ children }) {
   const router = useRouter();
   const [isAllowed, setIsAllowed] = useState(false);
 
   useEffect(() => {
-    const token = typeof window !== "undefined" ? localStorage.getItem("sessionToken") : null;
-
-    if (!token) {
+    // Check if user has a valid session token
+    const sessionToken = typeof window !== 'undefined' && localStorage.getItem("sessionToken");
+    
+    if (!sessionToken) {
+      // No token found, redirect to login
       router.replace("/login");
-      return;
+    } else {
+      // Token exists, allow access
+      setAllowed(true);
     }
 
     setIsAllowed(true);

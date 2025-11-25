@@ -53,6 +53,39 @@ export default function LoginPage() {
 
         window.history.replaceState({}, document.title, "/login");
 
+          // Check if user exists
+          console.log("Checking if user exists...");
+          const checkEmailResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/exist`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email }),
+          });
+          const existData = await checkEmailResponse.json();
+          const exists = existData.exists;
+          console.log("User exists:", exists);
+
+          if (exists) {
+            // Existing user - store token and go to match
+            console.log("Existing user, storing token and redirecting to /match");
+            localStorage.setItem("sessionToken", sessionToken);
+            localStorage.setItem("userEmail", email);
+            // Use window.location for more reliable redirect in production
+            window.location.href = '/match';
+          } else {
+            // New user - store pending data (including temp token) and redirect to /terms
+            console.log("New user, redirecting to /terms");
+            sessionStorage.setItem("pendingEmail", email);
+            sessionStorage.setItem("pendingToken", sessionToken);
+            router.push('/terms');
+          }
+        } catch (error) {
+          console.error("Error during authentication:", error);
+          window.history.replaceState({}, document.title, "/login");
+        }
+      }
+    };
+    handleRedirectCallback();
+  }, [router]);
         const existResponse = await fetch(`${API_BASE}/api/exist`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
