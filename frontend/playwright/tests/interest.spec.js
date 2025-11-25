@@ -2,13 +2,15 @@ import { test, expect } from "@playwright/test";
 import { faker } from "@faker-js/faker";
 import { mockSession, login } from "../helpers/login.js";
 
+
+
 test.describe("interests tests", () => {
     test.describe.configure({
         repeatEach: 2,
         retries: 1,
     });
 
-    test("complete interest", async ({ page }) => {
+    test.beforeEach(async ({ page }) => {
         await mockSession(page);
         await login(page);
 
@@ -19,6 +21,10 @@ test.describe("interests tests", () => {
         await page.locator('input[placeholder="Username *"]').fill(username);
 
         await page.getByRole("button", { name: "Continue" }).click();
+    });
+
+    test("complete interest", async ({ page }) => {
+        
         
         const courseButtons = page.locator(
             'label:has-text("Your Course / Major") + div button'
@@ -89,16 +95,7 @@ test.describe("interests tests", () => {
     });
 
     test("missing course/major interest", async ({ page }) => {
-        await mockSession(page);
-        await login(page);
-
-        await page.goto("http://localhost:3000/terms");
-        await page.getByText("Accept & Continue").click();
-
-        const username = faker.person.firstName() + Math.floor(Math.random() * 9000 + 1000);
-        await page.locator('input[placeholder="Username *"]').fill(username);
-
-        await page.getByRole("button", { name: "Continue" }).click();
+        
         
         // const courseButtons = page.locator(
         //     'label:has-text("Your Course / Major") + div button'
@@ -154,16 +151,7 @@ test.describe("interests tests", () => {
     });
 
     test("missing housing interest", async ({ page }) => {
-        await mockSession(page);
-        await login(page);
-
-        await page.goto("http://localhost:3000/terms");
-        await page.getByText("Accept & Continue").click();
-
-        const username = faker.person.firstName() + Math.floor(Math.random() * 9000 + 1000);
-        await page.locator('input[placeholder="Username *"]').fill(username);
-
-        await page.getByRole("button", { name: "Continue" }).click();
+        
         
         const courseButtons = page.locator(
             'label:has-text("Your Course / Major") + div button'
@@ -230,16 +218,7 @@ test.describe("interests tests", () => {
     });
 
     test("missing organizations interest", async ({ page }) => {
-        await mockSession(page);
-        await login(page);
-
-        await page.goto("http://localhost:3000/terms");
-        await page.getByText("Accept & Continue").click();
-
-        const username = faker.person.firstName() + Math.floor(Math.random() * 9000 + 1000);
-        await page.locator('input[placeholder="Username *"]').fill(username);
-
-        await page.getByRole("button", { name: "Continue" }).click();
+        
         
         const courseButtons = page.locator(
             'label:has-text("Your Course / Major") + div button'
@@ -302,17 +281,6 @@ test.describe("interests tests", () => {
     });
 
     test("delete selected organizations", async ({ page }) => {
-        await mockSession(page);
-        await login(page);
-    
-        await page.goto("http://localhost:3000/terms");
-        await page.getByText("Accept & Continue").click();
-    
-        const username = faker.person.firstName() + Math.floor(Math.random() * 9000 + 1000);
-        await page.locator('input[placeholder="Username *"]').fill(username);
-    
-        await page.getByRole("button", { name: "Continue" }).click();
-        
         
         const orgButtons = page.locator(
             'p:has-text("Popular organizations:") + div button'
@@ -354,16 +322,6 @@ test.describe("interests tests", () => {
     });
 
     test("add custom organizations", async ({ page }) => {
-        await mockSession(page);
-        await login(page);
-    
-        await page.goto("http://localhost:3000/terms");
-        await page.getByText("Accept & Continue").click();
-    
-        const username = faker.person.firstName() + Math.floor(Math.random() * 9000 + 1000);
-        await page.locator('input[placeholder="Username *"]').fill(username);
-    
-        await page.getByRole("button", { name: "Continue" }).click();
 
         const orgInput = page.locator('input[placeholder="Type a club/organization and press Enter..."]');
 
@@ -381,16 +339,6 @@ test.describe("interests tests", () => {
     });
 
     test("type custom course/major", async ({ page }) => {
-        await mockSession(page);
-        await login(page);
-    
-        await page.goto("http://localhost:3000/terms");
-        await page.getByText("Accept & Continue").click();
-        
-        const username = faker.person.firstName() + Math.floor(Math.random() * 9000 + 1000);
-        await page.locator('input[placeholder="Username *"]').fill(username);
-    
-        await page.getByRole("button", { name: "Continue" }).click();
 
         const otherCourseButton = page.locator(
             'label:has-text("Your Course / Major") + div button', 
