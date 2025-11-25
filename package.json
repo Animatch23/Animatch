@@ -11,6 +11,9 @@
     "install:all": "npm run install:backend && npm run install:frontend"
   },
   "devDependencies": {
+    "@faker-js/faker": "^10.1.0",
+    "@playwright/test": "^1.57.0",
+    "jsonwebtoken": "^9.0.2",
     "newman": "^6.2.1"
   }
 }
