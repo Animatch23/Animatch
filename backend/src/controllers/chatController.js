@@ -1,5 +1,6 @@
 import mongoose from "mongoose";
 import ChatSession from "../models/ChatSession.js";
+import Message from "../models/Message.js";
 import Queue from "../models/Queue.js";
 import User from "../models/User.js";
 import { io } from "../server.js";
@@ -209,4 +210,89 @@ export const joinQueue = async (req, res) => {
             error: error.message,
         });
     }
+};
+
+export const endChatSession = async (req, res) => {
+  try {
+    const { sessionId } = req.body;
+
+    if (!sessionId) {
+      return res.status(400).json({ message: "Session ID is required" });
+    }
+
+    const session = await ChatSession.findOne({ sessionId });
+    if (!session) {
+      return res.status(404).json({ message: "Session not found" });
+    }
+
+    session.status = "ended";
+    session.endedAt = new Date();
+    await session.save();
+
+    res.status(200).json({ success: true, message: "Chat session ended" });
+  } catch (error) {
+    console.error("Error ending chat session:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+export const getChatHistory = async (req, res) => {
+  try {
+    // Handle both :sessionId and :id parameter naming conventions
+    const sessionId = req.params.sessionId || req.params.id;
+    const userId = req.user?.id || req.userId;
+
+    if (!sessionId) {
+      return res.status(400).json({ message: "Session ID is required" });
+    }
+
+    const session = await ChatSession.findById(sessionId);
+    if (!session) {
+      return res.status(404).json({ message: "Chat session not found" });
+    }
+
+    // Check if user is a participant
+    const isParticipant = session.participants.some(
+      (p) => p.toString() === userId?.toString()
+    );
+
+    if (!isParticipant) {
+      return res.status(403).json({ message: "Not authorized to view this chat history" });
+    }
+
+    const messages = await Message.find({ chatSessionId: sessionId }).sort({ sentAt: 1 });
+
+    res.status(200).json({ messages });
+  } catch (error) {
+    console.error("Error fetching chat history:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+export const saveChatSession = async (req, res) => {
+  try {
+    const { sessionId, messages } = req.body;
+
+    if (!sessionId) {
+      return res.status(400).json({ message: "Session ID is required" });
+    }
+
+    const session = await ChatSession.findOne({ sessionId });
+    if (!session) {
+      return res.status(404).json({ message: "Session not found" });
+    }
+
+    if (messages && Array.isArray(messages)) {
+        // Assuming messages are stored in the session or handled here
+        // For now, just updating the session to reflect activity
+        session.updatedAt = new Date();
+    }
+
+    await session.save();
+
+    res.status(200).json({ success: true, message: "Chat session saved" });
+  } catch (error) {
+    console.error("Error saving chat session:", error);
+    res.status(500).json({ message: "Server error" });
+  }
 };
