@@ -1,21 +1,106 @@
 "use client";
 
-import TermsModal from "../../components/TermsModal";
+import { useEffect } from "react";
+import { useGoogleLogin } from '@react-oauth/google';
+import { useRouter } from 'next/navigation';
 
 export default function LoginPage() {
+  const router = useRouter();
+
+  useEffect(() => {
+    const handleRedirectCallback = async () => {
+      const urlParams = new URLSearchParams(window.location.search);
+      const code = urlParams.get('code');
+      
+      if (code) {
+        console.log("Auth code received, exchanging for token...");
+        try {
+          const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/google`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ code }),
+          });
+
+          console.log("Auth response status:", response.status);
+
+          if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            console.error("Authentication failed:", errorData);
+            window.history.replaceState({}, document.title, "/login");
+            return;
+          }
+
+          const data = await response.json();
+          console.log("Auth data received:", { hasToken: !!data.token, email: data.email });
+
+          if (!data.token) {
+            console.error("No token received");
+            window.history.replaceState({}, document.title, "/login");
+            return; 
+          }
+
+          const sessionToken = data.token;
+          const email = data.email;
+
+          // Clean up URL
+          window.history.replaceState({}, document.title, "/login");
+
+          // Check if user exists
+          console.log("Checking if user exists...");
+          const checkEmailResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/exist`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email }),
+          });
+          const existData = await checkEmailResponse.json();
+          const exists = existData.exists;
+          console.log("User exists:", exists);
+
+          if (exists) {
+            // Existing user - store token and go to match
+            console.log("Existing user, storing token and redirecting to /match");
+            localStorage.setItem("sessionToken", sessionToken);
+            localStorage.setItem("userEmail", email);
+            // Use window.location for more reliable redirect in production
+            window.location.href = '/match';
+          } else {
+            // New user - store pending data (including temp token) and redirect to /terms
+            console.log("New user, redirecting to /terms");
+            sessionStorage.setItem("pendingEmail", email);
+            sessionStorage.setItem("pendingToken", sessionToken);
+            router.push('/terms');
+          }
+        } catch (error) {
+          console.error("Error during authentication:", error);
+          window.history.replaceState({}, document.title, "/login");
+        }
+      }
+    };
+    handleRedirectCallback();
+  }, [router]);
+
+  const login = useGoogleLogin({
+    flow: "auth-code",
+    ux_mode: "redirect",
+    redirect_uri: process.env.NEXT_PUBLIC_GOOGLE_REDIRECT_URI,
+  });
+
   return (
     <div className="flex h-screen">
       {/* Left Side Background */}
       <div
         className="hidden lg:block w-1/2 bg-cover bg-center"
         style={{ backgroundImage: "url('background.jpg')" }}
-      ></div>
+      ></div> 
 
       {/* Right Side Content */}
       <div className="flex w-full lg:w-1/2 justify-center items-center bg-white">
         <div className="w-full max-w-md px-8">
           {/* Logo */}
           <div className="flex items-center mb-6">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="dlsu logo.png" alt="AniMatch Logo" className="w-10 h-10 mr-2" />
             <h1 className="text-2xl font-bold">
               <span className="text-green-800">Ani</span>
@@ -30,10 +115,9 @@ export default function LoginPage() {
           </p>
 
           {/* Google Login Button */}
-          <button
+          <button onClick={() => login()}
             className="w-full flex items-center justify-center gap-2 bg-green-100 hover:bg-green-200 text-green-900 font-medium p-3 rounded-md shadow-sm transition-colors"
           >
-            {/* Envelope Icon */}
             <svg
               xmlns="http://www.w3.org/2000/svg"
               className="w-5 h-5"
@@ -53,8 +137,9 @@ export default function LoginPage() {
             Login with your DLSU Google Account
           </button>
 
-          {/* Terms and Conditions Modal */}
-          <TermsModal />
+          <p className="text-[11px] text-gray-400 mt-4 text-center">
+            By continuing you confirm you&apos;re a DLSU student. Terms & Conditions will be available after login.
+          </p>
         </div>
       </div>
     </div>

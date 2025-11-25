@@ -1,12 +1,28 @@
-import mongoose from "mongoose";
+import mongoose from 'mongoose';
 
-const QueueSchema = new mongoose.Schema(
-  {
-    userId: { type: mongoose.Schema.Types.ObjectId, required: true, unique: true, index: true },
-    status: { type: String, enum: ["waiting", "matched"], default: "waiting", index: true },
-    chatId: { type: mongoose.Schema.Types.ObjectId, ref: "ChatSession", default: null },
-  },
-  { timestamps: true }
-);
+const queueSchema = new mongoose.Schema({
+    userId: {
+        type: String,
+        required: true,
+        unique: true
+    },
+    username: {
+        type: String,
+        required: true
+    },
+    joinedAt: {
+        type: Date,
+        default: Date.now,
+        index: true // Add index for better query performance
+    },
+    status: {
+        type: String,
+        enum: ['waiting', 'matched'],
+        default: 'waiting'
+    }
+});
 
-export default mongoose.models.Queue || mongoose.model("Queue", QueueSchema);
+// Auto-cleanup old queue entries after 30 minutes
+queueSchema.index({ joinedAt: 1 }, { expireAfterSeconds: 1800 });
+
+export default mongoose.model('Queue', queueSchema);

@@ -44,6 +44,7 @@ export default function FindingMatch({ onMatchFound }) {
         {/* AniMatch Logo */}
         <div className="flex items-center justify-center mb-8">
           <div className="flex items-center">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="dlsu logo.png" alt="DLSU Logo" className="w-12 h-12 mr-3 object-contain" />
             <h1 className="text-3xl font-bold">
               <span className="text-green-800">Ani</span>
@@ -80,7 +81,7 @@ export default function FindingMatch({ onMatchFound }) {
           {statusText}{dots}
         </h2>
         <p className="text-gray-600 mb-8 max-w-md mx-auto">
-          We're looking for another DLSU student to chat with. 
+          We&apos;re looking for another DLSU student to chat with. 
           This usually takes just a few seconds!
         </p>
 

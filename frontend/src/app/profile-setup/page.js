@@ -1,13 +1,33 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useRouter } from 'next/navigation';
 
 export default function ProfileSetup() {
+  const router = useRouter();
   const [username, setUsername] = useState("");
   const [photo, setPhoto] = useState(null);
   const [photoFile, setPhotoFile] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState({});
+  const [email, setEmail] = useState(null);
+  const [token, setToken] = useState(null);
+
+  useEffect(() => {
+    // Get pending email and token from sessionStorage
+    const pendingEmail = sessionStorage.getItem("pendingEmail");
+    const pendingToken = sessionStorage.getItem("pendingToken");
+    const termsAccepted = sessionStorage.getItem("termsAccepted");
+    
+    if (!pendingEmail || !pendingToken || !termsAccepted) {
+      // If no pending data or terms not accepted, redirect to login
+      router.push("/login");
+      return;
+    }
+    
+    setEmail(pendingEmail);
+    setToken(pendingToken);
+  }, [router]);
 
   const handlePhotoChange = (e) => {
     const file = e.target.files[0];
@@ -45,43 +65,63 @@ export default function ProfileSetup() {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleContinue = async () => {
+  const handleSubmit = async () => {
     if (!validateForm()) return;
 
     setIsSubmitting(true);
     
     try {
-      // Prepare form data for backend
+      if (!email) {
+        throw new Error("Email not found");
+      }
+
+      // Create profile using upload route WITH terms acceptance
       const formData = new FormData();
+      formData.append('email', email);
       formData.append('username', username);
+      formData.append('acceptTerms', 'true'); // Include terms acceptance
+      
+      // Add photo file if it exists
       if (photoFile) {
         formData.append('profilePhoto', photoFile);
       }
 
-      // TODO: Send to backend API
-      // const response = await fetch('/api/profile/setup', {
-      //   method: 'POST',
-      //   body: formData,
-      // });
+      const profileResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/upload`, {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!profileResponse.ok) {
+        const errorData = await profileResponse.json();
+        throw new Error(errorData.message || "Failed to save profile");
+      }
+
+      console.log("Profile created successfully with terms accepted!");
       
-      // For now, just log the data
-      console.log("Username:", username);
-      console.log("Photo file:", photoFile);
-      console.log("FormData prepared for backend:", formData);
+      // NOW store the session token in localStorage (only after successful profile creation)
+      localStorage.setItem("sessionToken", token);
+      localStorage.setItem("userEmail", email);
       
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Clear sessionStorage
+      sessionStorage.removeItem("pendingEmail");
+      sessionStorage.removeItem("pendingToken");
+      sessionStorage.removeItem("termsAccepted");
+
+      console.log("Profile setup completed successfully! Redirecting to match...");
       
-      // TODO: Navigate to dashboard after successful save
-      console.log("Profile setup completed!");
-      
+      // Use window.location for more reliable redirect
+      window.location.href = '/match';
+
     } catch (error) {
-      console.error("Error saving profile:", error);
-      setErrors({ submit: "Failed to save profile. Please try again." });
-    } finally {
+      console.error("Error during profile setup:", error);
+      setErrors({ submit: error.message || "Failed to complete setup. Please try again." });
       setIsSubmitting(false);
     }
   };
+
+  if (!email) {
+    return null; // or a loading spinner
+  }
 
   return (
     <div className="flex items-center justify-center min-h-screen bg-gray-100">
@@ -89,7 +129,7 @@ export default function ProfileSetup() {
         {/* Title */}
         <h1 className="text-3xl font-bold text-green-800 mb-2">Profile Setup</h1>
         <p className="text-sm text-gray-600 mb-8">
-          Let's set up your AniMatch profile to get started
+          Let&apos;s set up your AniMatch profile to get started
         </p>
 
         {/* Photo upload */}
@@ -97,6 +137,7 @@ export default function ProfileSetup() {
           <label className="cursor-pointer flex flex-col items-center">
             <div className="w-32 h-32 bg-green-50 border-2 border-dashed border-green-300 rounded-lg flex items-center justify-center mb-3 shadow-sm hover:bg-green-100 transition-colors">
               {photo ? (
+                // eslint-disable-next-line @next/next/no-img-element
                 <img
                   src={photo}
                   alt="Profile Preview"
@@ -166,10 +207,10 @@ export default function ProfileSetup() {
           </div>
         )}
 
-        {/* Continue button */}
+        {/* Submit button */}
         <div className="flex justify-end">
           <button
-            onClick={handleContinue}
+            onClick={handleSubmit}
             disabled={isSubmitting || !username.trim()}
             className={`px-8 py-3 rounded-full shadow-md font-medium transition-colors ${
               isSubmitting || !username.trim()
@@ -177,7 +218,7 @@ export default function ProfileSetup() {
                 : 'bg-green-800 hover:bg-green-900 text-white'
             }`}
           >
-            {isSubmitting ? 'Setting up...' : 'Continue'}
+            {isSubmitting ? 'Setting up...' : 'Complete Setup'}
           </button>
         </div>
       </div>

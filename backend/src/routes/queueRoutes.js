@@ -1,11 +1,18 @@
-import { Router } from "express";
-import { joinQueue, queueStatus, leaveQueue } from "../controllers/queueController.js";
-import { requireAuth } from "../middleware/authMiddleware.js";
+import express from "express";
+import { authMiddleware } from "../middleware/authMiddleware.js";
+import {
+  joinQueue,
+  leaveQueue,
+  queueStatus,      // Change: getQueueStatus → queueStatus
+  checkQueueStatus  // Add this if you want to use it
+} from "../controllers/queueController.js";
 
-const router = Router();
+const router = express.Router();
 
-router.post("/join", requireAuth, joinQueue);
-router.get("/status", requireAuth, queueStatus);
-router.post("/leave", requireAuth, leaveQueue);
+// All routes require authentication
+router.post("/join", authMiddleware, joinQueue);
+router.post("/leave", authMiddleware, leaveQueue);
+router.get("/status", authMiddleware, queueStatus);        
+router.get("/check", authMiddleware, checkQueueStatus);     
 
 export default router;
