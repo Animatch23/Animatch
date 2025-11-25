@@ -36,7 +36,7 @@
     "mongodb": "^6.20.0",
     "mongoose": "^8.18.1",
     "node-mocks-http": "^1.17.2",
-    "socket.io": "^4.6.1"
+    "socket.io": "^4.6.1",
     "multer": "^2.0.2",
     "sharp": "^0.34.4"
   },
