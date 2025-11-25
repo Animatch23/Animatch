@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import ChatInterface from "../../../components/ChatInterface";
 
@@ -8,7 +8,17 @@ const API_BASE = process.env.NEXT_PUBLIC_API_URL;
 const MAX_ACTIVE_CHAT_ATTEMPTS = 5;
 const ACTIVE_CHAT_RETRY_DELAY_MS = 1000;
 
-export default function MatchChatPage() {
+// 1. Extract the Loading UI into a reusable component
+function LoadingView() {
+  return (
+    <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center bg-gray-50 text-gray-600">
+      Connecting to your chat...
+    </div>
+  );
+}
+
+// 2. Move your original logic into this inner component
+function ChatContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [token, setToken] = useState("");
@@ -100,11 +110,7 @@ export default function MatchChatPage() {
   };
 
   if (isLoading) {
-    return (
-      <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center bg-gray-50 text-gray-600">
-        Connecting to your chat...
-      </div>
-    );
+    return <LoadingView />;
   }
 
   if (error) {
@@ -135,5 +141,14 @@ export default function MatchChatPage() {
       token={token}
       onChatEnded={handleChatEnded}
     />
+  );
+}
+
+// 3. Export the Page component that wraps the content in Suspense
+export default function MatchChatPage() {
+  return (
+    <Suspense fallback={<LoadingView />}>
+      <ChatContent />
+    </Suspense>
   );
 }
