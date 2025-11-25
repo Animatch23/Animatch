@@ -138,7 +138,7 @@ export const checkQueueStatus = async (req, res) => {
 };
 
 // Internal function to find a match using interest-based algorithm
-async function findMatch(userId) {
+const findMatch = async (userId) => {
   console.log(`[findMatch] Starting match search for user ${userId}`);
   
   // Ensure the requesting user has no active chat
@@ -150,13 +150,20 @@ async function findMatch(userId) {
 
   // Get current user's queue entry with interests
   const currentUser = await Queue.findOne({ userId });
-  if (!currentUser) {
-    console.log(`[findMatch] User ${userId} not found in queue`);
-    return null;
-  }
+    
+  // Calculate how long they have been waiting
+  const waitTimeSeconds = (Date.now() - new Date(currentUser.joinedAt).getTime()) / 1000;
 
-  const userInterests = currentUser.interests || {};
-  console.log(`[findMatch] User ${userId} interests:`, userInterests);
+  // Define minimum score based on wait time
+  let minScoreThreshold = 0;
+  
+  if (waitTimeSeconds < 10) {
+      minScoreThreshold = 5; // Strict: Must be very similar
+  } else if (waitTimeSeconds < 30) {
+      minScoreThreshold = 2; // Moderate: Some similarity
+  } else {
+      minScoreThreshold = 0; // Desperate: Anyone will do
+  }
 
   // Find all potential candidates (excluding current user)
   const candidates = await Queue.find({ 
@@ -172,7 +179,7 @@ async function findMatch(userId) {
   }
 
   // Use interest-based matching algorithm
-  const bestMatch = findBestMatch(userInterests, candidates);
+  const bestMatch = findBestMatch(currentUser, candidates, minScoreThreshold);
   
   if (!bestMatch) {
     console.log(`[findMatch] No suitable match found for user ${userId}`);
@@ -180,7 +187,7 @@ async function findMatch(userId) {
   }
 
   const matchedUserId = bestMatch.userId;
-  const similarityScore = calculateSimilarityScore(userInterests, bestMatch.interests);
+  const similarityScore = calculateSimilarityScore(currentUser.interests, bestMatch.interests);
   const strategy = getMatchingStrategy(similarityScore);
   
   console.log(`[findMatch] Best match for ${userId} is ${matchedUserId}`);
