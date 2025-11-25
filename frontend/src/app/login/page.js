@@ -50,9 +50,9 @@ export default function LoginPage() {
           throw new Error("Invalid authentication response");
         }
 
-        // 2. Save Session
-        localStorage.setItem("sessionToken", token);
-        localStorage.setItem("userEmail", email);
+        // 2. Save Session temporarily (will move to localStorage after profile setup)
+        sessionStorage.setItem("pendingToken", token);
+        sessionStorage.setItem("pendingEmail", email);
 
         // Clean the URL (remove ?code=...)
         window.history.replaceState({}, document.title, "/login");
@@ -71,13 +71,15 @@ export default function LoginPage() {
 
         // 4. Handle Redirection
         if (exists) {
-          // Existing user -> Go to match
-          // Using window.location for a hard refresh/reliable redirect often helps with auth state
+          // Existing user -> Move token to localStorage and go to match
+          localStorage.setItem("sessionToken", token);
+          localStorage.setItem("userEmail", email);
+          sessionStorage.removeItem("pendingToken");
+          sessionStorage.removeItem("pendingEmail");
           window.location.href = "/match"; 
         } else {
-          // New user -> Go to profile setup
-          // (Or /terms if that was your intended flow, but /profile-setup is standard)
-          router.push("/profile-setup");
+          // New user -> Go to terms first (token stays in sessionStorage)
+          router.push("/terms");
         }
 
       } catch (err) {
