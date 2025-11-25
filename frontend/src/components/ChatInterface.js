@@ -1,6 +1,9 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import axios from "axios";
+import { io } from "socket.io-client";
+import { getSession } from "next-auth/react";
 
 export default function ChatInterface({ onDisconnect }) {
   const [messages, setMessages] = useState([
@@ -20,10 +23,43 @@ export default function ChatInterface({ onDisconnect }) {
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
   const menuCloseTimeoutRef = useRef(null);
+  const socketRef = useRef(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
+
+  useEffect(() => {
+    // Initialize socket connection
+    const socket = io(process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000", {
+      withCredentials: true,
+    });
+    socketRef.current = socket;
+
+    socket.on("connect", () => {
+      console.log("Connected to socket:", socket.id);
+      // Attempt to join room with user ID
+      getSession().then((session) => {
+        if (session?.user?.id) {
+          socket.emit("join_room", session.user.id);
+        }
+      });
+    });
+
+    socket.on("chat_ended", (data) => {
+      if (data.reason === "next_chat") {
+        setConnectionStatus("finding");
+        setStatusLog((prev) => [...prev, "Partner skipped chat. Finding new match..."]);
+        setMessages([]);
+        // Here you might want to trigger a re-queue action or just wait for the queue system
+        // to match and send a "match_found" event (if implemented)
+      }
+    });
+
+    return () => {
+      socket.disconnect();
+    };
+  }, []);
 
   useEffect(() => {
     scrollToBottom();
@@ -231,6 +267,26 @@ export default function ChatInterface({ onDisconnect }) {
     }
   };
 
+  const handleNextChat = async () => {
+    try {
+      // Call backend to end current chat and re-queue
+      await axios.post(
+        `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000"}/api/chat/next`,
+        {},
+        { withCredentials: true }
+      );
+      
+      // Update UI state
+      setConnectionStatus("finding");
+      setStatusLog((prev) => [...prev, "Skipping to next chat..."]);
+      setMessages([]);
+      setShowSidebar(false);
+    } catch (error) {
+      console.error("Error skipping chat:", error);
+      setStatusLog((prev) => [...prev, "Error skipping chat. Please try again."]);
+    }
+  };
+
   const blockUser = () => {
     // Open confirm modal
     setShowActionMenu(false);
@@ -370,13 +426,13 @@ export default function ChatInterface({ onDisconnect }) {
           <div className="h-full overflow-y-auto p-4 space-y-4">
             <button
               type="button"
-              onClick={() => { setShowSidebar(false); simulateRequeue(); }}
+              onClick={handleNextChat}
               className="w-full text-left rounded-md bg-green-600 hover:bg-green-700 text-white px-4 py-3 shadow-sm flex items-center gap-2"
             >
               <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M13 5l7 7-7 7M5 5l7 7-7 7" />
               </svg>
-              Start a New Match
+              Next Chat
             </button>
 
             {savedChats.length === 0 && (
