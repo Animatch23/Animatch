@@ -10,7 +10,7 @@ import { useRouter } from "next/navigation";
  */
 export default function AuthGuard({ children }) {
   const router = useRouter();
-  const [allowed, setAllowed] = useState(false);
+  const [isAllowed, setIsAllowed] = useState(false);
 
   useEffect(() => {
     // Check if user has a valid session token
@@ -23,10 +23,12 @@ export default function AuthGuard({ children }) {
       // Token exists, allow access
       setAllowed(true);
     }
+
+    setIsAllowed(true);
   }, [router]);
 
-  if (!allowed) {
-    return null; // or loading spinner
+  if (!isAllowed) {
+    return null;
   }
 
   return children;

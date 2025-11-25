@@ -122,17 +122,43 @@ router.post('/', upload.single('profilePhoto'), async (req, res) => {
         const profilePicture = createProfilePictureObject(req.file, uploadDir);
         const userData = createUserData(email, username, profilePicture);
         
-        // If acceptTerms flag is set, include terms acceptance
-        if (acceptTermsFlag) {
-            userData.termsAccepted = true;
-            userData.termsAcceptedDate = new Date();
-            userData.termsAcceptedVersion = "1.0";
+        // Build update payload
+        const updatePayload = {
+            $set: {
+                username: userData.username,
+            },
+            $setOnInsert: {
+                email: userData.email,
+            },
+        };
+
+        // Add profile picture to $set if provided, otherwise to $setOnInsert
+        if (profilePicture) {
+            updatePayload.$set.profilePicture = profilePicture;
+        } else {
+            updatePayload.$setOnInsert.profilePicture = null;
         }
-        
-        const newUser = new User(userData);
-        await newUser.save();
-        
-        res.status(201).json({ message: "User created", user: newUser });
+
+        // If acceptTerms flag is set, include terms acceptance in $set
+        if (acceptTermsFlag) {
+            updatePayload.$set.termsAccepted = true;
+            updatePayload.$set.termsAcceptedDate = new Date();
+            updatePayload.$set.termsAcceptedVersion = "1.0";
+        }
+
+        const updateResult = await User.findOneAndUpdate(
+            { email: userData.email },
+            updatePayload,
+            { new: true, upsert: true, setDefaultsOnInsert: true, rawResult: true }
+        );
+
+        const updatedUser = updateResult.value;
+        const updatedExisting = Boolean(updateResult?.lastErrorObject?.updatedExisting);
+
+        res.status(updatedExisting ? 200 : 201).json({
+            message: updatedExisting ? "User profile updated" : "User created",
+            user: updatedUser,
+        });
     } catch (err) {
         if (err instanceof multer.MulterError) {
             return res.status(400).json({ message: "Upload error", error: err.message });
