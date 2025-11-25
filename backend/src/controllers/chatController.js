@@ -1,6 +1,7 @@
 import mongoose from "mongoose";
 import ChatSession from "../models/ChatSession.js";
 import Queue from "../models/Queue.js";
+import User from "../models/User.js";
 import { io } from "../server.js";
 
 const normalizeObjectId = (value) => {
@@ -168,6 +169,44 @@ export const getActiveChat = async (req, res) => {
             success: false,
             message: "Failed to get active chat",
             error: error.message
+        });
+    }
+};
+
+export const joinQueue = async (req, res) => {
+    try {
+        const { userId } = req.body;
+
+        const user = await User.findById(userId).select("username email");
+        if (!user) {
+            return res.status(404).json({ message: "User not found" });
+        }
+
+        const username = user.username || (user.email ? user.email.split("@")[0] : String(user._id));
+
+        let queueEntry = await Queue.findOne({ user: userId });
+        if (!queueEntry) {
+            queueEntry = await Queue.create({
+                user: userId,
+                username,
+                status: "waiting",
+            });
+        } else if (!queueEntry.username) {
+            queueEntry.username = username;
+            await queueEntry.save();
+        }
+
+        res.status(200).json({
+            success: true,
+            message: "Joined queue successfully",
+            data: queueEntry,
+        });
+    } catch (error) {
+        console.error("Error in joinQueue:", error);
+        res.status(500).json({
+            success: false,
+            message: "Failed to join queue",
+            error: error.message,
         });
     }
 };

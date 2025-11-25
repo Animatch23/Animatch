@@ -24,7 +24,7 @@ describe('Auth Middleware Unit Tests', () => {
     authMiddleware(mockReq, mockRes, mockNext);
 
     expect(mockRes.status).toHaveBeenCalledWith(401);
-    expect(mockRes.json).toHaveBeenCalledWith({ message: 'No token provided' });
+    expect(mockRes.json).toHaveBeenCalledWith({ message: 'Not authorized, no token' });
     expect(mockNext).not.toHaveBeenCalled();
   });
 
@@ -34,11 +34,11 @@ describe('Auth Middleware Unit Tests', () => {
     authMiddleware(mockReq, mockRes, mockNext);
 
     expect(mockRes.status).toHaveBeenCalledWith(401);
-    expect(mockRes.json).toHaveBeenCalledWith({ message: 'No token provided' });
+    expect(mockRes.json).toHaveBeenCalledWith({ message: 'Not authorized, no token' });
     expect(mockNext).not.toHaveBeenCalled();
   });
 
-  test('should return 403 if token is invalid', () => {
+  test('should return 401 if token is invalid', () => {
     mockReq.headers.authorization = 'Bearer invalid-token';
     jwt.verify = jest.fn().mockImplementation(() => {
       throw new Error('Invalid token');
@@ -46,8 +46,8 @@ describe('Auth Middleware Unit Tests', () => {
 
     authMiddleware(mockReq, mockRes, mockNext);
 
-    expect(mockRes.status).toHaveBeenCalledWith(403);
-    expect(mockRes.json).toHaveBeenCalledWith({ message: 'Invalid token' });
+    expect(mockRes.status).toHaveBeenCalledWith(401);
+    expect(mockRes.json).toHaveBeenCalledWith({ message: 'Not authorized, token failed' });
     expect(mockNext).not.toHaveBeenCalled();
   });
 

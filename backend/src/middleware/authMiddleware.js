@@ -1,49 +1,45 @@
 import jwt from "jsonwebtoken";
-import User from '../models/User.js';
+import User from "../models/User.js";
 
-export const authenticate = async (req, res, next) => {
-    try {
-        const token = req.headers.authorization?.split(' ')[1];
-        
-        if (!token) {
-            return res.status(401).json({ message: 'Authentication required' });
-        }
+const authMiddleware = async (req, res, next) => {
+  const token = req.cookies?.token || req.headers.authorization?.split(" ")[1];
 
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        
-        // Fetch full user document
-        const user = await User.findOne({ email: decoded.email });
-        
-        if (!user) {
-            return res.status(401).json({ message: 'User not found' });
-        }
+  if (!token) {
+    return res.status(401).json({ message: "Not authorized, no token" });
+  }
 
-        // Attach user info to request
-        req.user = {
-            email: user.email,
-            username: user.username,
-            id: user._id
-        };
-        
-        next();
-    } catch (error) {
-        console.error('Authentication error:', error);
-        return res.status(401).json({ message: 'Invalid or expired token' });
-    }
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    req.user = decoded;
+    next();
+  } catch (error) {
+    return res.status(401).json({ message: "Not authorized, token failed" });
+  }
 };
 
-// Legacy middleware - keeping for backward compatibility
-export const authMiddleware = (req, res, next) => {
-    const authHeader = req.headers["authorization"];
-    const token = authHeader && authHeader.split(" ")[1];
+const authenticate = async (req, res, next) => {
+  const token = req.cookies?.token || req.headers.authorization?.split(" ")[1];
 
-    if (!token) return res.status(401).json({ message: "No token provided" });
+  if (!token) {
+    return res.status(401).json({ message: "Not authorized, no token" });
+  }
 
-    try {
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        req.user = decoded;
-        next();
-    } catch (err) {
-        res.status(403).json({ message: "Invalid token" });
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const user = await User.findOne({ email: decoded.email }).select("-password");
+
+    if (!user) {
+      return res.status(401).json({ message: "User not found" });
     }
+
+    req.user = user;
+    next();
+  } catch (error) {
+    return res.status(401).json({ message: "Not authorized, token failed" });
+  }
 };
+
+const protect = authMiddleware;
+
+export { authMiddleware, authenticate, protect };
+export default authMiddleware;

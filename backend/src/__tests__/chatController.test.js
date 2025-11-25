@@ -21,12 +21,14 @@ describe("Chat Controller - Next Chat Feature", () => {
         
         // Create test users
         const user = await User.create({
-            username: "tester_one"
+            username: "tester_one",
+            email: "tester_one@dlsu.edu.ph"
         });
         userId = user._id;
 
         const otherUser = await User.create({
-            username: "tester_two"
+            username: "tester_two",
+            email: "tester_two@dlsu.edu.ph"
         });
         otherUserId = otherUser._id;
 
@@ -98,7 +100,8 @@ describe("Chat Controller - Next Chat Feature", () => {
         it("should not duplicate users in queue", async () => {
             // Add user to queue before calling next chat
             await Queue.create({
-                userId: userId,
+                userId: userId.toString(),
+                username: "tester_one",
                 status: "waiting"
             });
 
@@ -109,7 +112,7 @@ describe("Chat Controller - Next Chat Feature", () => {
 
             // Should still only have one queue entry per user
             const userQueueCount = await Queue.countDocuments({
-                userId: userId,
+                userId: userId.toString(),
                 status: "waiting"
             });
             expect(userQueueCount).toBe(1);
