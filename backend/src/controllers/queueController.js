@@ -67,6 +67,25 @@ export const joinQueue = async (req, res) => {
 
     console.log(`[QUEUE JOIN] Attempting to match: ${user.email} <-> ${partnerUser.email}`);
 
+    // ⭐ NEW: Check if these two users already have an active chat together
+    const existingChatBetweenUsers = await ChatSession.findOne({
+      participants: { $all: [userId, partner.userId] },
+      active: true,
+      expiresAt: { $gt: new Date() }
+    });
+
+    if (existingChatBetweenUsers) {
+      console.log(`[QUEUE JOIN] Users ${user.email} and ${partnerUser.email} already have an active chat, reusing it`);
+      // Remove both from queue
+      await Queue.deleteMany({
+        userId: { $in: [userId, partner.userId] }
+      });
+      return res.json({
+        matched: true,
+        chatSessionId: existingChatBetweenUsers._id.toString()
+      });
+    }
+
     // Try to remove both from queue atomically to prevent double-matching
     const deleteResult = await Queue.deleteMany({
       userId: { $in: [userId, partner.userId] }
@@ -149,6 +168,26 @@ export const getQueueStatus = async (req, res) => {
         const partnerUser = await User.findById(partner.userId);
 
         if (partnerUser) {
+          // ⭐ NEW: Check if these two users already have an active chat together
+          const existingChatBetweenUsers = await ChatSession.findOne({
+            participants: { $all: [userId, partner.userId] },
+            active: true,
+            expiresAt: { $gt: new Date() }
+          });
+
+          if (existingChatBetweenUsers) {
+            console.log(`[QUEUE STATUS] Users ${user.email} and ${partnerUser.email} already have an active chat, reusing it`);
+            // Remove both from queue
+            await Queue.deleteMany({
+              userId: { $in: [userId, partner.userId] }
+            });
+            return res.json({
+              queued: false,
+              matched: true,
+              chatSessionId: existingChatBetweenUsers._id.toString()
+            });
+          }
+
           // Try to remove both from queue atomically
           const deleteResult = await Queue.deleteMany({
             userId: { $in: [userId, partner.userId] }

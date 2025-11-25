@@ -2,6 +2,8 @@ import express from "express";
 import dotenv from "dotenv";
 import cors from "cors";
 import cookieParser from "cookie-parser";
+import cron from 'node-cron';
+import { expireChats } from './controllers/cronController.js';
 import { createServer } from "http";
 import { Server } from "socket.io";
 import jwt from "jsonwebtoken";
@@ -25,11 +27,13 @@ if (process.env.NODE_ENV === 'test') {
 }
 
 const app = express();
-app.set('trust proxy',1)
+app.set('trust proxy', 1);
+
+const httpServer = createServer(app);
+
 // CORS configuration: allow known origins and any animatch*.vercel.app subdomains.
 // If ALLOWED_ORIGINS env var is set, use it; otherwise use default list
-// comment
-const allowedOriginsEnv = process.env.ALLOWED_ORIGINS || '';const httpServer = createServer(app);
+const allowedOriginsEnv = process.env.ALLOWED_ORIGINS || '';
 
 const allowedOrigins = allowedOriginsEnv
   ? allowedOriginsEnv.split(',').map(s => s.trim()).filter(Boolean)
@@ -317,6 +321,11 @@ io.on('connection', async (socket) => {
   });
 });
 
+cron.schedule('0 * * * *', () => {
+  console.log('Running scheduled hourly check for chat expiry...');
+  expireChats();
+});
+
 const PORT = process.env.PORT || 5000;
 
 const start = async () => {
@@ -337,9 +346,6 @@ const start = async () => {
     
     console.log('\n🔌 CONNECTING TO DATABASE...');
     await connectDB();
-    if (process.env.NODE_ENV !== 'test') {
-      httpServer.listen(PORT, () => console.log(`Server with Socket.IO running on port ${PORT}`));
-    }
     console.log('✅ Database connected successfully!');
     
     console.log('\n🌐 CORS CONFIGURATION:');
@@ -362,14 +368,16 @@ const start = async () => {
     console.log('  POST /api/queue/leave           → Leave queue');
     console.log('  POST /api/match                 → Create match');
     
-    app.listen(PORT, '0.0.0.0', () => {
-      console.log('\n╔═══════════════════════════════════════════════════════════════════╗');
-      console.log(`║  ✅ SERVER IS LIVE ON PORT ${PORT}                               ║`);
-      console.log('║  🌐 Listening on 0.0.0.0 (accepting all connections)              ║');
-      console.log(`║  🕐 Started at: ${new Date().toISOString()}                  ║`);
-      console.log('╚═══════════════════════════════════════════════════════════════════╝');
-      console.log('\n👀 Waiting for incoming requests...\n');
-    });
+    if (process.env.NODE_ENV !== 'test') {
+      httpServer.listen(PORT, '0.0.0.0', () => {
+        console.log('\n╔═══════════════════════════════════════════════════════════════════╗');
+        console.log(`║  ✅ SERVER IS LIVE ON PORT ${PORT}                               ║`);
+        console.log('║  🌐 Listening on 0.0.0.0 (accepting all connections)              ║');
+        console.log(`║  🕐 Started at: ${new Date().toISOString()}                  ║`);
+        console.log('╚═══════════════════════════════════════════════════════════════════╝');
+        console.log('\n👀 Waiting for incoming requests...\n');
+      });
+    }
   } catch (err) {
     console.error('\n╔═══════════════════════════════════════════════════════════════════╗');
     console.error('║  ❌ FATAL ERROR - SERVER FAILED TO START                          ║');

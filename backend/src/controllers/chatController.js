@@ -153,7 +153,11 @@ export const saveChatSession = async (req, res) => {
 
     res.json({ 
       message: 'Chat session saved successfully',
-      isSaved: chatSession.isSaved 
+      isSaved: chatSession.isSaved,
+      chat: {
+        savedByUsers: chatSession.savedByUsers,
+        isSaved: chatSession.isSaved
+      }
     });
   } catch (error) {
     console.error('Error saving chat session:', error);
