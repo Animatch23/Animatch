@@ -15,23 +15,8 @@ const mockQueue = {
   findOneAndUpdate: jest.fn(),
 };
 
-await jest.unstable_mockModule('../server.js', () => ({
-  io: mockIO,
-}));
-
-await jest.unstable_mockModule('../models/ChatSession.js', () => ({
-  default: mockChatSession,
-}));
-
-await jest.unstable_mockModule('../models/Queue.js', () => ({
-  default: mockQueue,
-}));
-
-await jest.unstable_mockModule('../routes/chatRoutes.js', () => ({
-  default: {},
-}));
-
-const { nextChat } = await import('../controllers/chatController.js');
+// Define variable for the function to be tested
+let nextChat;
 
 const ChatSession = mockChatSession;
 const Queue = mockQueue;
@@ -42,6 +27,27 @@ describe('Chat Controller - Next Chat Unit Tests', () => {
   const mockUserId = '507f1f77bcf86cd799439011';
   const mockPartnerId = '507f1f77bcf86cd799439012';
   const mockSessionId = '507f1f77bcf86cd799439013';
+
+  beforeAll(async () => {
+    jest.unstable_mockModule('../server.js', () => ({
+      io: mockIO,
+    }));
+
+    jest.unstable_mockModule('../models/ChatSession.js', () => ({
+      default: mockChatSession,
+    }));
+
+    jest.unstable_mockModule('../models/Queue.js', () => ({
+      default: mockQueue,
+    }));
+
+    jest.unstable_mockModule('../routes/chatRoutes.js', () => ({
+      default: {},
+    }));
+
+    const chatController = await import('../controllers/chatController.js');
+    nextChat = chatController.nextChat;
+  });
 
   beforeEach(() => {
     req = httpMocks.createRequest();
