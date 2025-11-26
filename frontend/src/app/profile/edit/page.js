@@ -22,6 +22,7 @@ export default function ProfileEditPage() {
   const [dorm, setDorm] = useState("");
   const [organizations, setOrganizations] = useState([]);
   const [orgInput, setOrgInput] = useState("");
+  const [usernameError, setUsernameError] = useState("");
   const fileInputRef = useRef(null);
   const finalCourse = course === "Other" ? customCourse : course;
   
@@ -156,7 +157,33 @@ export default function ProfileEditPage() {
     }
   };
 
+  const validateUsername = (value) => {
+    if (!value.trim()) {
+      return "Username is required";
+    } else if (value.length < 3) {
+      return "Username must be at least 3 characters";
+    } else if (!/^[a-zA-Z0-9_]+$/.test(value)) {
+      return "Username can only contain letters, numbers, and underscores";
+    }
+    return "";
+  };
+
+  const handleUsernameChange = (e) => {
+    const newUsername = e.target.value;
+    setUsername(newUsername);
+    const error = validateUsername(newUsername);
+    setUsernameError(error);
+  };
+
   const handleSave = async () => {
+    // Validate username before saving
+    const usernameValidationError = validateUsername(username);
+    if (usernameValidationError) {
+      setUsernameError(usernameValidationError);
+      setError("Please fix the username error before saving");
+      return;
+    }
+    
     if (!finalCourse || !dorm || organizations.length === 0) {
       setError("Please fill in all fields");
       return;
@@ -322,9 +349,14 @@ export default function ProfileEditPage() {
               <input
                 type="text"
                 value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500 text-black"
+                onChange={handleUsernameChange}
+                className={`w-full px-4 py-2 border rounded-md focus:ring-2 focus:ring-green-500 text-black ${
+                  usernameError ? 'border-red-500' : 'border-gray-300'
+                }`}
               />
+              {usernameError && (
+                <p className="text-red-500 text-xs mt-1">{usernameError}</p>
+              )}
             </div>
           </div>
 
@@ -483,9 +515,9 @@ export default function ProfileEditPage() {
             </Link>
             <button
               onClick={handleSave}
-              disabled={!finalCourse || !dorm || organizations.length === 0 || saving}
+              disabled={!finalCourse || !dorm || organizations.length === 0 || saving || usernameError}
               className={`px-6 py-3 rounded-lg font-semibold transition-colors ${
-                !finalCourse || !dorm || organizations.length === 0 || saving
+                !finalCourse || !dorm || organizations.length === 0 || saving || usernameError
                   ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
                   : 'bg-green-700 hover:bg-green-800 text-white'
               }`}
