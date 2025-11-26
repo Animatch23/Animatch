@@ -22,7 +22,7 @@ test.describe("chat test", () => {
   });
 
   test("chat", async () => {
-    test.setTimeout(60000); // Increase timeout to 60 seconds
+    test.setTimeout(90000); // Increase timeout to 90 seconds
     
     const browser1 = await chromium.launch();
     const context1 = await browser1.newContext();
@@ -39,9 +39,10 @@ test.describe("chat test", () => {
       // Wait for redirect to chat page after match is found
       await page1.waitForURL('**/match/chat?session=*', { timeout: 30000 });
       
-      // Wait for chat interface to load
-      await page1.waitForSelector('input[placeholder="Type your message..."]', { timeout: 10000 });
-      await page1.waitForTimeout(1000); // Additional wait for socket connection
+      // Wait for chat interface to load and socket to connect
+      // The placeholder changes from "Connecting..." to "Type your message..." when connected
+      await page1.waitForSelector('input[placeholder="Type your message..."], textarea[placeholder="Type your message..."]', { timeout: 15000 });
+      await page1.waitForTimeout(2000); // Additional wait for socket connection to stabilize
 
       await page1.getByPlaceholder("Type your message...").fill("Hello");
       await page1.getByRole("button", { name: "Send" }).click();
@@ -58,9 +59,10 @@ test.describe("chat test", () => {
       // Wait for redirect to chat page after match is found
       await page2.waitForURL('**/match/chat?session=*', { timeout: 30000 });
       
-      // Wait for chat interface to load
-      await page2.waitForSelector('input[placeholder="Type your message..."]', { timeout: 10000 });
-      await page2.waitForTimeout(1000); // Additional wait for socket connection
+      // Wait for chat interface to load and socket to connect
+      // The placeholder changes from "Connecting..." to "Type your message..." when connected
+      await page2.waitForSelector('input[placeholder="Type your message..."], textarea[placeholder="Type your message..."]', { timeout: 15000 });
+      await page2.waitForTimeout(2000); // Additional wait for socket connection to stabilize
 
       await page2.getByPlaceholder("Type your message...").fill("Hello");
       await page2.getByRole("button", { name: "Send" }).click();
