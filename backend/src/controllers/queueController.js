@@ -47,10 +47,15 @@ export const joinQueue = async (req, res) => {
       console.log(`[QUEUE JOIN] Added ${user.email} to queue`);
     }
 
-    // Try to find a match - look for ANY waiting user except current user
+    // Get blocked users lists
+    const blockedUsers = user.blockedUsers || [];
+    const usersWhoBlockedMe = await User.find({ blockedUsers: userId }).distinct('_id');
+    const excludedUserIds = [userId, ...blockedUsers, ...usersWhoBlockedMe];
+
+    // Try to find a match - look for ANY waiting user except excluded ones
     const waitingUsers = await Queue.find({
       status: 'waiting',
-      userId: { $ne: userId }
+      userId: { $nin: excludedUserIds }
     }).sort({ createdAt: 1 }).limit(10); // Get multiple candidates
 
     if (waitingUsers.length === 0) {
@@ -154,10 +159,15 @@ export const getQueueStatus = async (req, res) => {
     // Check queue position
     const queueEntry = await Queue.findOne({ userId });
     if (queueEntry) {
+      // Get blocked users lists
+      const blockedUsers = user.blockedUsers || [];
+      const usersWhoBlockedMe = await User.find({ blockedUsers: userId }).distinct('_id');
+      const excludedUserIds = [userId, ...blockedUsers, ...usersWhoBlockedMe];
+
       // Try to find a match while checking status
       const waitingUsers = await Queue.find({
         status: 'waiting',
-        userId: { $ne: userId }
+        userId: { $nin: excludedUserIds }
       }).sort({ createdAt: 1 }).limit(10);
 
       if (waitingUsers.length > 0) {

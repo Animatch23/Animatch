@@ -20,6 +20,7 @@ const formatTimestamp = (value) => {
 export default function ChatInterface({
   chatSessionId,
   partnerUsername,
+  partnerId,
   token,
   currentUserId,
   onChatEnded,
@@ -30,6 +31,7 @@ export default function ChatInterface({
   const [error, setError] = useState("");
   const [partnerTyping, setPartnerTyping] = useState(false);
   const [isEnding, setIsEnding] = useState(false);
+  const [isBlocking, setIsBlocking] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [feedback, setFeedback] = useState(null);
   const [saveStatus, setSaveStatus] = useState({ currentUserSaved: false, partnerSaved: false, bothSaved: false });
@@ -390,6 +392,41 @@ export default function ChatInterface({
     }
   };
 
+  const handleBlockUser = async () => {
+    if (!API_BASE || !token || !partnerId) return;
+
+    if (!confirm("Are you sure you want to block this user? You will not be matched with them again.")) {
+      return;
+    }
+
+    try {
+      setIsBlocking(true);
+      const response = await fetch(`${API_BASE}/api/chat/block`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ userIdToBlock: partnerId }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.message || "Failed to block user");
+      }
+
+      // Blocking also ends the chat
+      if (typeof onChatEnded === "function") {
+        onChatEnded();
+      }
+    } catch (err) {
+      console.error("Failed to block user", err);
+      alert(err instanceof Error ? err.message : "Failed to block user");
+    } finally {
+      setIsBlocking(false);
+    }
+  };
+
   return (
     <div className="flex flex-col min-h-[calc(100vh-4rem)] bg-gray-50">
       <header className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
@@ -437,6 +474,15 @@ export default function ChatInterface({
             className="h-9 px-4 rounded-md bg-rose-500 text-white text-sm font-medium shadow-sm hover:brightness-95 disabled:opacity-70"
           >
             {partnerLeft ? "Partner Left" : isEnding ? "Leaving..." : "End Chat"}
+          </button>
+          <button
+            type="button"
+            onClick={handleBlockUser}
+            disabled={isBlocking || isEnding}
+            className="h-9 px-4 rounded-md bg-gray-600 text-white text-sm font-medium shadow-sm hover:brightness-95 disabled:opacity-70"
+            title="Block this user"
+          >
+            {isBlocking ? "Blocking..." : "Block"}
           </button>
         </div>
       </header>
