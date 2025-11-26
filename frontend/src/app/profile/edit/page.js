@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
@@ -14,10 +14,16 @@ export default function ProfileEditPage() {
   // Profile data
   const [email, setEmail] = useState("");
   const [username, setUsername] = useState("");
+  const [initialUsername, setInitialUsername] = useState("");
+  const [profilePhotoFile, setProfilePhotoFile] = useState(null);
+  const [profilePhotoPreview, setProfilePhotoPreview] = useState("");
   const [course, setCourse] = useState("");
+  const [customCourse, setCustomCourse] = useState("");
   const [dorm, setDorm] = useState("");
   const [organizations, setOrganizations] = useState([]);
   const [orgInput, setOrgInput] = useState("");
+  const fileInputRef = useRef(null);
+  const finalCourse = course === "Other" ? customCourse : course;
   
   const COURSES = useMemo(
     () => [
@@ -92,9 +98,27 @@ export default function ProfileEditPage() {
         if (response.ok) {
           const data = await response.json();
           setUsername(data.user?.username || "");
+          setInitialUsername(data.user?.username || "");
+          // Set profile picture preview
+          if (data.user?.profilePicture?.url) {
+            const previewUrl = data.user.profilePicture.url;
+            // If the backend returns a relative path (e.g., '/uploads/xyz.jpg'),
+            // prefix it with the configured API URL and /api path so that the browser loads
+            // the image from the backend host in development (matching profile/page.js behavior).
+            const resolved = previewUrl.startsWith('http') || previewUrl.startsWith('data:') || previewUrl.startsWith('blob:')
+              ? previewUrl
+              : `${process.env.NEXT_PUBLIC_API_URL}/api${previewUrl}`;
+            setProfilePhotoPreview(resolved);
+          }
           
           // Load profile data - check both old and new structure for backwards compatibility
-          setCourse(data.user?.course || data.user?.interests?.course || "");
+          const dbCourse = data.user?.course || data.user?.interests?.course || "";
+          if (dbCourse && !COURSES.includes(dbCourse)) {
+            setCourse("Other");
+            setCustomCourse(dbCourse);
+          } else {
+            setCourse(dbCourse);
+          }
           setDorm(data.user?.housing || data.user?.interests?.dorm || data.user?.interests?.housing || "");
           setOrganizations(data.user?.organizations || data.user?.interests?.organizations || []);
         }
@@ -133,7 +157,7 @@ export default function ProfileEditPage() {
   };
 
   const handleSave = async () => {
-    if (!course || !dorm || organizations.length === 0) {
+    if (!finalCourse || !dorm || organizations.length === 0) {
       setError("Please fill in all fields");
       return;
     }
@@ -143,13 +167,46 @@ export default function ProfileEditPage() {
     setSuccess(false);
     
     try {
+      // If user updated username or profile photo, send multipart/form-data to /api/upload
+      if (profilePhotoFile || username !== initialUsername) {
+        const formData = new FormData();
+        formData.append('email', email);
+        formData.append('username', username);
+        if (profilePhotoFile) {
+          formData.append('profilePhoto', profilePhotoFile);
+        }
+        // Do not forcibly set acceptTerms here for updates; for new user it's used
+        const profileResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/upload`, {
+          method: 'POST',
+          body: formData
+        });
+        if (!profileResponse.ok) {
+          const errorData = await profileResponse.json();
+          throw new Error(errorData.message || 'Failed to update username/profile photo');
+        }
+        const updatedProfile = await profileResponse.json();
+        // Update local states from server response
+        setInitialUsername(updatedProfile.user?.username || username);
+        if (updatedProfile.user?.profilePicture?.url) {
+          const previewUrl = updatedProfile.user.profilePicture.url;
+          const resolved = previewUrl.startsWith('http') || previewUrl.startsWith('data:') || previewUrl.startsWith('blob:')
+            ? previewUrl
+            : `${process.env.NEXT_PUBLIC_API_URL}/api${previewUrl}`;
+          setProfilePhotoPreview(resolved);
+          // Reset the file input after successful upload so users can
+          // choose the same file again if they want to re-upload
+          if (fileInputRef?.current) {
+            fileInputRef.current.value = '';
+          }
+        }
+      }
       const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/upload/interests`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           email,
           interests: {
-            course,
+            course: finalCourse,
             dorm,
             organizations
           }
@@ -192,11 +249,83 @@ export default function ProfileEditPage() {
 
         <div className="bg-white rounded-lg shadow p-6 space-y-6">
           {/* Username (display only) */}
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">
-              Username
-            </label>
-            <p className="text-gray-900 font-medium">{username}</p>
+          <div className="flex items-start gap-6">
+            <div className="flex-1">
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Profile Photo</label>
+              <div className="flex items-center gap-4">
+                <div className="w-20 h-20 rounded-lg overflow-hidden bg-gray-100 flex items-center justify-center border">
+                  {profilePhotoPreview ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={profilePhotoPreview} alt="Profile" className="w-full h-full object-cover" />
+                  ) : (
+                    <span className="text-sm text-gray-500">No photo</span>
+                  )}
+                </div>
+                <div>
+                  {/* Hidden file input - visually styled button will trigger this */}
+                  <input
+                    id="profile-photo-input"
+                    name="profilePhoto"
+                    type="file"
+                    accept="image/*"
+                    className="sr-only"
+                    ref={fileInputRef}
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      if (!f) return;
+                      setProfilePhotoFile(f);
+                      setProfilePhotoPreview(URL.createObjectURL(f));
+                    }}
+                  />
+
+                  <div className="flex items-center gap-3">
+                    <label
+                      htmlFor="profile-photo-input"
+                      className="inline-flex items-center gap-2 px-4 py-2 rounded-md border border-gray-200 bg-white text-sm text-gray-700 hover:bg-gray-50 cursor-pointer transition-all shadow-sm"
+                    >
+                      <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V7M8 7V5a4 4 0 118 0v2" />
+                      </svg>
+                      <span>{profilePhotoPreview ? 'Replace Photo' : 'Choose Photo'}</span>
+                    </label>
+
+                    {/* Show selected file name or a hint */}
+                    <div className="text-sm text-gray-500">
+                      {profilePhotoFile ? (
+                        <span className="inline-block max-w-[200px] truncate">{profilePhotoFile.name}</span>
+                      ) : (
+                        <span className="italic">PNG, JPG up to 5MB</span>
+                      )}
+                    </div>
+
+                    {/* Show remove button when a preview exists */}
+                    {profilePhotoPreview && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setProfilePhotoFile(null);
+                          setProfilePhotoPreview("");
+                          if (fileInputRef?.current) fileInputRef.current.value = '';
+                        }}
+                        className="text-sm text-rose-600 hover:underline"
+                      >
+                        Remove
+                      </button>
+                    )}
+                  </div>
+                  {/* File hint - PNG/JPG size note */}
+                </div>
+              </div>
+            </div>
+            <div className="flex-1">
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Username</label>
+              <input
+                type="text"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500 text-black"
+              />
+            </div>
           </div>
 
           {/* Course Selection */}
@@ -220,6 +349,15 @@ export default function ProfileEditPage() {
                 </button>
               ))}
             </div>
+            {course === "Other" && (
+              <input
+                type="text"
+                value={customCourse}
+                onChange={(e) => setCustomCourse(e.target.value)}
+                placeholder="Type your course..."
+                className="mt-3 w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500 focus:border-green-500 text-black"
+              />
+            )}
           </div>
 
           {/* Dorm Selection */}
@@ -345,9 +483,9 @@ export default function ProfileEditPage() {
             </Link>
             <button
               onClick={handleSave}
-              disabled={!course || !dorm || organizations.length === 0 || saving}
+              disabled={!finalCourse || !dorm || organizations.length === 0 || saving}
               className={`px-6 py-3 rounded-lg font-semibold transition-colors ${
-                !course || !dorm || organizations.length === 0 || saving
+                !finalCourse || !dorm || organizations.length === 0 || saving
                   ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
                   : 'bg-green-700 hover:bg-green-800 text-white'
               }`}

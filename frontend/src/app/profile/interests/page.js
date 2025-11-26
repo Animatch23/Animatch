@@ -92,10 +92,9 @@ function InterestsContent() {
   };
 
   const handleSave = async () => {
-    if (selectedInterests.length === 0) {
-      setError("Please add at least one topic.");
-      return;
-    }
+    // Allow 0 interests: users can choose to save zero topics and continue
+    // Clear any previous error
+    setError("");
     setError("");
     setIsSaving(true);
     try {
@@ -216,7 +215,7 @@ function InterestsContent() {
             <div className="min-h-[220px] bg-green-100 rounded-md">
               <div className="flex flex-wrap gap-3 p-2">
                 {selectedInterests.length === 0 && (
-                  <p className="text-sm text-gray-600 px-2">Add at least one topic to continue. Try the suggestions or type your own.</p>
+                  <p className="text-sm text-gray-600 px-2">Optional: add topics to improve matching. Leave empty to skip.</p>
                 )}
                 {selectedInterests.map((topic, idx) => (
                   <span
@@ -258,9 +257,9 @@ function InterestsContent() {
               <button
                 type="button"
                 onClick={handleSave}
-                disabled={selectedInterests.length === 0 || isSaving}
+                disabled={isSaving}
                 className={`px-6 py-3 rounded-lg font-semibold shadow-md transition-colors ${
-                  selectedInterests.length === 0 || isSaving
+                  isSaving
                     ? 'bg-green-300 text-white cursor-not-allowed'
                     : 'bg-green-700 hover:bg-green-800 text-white'
                 }`}

@@ -354,4 +354,35 @@ test.describe("interests tests", () => {
 
         await expect(courseInput).toHaveValue(customCourse);
     });
+
+    test("edit profile shows previously entered custom course", async ({ page }) => {
+        // Reuse the setup to create a profile with a custom course
+        const username = faker.person.firstName() + Math.floor(Math.random() * 9000 + 1000);
+        await page.goto("http://localhost:3000/terms");
+        await page.getByText("Accept & Continue").click();
+        await page.locator('input[placeholder="Username *"]').fill(username);
+        await page.getByRole("button", { name: "Continue" }).click();
+
+        const otherCourseButton = page.locator('label:has-text("Your Course / Major") + div button', { hasText: "Other" });
+        await otherCourseButton.click();
+        const courseInput = page.locator('input[placeholder="Type your course..."]');
+        const customCourse = faker.word.words({ count: 2 });
+        await courseInput.fill(customCourse);
+
+        const housingButtons = page.locator('label:has-text("Your Housing") + div button');
+        await housingButtons.nth(0).click();
+        const orgButtons = page.locator('p:has-text("Popular organizations:") + div button');
+        await orgButtons.nth(0).click();
+        const completeBtn = page.getByRole("button", { name: "Complete Setup" });
+        await expect(completeBtn).toBeEnabled({ timeout: 10000 });
+        await completeBtn.click();
+        await page.waitForURL("**/match");
+
+        // Go to edit profile and verify the custom course input value persists
+        await page.goto("http://localhost:3000/profile/edit");
+        await page.waitForLoadState("networkidle");
+        const editCourseInput = page.locator('input[placeholder="Type your course..."]');
+        await expect(editCourseInput).toBeVisible({ timeout: 5000 });
+        await expect(editCourseInput).toHaveValue(customCourse);
+    });
 });
