@@ -182,10 +182,19 @@ export default function ChatInterface({
 
     socket.on("chat:partner-left", () => {
       setPartnerLeft(true);
-      setFeedback({
-        type: "info",
-        message: "Your partner has left the chat. You can start a new match anytime."
-      });
+      
+      // Update feedback message based on save status
+      if (saveStatus.currentUserSaved && !saveStatus.bothSaved) {
+        setFeedback({
+          type: "info",
+          message: "Your partner left before saving the match. The chat will expire in 24 hours."
+        });
+      } else {
+        setFeedback({
+          type: "info",
+          message: "Your partner has left the chat. You can start a new match anytime."
+        });
+      }
       
       // Add a system message to the chat
       setMessages(prev => [...prev, {
@@ -402,14 +411,18 @@ export default function ChatInterface({
             onClick={handleSaveChat}
             disabled={isSaving || saveStatus.bothSaved || partnerLeft}
             className={`h-9 px-4 rounded-md text-sm font-medium shadow-sm transition-all ${
-              saveStatus.bothSaved
+              partnerLeft
+                ? "bg-gray-200 text-gray-600 cursor-not-allowed"
+                : saveStatus.bothSaved
                 ? "bg-green-100 text-green-700 cursor-not-allowed"
                 : saveStatus.currentUserSaved
                 ? "bg-blue-100 text-blue-700 cursor-wait"
                 : "bg-yellow-300 text-[#286633] hover:brightness-95"
             } disabled:opacity-60`}
           >
-            {saveStatus.bothSaved 
+            {partnerLeft
+              ? "⚠️ Partner Left"
+              : saveStatus.bothSaved 
               ? "✓ Saved by Both" 
               : saveStatus.currentUserSaved 
               ? "⏳ Waiting for Partner..." 
