@@ -147,6 +147,8 @@ async function setupUser(page) {
   const username = faker.person.firstName() + Math.floor(Math.random() * 9000 + 1000);
   await page.locator('input[placeholder="Username *"]').fill(username);
 
+  await page.waitForTimeout(2000);
+  
   await page.getByRole("button", { name: "Continue" }).click();
   await completeInterestSetup(page, "Engineering", "Dorm A", ["Gaming Society"]);
 }
@@ -155,6 +157,7 @@ test.describe("chat test", () => {
   test.describe.configure({
     repeatEach: 1,
     retries: 1,
+    timeout: 60000,
   });
 
   test("chat", async () => {

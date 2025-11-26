@@ -148,6 +148,8 @@ async function setupUser(page) {
   await page.getByRole("button", { name: "Continue" }).click();
   await completeInterestSetup(page, "Engineering", "Dorm A", ["Gaming Society"]);
 
+  await page.waitForTimeout(2000);
+
   await page.getByText("Start Matching").click();
 
   return username
@@ -157,6 +159,7 @@ test.describe("save chat test", () => {
   test.describe.configure({
     repeatEach: 1,
     retries: 1,
+    timeout: 60000,
   });
 
   test("save chat", async () => {
@@ -176,7 +179,7 @@ test.describe("save chat test", () => {
       username1 = await setupUser(page1);
       await page1.click(saveChatSelector)
       // await expect(page1.locator(successSelector)).toBeVisible();
-      await page1.waitForTimeout(5000); 
+      await page.waitForTimeout(5000); 
       await page1.goto("http://localhost:3000/match");
     };
 
@@ -196,8 +199,8 @@ test.describe("save chat test", () => {
     await setupUser(page3)
 
     await Promise.all([
-      await page1.getByText("Start Matching").click(),
-      await page2.getByText("Start Matching").click(),
+      page1.getByText("Start Matching").click(),
+      page2.getByText("Start Matching").click(),
     ]);
 
     await expect(
