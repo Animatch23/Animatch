@@ -189,11 +189,12 @@ describe('Full Integration: Profile Setup → Matching', () => {
     console.log('User2 profile:', { course: user2.course, housing: user2.housing, organizations: user2.organizations });
     console.log('(No common profile data)');
     
-    // Both join queue
-    await joinQueue(mockRequest(user1._id), mockResponse());
-    await joinQueue(mockRequest(user2._id), mockResponse());
+    // Add user1 to queue with createdAt 31 seconds ago to trigger random fallback
+    await Queue.create({ userId: user1._id, status: 'waiting', createdAt: new Date(Date.now() - 31000) });
+    // Add user2 to queue
+    await Queue.create({ userId: user2._id, status: 'waiting', createdAt: new Date(Date.now() - 1000) });
     
-    // User1 checks for match
+    // User1 checks for match (should use random matching after 30s timeout)
     const req = mockRequest(user1._id);
     const res = mockResponse();
     

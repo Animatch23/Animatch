@@ -357,9 +357,9 @@ describe('Queue Controller Tests', () => {
       interests: ['Finance']
     });
 
-    // Add both users to queue
+    // Add both users to queue, with mockUser1 having been waiting 31 seconds (triggers random fallback)
     await Queue.create({ userId: user2Id, status: 'waiting', createdAt: new Date(Date.now() - 2000) });
-    await Queue.create({ userId: mockUser1.id, status: 'waiting', createdAt: new Date(Date.now() - 1000) });
+    await Queue.create({ userId: mockUser1.id, status: 'waiting', createdAt: new Date(Date.now() - 31000) });
 
     // Check status for mockUser1 - should match with user2 despite 0 similarity
     const req = mockRequest(mockUser1);
