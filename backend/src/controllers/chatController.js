@@ -218,7 +218,6 @@ export const saveChatSession = async (req, res) => {
     }
 
     // If both users saved, mark as permanently saved
-    const wasSavedBefore = chatSession.isSaved;
     if (chatSession.savedByUsers.length === 2) {
       chatSession.isSaved = true;
     }

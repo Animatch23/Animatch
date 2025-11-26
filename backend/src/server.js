@@ -393,21 +393,23 @@ const start = async () => {
   }
 };
 
-// Handle uncaught errors
-process.on('uncaughtException', (error) => {
-  console.error('\n💥 UNCAUGHT EXCEPTION:');
-  console.error('Message:', error.message);
-  console.error('Stack:', error.stack);
-  process.exit(1);
-});
+if (process.env.NODE_ENV !== 'test') {
+  // Handle uncaught errors
+  process.on('uncaughtException', (error) => {
+    console.error('\n💥 UNCAUGHT EXCEPTION:');
+    console.error('Message:', error.message);
+    console.error('Stack:', error.stack);
+    process.exit(1);
+  });
 
-process.on('unhandledRejection', (reason, promise) => {
-  console.error('\n💥 UNHANDLED PROMISE REJECTION:');
-  console.error('Reason:', reason);
-  process.exit(1);
-});
+  process.on('unhandledRejection', (reason, promise) => {
+    console.error('\n💥 UNHANDLED PROMISE REJECTION:');
+    console.error('Reason:', reason);
+    process.exit(1);
+  });
 
-// Always start server (Render needs this)
-start();
+  // Always start server (Render needs this)
+  start();
+}
 
 export default app;
