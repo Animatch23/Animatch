@@ -46,6 +46,43 @@ function ChatContent() {
       setTimeout(resolve, ms);
     });
 
+    // Check if we're opening a specific saved session
+    const sessionParam = searchParams.get('session');
+
+    const loadSavedSession = async (sessionId) => {
+      try {
+        const response = await fetch(`${API_BASE}/api/chat/${sessionId}`, {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${storedToken}`,
+          },
+        });
+
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          throw new Error(data.msg || data.message || "Failed to load saved chat");
+        }
+
+        // Get partner info (filter out current user)
+        // Since we don't have userId here, just get first participant as partner
+        const partner = data.participants?.[0];
+
+        sessionStorage.setItem("activeChatSessionId", sessionId);
+        if (!isCancelled) {
+          setChatInfo({
+            chatSessionId: sessionId,
+            partnerUsername: partner?.username || "Match Partner",
+            currentUserId: "", // Will be determined from token/messages
+            isSavedSession: true
+          });
+        }
+      } catch (err) {
+        if (!isCancelled) {
+          setError(err instanceof Error ? err.message : "Failed to load saved chat");
+        }
+      }
+    };
+
     const loadActiveChat = async () => {
       for (let attempt = 0; attempt < MAX_ACTIVE_CHAT_ATTEMPTS; attempt += 1) {
         try {
@@ -91,7 +128,13 @@ function ChatContent() {
     };
 
     const initialise = async () => {
-      await loadActiveChat();
+      // If session parameter exists, load that specific saved session
+      if (sessionParam) {
+        await loadSavedSession(sessionParam);
+      } else {
+        // Otherwise, try to load active chat
+        await loadActiveChat();
+      }
       if (!isCancelled) {
         setIsLoading(false);
       }

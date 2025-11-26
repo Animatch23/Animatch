@@ -482,21 +482,21 @@ export default function ChatInterface({
       )}
 
       <main className="flex-1 overflow-y-auto px-6 py-6">
-        <div className="flex flex-col gap-3">
+        <div className="flex flex-col gap-4">
           {messages.map((message) => (
             <div
               key={message.id}
-              className={`max-w-xl rounded-2xl px-4 py-3 text-sm shadow-sm ${
+              className={`max-w-xl rounded-2xl px-4 py-3 text-base leading-relaxed shadow-sm ${
                 message.isSystem
-                  ? "self-center bg-gray-200 text-gray-700 text-center italic"
+                  ? "self-center bg-gray-100 text-gray-700 text-center italic"
                   : message.isOwn
-                  ? "self-end bg-[#286633] text-white"
-                  : "self-start bg-white text-gray-900"
+                  ? "self-end bg-[#1e6a3f] text-white border border-[#14492b] shadow-md"
+                  : "self-start bg-gray-100 text-gray-900 border border-gray-200"
               }`}
             >
-              <p className="whitespace-pre-wrap break-words">{message.content}</p>
+              <p className="whitespace-pre-wrap break-words text-base tracking-tight">{message.content}</p>
               {!message.isSystem && (
-                <time className={`block text-xs mt-1 ${message.isOwn ? "text-white/70" : "text-gray-500"}`}>
+                <time className={`block text-xs mt-1 ${message.isOwn ? "text-white/90" : "text-gray-600"}`}>
                   {formatTimestamp(message.sentAt)}
                 </time>
               )}

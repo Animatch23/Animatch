@@ -252,19 +252,46 @@ export const getSavedChats = async (req, res) => {
     try {
         const userId = req.user.id;
 
-        // Find all sessions where:
-        // 1. isSaved is true
-        // 2. The user is a participant
+        // Find all saved sessions where user is a participant
+        // Note: Removed active: true filter so saved chats persist after ending
         const savedChats = await ChatSession.find({
-        isSaved: true,
-        active: true,
-        participants: { $in: [userId] }
+            isSaved: true,
+            participants: { $in: [userId] }
         })
         .populate('participants', 'username profilePicture')
         .select('-messages')
-        .sort({ endedAt: -1 });
+        .sort({ endedAt: -1 })
+        .lean();
 
-        res.json(savedChats);
+        // Attach last message for each chat session
+        const chatsWithLastMessage = await Promise.all(
+            savedChats.map(async (chat) => {
+                const lastMessage = await Message.findOne({ chatSessionId: chat._id })
+                    .sort({ sentAt: -1 })
+                    .populate('senderId', 'username')
+                    .lean();
+
+                if (lastMessage) {
+                    // Determine if content is an attachment (URL or file path)
+                    const isAttachment = lastMessage.content && 
+                        (lastMessage.content.startsWith('http') || 
+                         lastMessage.content.startsWith('/uploads'));
+
+                    chat.lastMessage = {
+                        content: lastMessage.content,
+                        senderId: lastMessage.senderId._id,
+                        senderUsername: lastMessage.senderId.username,
+                        sentAt: lastMessage.sentAt,
+                        isOwn: lastMessage.senderId._id.toString() === userId.toString(),
+                        type: isAttachment ? 'attachment' : 'text'
+                    };
+                }
+
+                return chat;
+            })
+        );
+
+        res.json(chatsWithLastMessage);
 
     } catch (err) {
         console.error(err.message);
