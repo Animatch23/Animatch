@@ -191,17 +191,23 @@ test.describe("save chat test", () => {
       await page2.goto("http://localhost:3000/match");
     };
 
-    await Promise.all([flow1(), flow2()]);
+    // await Promise.all([flow1(), flow2()]);
+
+    await flow1()
+    await flow2()
 
     const browser3 = await chromium.launch();
     const context3 = await browser3.newContext();
     const page3 = await context3.newPage();
     await setupUser(page3)
 
-    await Promise.all([
-      page1.getByText("Start Matching").click(),
-      page2.getByText("Start Matching").click(),
-    ]);
+    // await Promise.all([
+    //   page1.getByText("Start Matching").click(),
+    //   page2.getByText("Start Matching").click(),
+    // ]);
+
+    await page1.getByText("Start Matching").click(),
+    await page2.getByText("Start Matching").click()
 
     await expect(
       page1.locator("h1.text-lg.font-semibold.text-gray-900")

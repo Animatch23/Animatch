@@ -148,7 +148,7 @@ async function setupUser(page) {
   await page.locator('input[placeholder="Username *"]').fill(username);
 
   await page.waitForTimeout(2000);
-  
+
   await page.getByRole("button", { name: "Continue" }).click();
   await completeInterestSetup(page, "Engineering", "Dorm A", ["Gaming Society"]);
 }
@@ -193,7 +193,8 @@ test.describe("chat test", () => {
       ).toBeVisible();
     };
 
-    await Promise.all([flow1(), flow2()]);
+    await flow1();
+    await flow2();
 
     await browser1.close();
     await browser2.close();
