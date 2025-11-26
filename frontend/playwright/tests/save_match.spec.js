@@ -160,23 +160,26 @@ test.describe("save chat test", () => {
   });
 
   test("save chat", async () => {
-    const browser1 = await chromium.launch();
-    const context1 = await browser1.newContext();
-    const page1 = await context1.newPage();
+    const browser = await chromium.launch();
 
-    const browser2 = await chromium.launch();
-    const context2 = await browser2.newContext();
+    const context1 = await browser.newContext();
+    const context2 = await browser.newContext();
+    const context3 = await browser.newContext();
+    const context4 = await browser.newContext();
+
+    const page1 = await context1.newPage();
     const page2 = await context2.newPage();
+    const page3 = await context3.newPage();
+    const page4 = await context4.newPage();
 
     const saveChatSelector = 'button:has-text("Save Chat")';
-    // const successSelector = 'div.rounded-md:has-text("Chat saved to your account.")';
+    const successSelector = 'div.rounded-md:has-text("Chat saved to your account.")';
 
     let username1, username2;
     const flow1 = async () => {
       username1 = await setupUser(page1);
       await page1.click(saveChatSelector)
       // await expect(page1.locator(successSelector)).toBeVisible();
-      await page1.waitForTimeout(5000); 
       await page1.goto("http://localhost:3000/match");
     };
 
@@ -184,20 +187,17 @@ test.describe("save chat test", () => {
       username2 = await setupUser(page2);
       await page2.click(saveChatSelector);
       // await expect(page2.locator(successSelector)).toBeVisible();
-      await page2.waitForTimeout(5000); 
       await page2.goto("http://localhost:3000/match");
     };
 
     await Promise.all([flow1(), flow2()]);
 
-    const browser3 = await chromium.launch();
-    const context3 = await browser3.newContext();
-    const page3 = await context3.newPage();
-    await setupUser(page3)
+    await setupUser(page3);
+    await setupUser(page4);
 
     await Promise.all([
-      await page1.getByText("Start Matching").click(),
-      await page2.getByText("Start Matching").click(),
+      page1.getByText("Start Matching").click(),
+      page2.getByText("Start Matching").click(),
     ]);
 
     await expect(
@@ -208,14 +208,8 @@ test.describe("save chat test", () => {
       page2.locator("h1.text-lg.font-semibold.text-gray-900")
     ).toHaveText(username1);
 
-    const browser4 = await chromium.launch();
-    const context4 = await browser4.newContext();
-    const page4 = await context4.newPage();
-    await setupUser(page4)
+    await Promise.all([context1.close(), context2.close(), context3.close(), context4.close()]);
 
-    await browser1.close();
-    await browser2.close();
-    await browser3.close();
-    await browser4.close();
+    await browser.close();
   });
 });
