@@ -160,7 +160,7 @@ test.describe("save chat test", () => {
   });
 
   test("save chat", async () => {
-    const browser = await chromium.launch({ headless: false });
+    const browser = await chromium.launch();
 
     const context1 = await browser.newContext();
     const context2 = await browser.newContext();
