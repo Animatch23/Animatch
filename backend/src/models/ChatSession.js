@@ -87,4 +87,17 @@ chatSessionSchema.index({ expiresAt: 1 }, {
   partialFilterExpression: { isSaved: false }
 });
 
+// Virtual field for backward compatibility with tests expecting 'active' field
+chatSessionSchema.virtual('active').get(function() {
+  return this.status === 'active';
+});
+
+chatSessionSchema.virtual('active').set(function(value) {
+  this.status = value ? 'active' : 'ended';
+});
+
+// Ensure virtuals are included in JSON output
+chatSessionSchema.set('toJSON', { virtuals: true });
+chatSessionSchema.set('toObject', { virtuals: true });
+
 export default mongoose.model("ChatSession", chatSessionSchema);

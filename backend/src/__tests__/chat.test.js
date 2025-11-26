@@ -33,19 +33,19 @@ describe('POST /api/chat/:sessionId/save', () => {
             username: 'user3'
         });
 
-        // Generate JWT tokens for each user
+        // Generate JWT tokens for each user with correct payload structure
         token1 = jwt.sign(
-            { email: user1.email, name: user1.username },
+            { id: user1._id.toString() },
             process.env.JWT_SECRET || 'test-secret',
             { expiresIn: '1h' }
         );
         token2 = jwt.sign(
-            { email: user2.email, name: user2.username },
+            { id: user2._id.toString() },
             process.env.JWT_SECRET || 'test-secret',
             { expiresIn: '1h' }
         );
         token3 = jwt.sign(
-            { email: user3.email, name: user3.username },
+            { id: user3._id.toString() },
             process.env.JWT_SECRET || 'test-secret',
             { expiresIn: '1h' }
         );

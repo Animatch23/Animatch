@@ -269,38 +269,69 @@ export const getChatHistory = async (req, res) => {
   }
 };
 
-export const saveChatSession = async (req, res) => {
+export const saveChat = async (req, res) => {
   try {
-    const { sessionId, messages } = req.body;
-
-    if (!sessionId) {
-      return res.status(400).json({ message: "Session ID is required" });
+    const userId = normalizeObjectId(req.user?._id || req.user?.id);
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: "Authentication required",
+      });
     }
 
-    const session = await ChatSession.findOne({ sessionId });
-    if (!session) {
-      return res.status(404).json({ message: "Session not found" });
+    const { sessionId } = req.params;
+    const chatSession = await ChatSession.findById(sessionId);
+
+    if (!chatSession) {
+      return res.status(404).json({
+        success: false,
+        message: "Chat session not found",
+      });
     }
 
-    if (messages && Array.isArray(messages)) {
-        // Assuming messages are stored in the session or handled here
-        // For now, just updating the session to reflect activity
-        session.updatedAt = new Date();
+    if (!Array.isArray(chatSession.savedByUsers)) {
+      chatSession.savedByUsers = [];
     }
 
-    await session.save();
+    const isParticipant = chatSession.participants.some(
+      (participantId) => participantId?.toString() === userId.toString()
+    );
 
-    res.status(200).json({ success: true, message: "Chat session saved" });
-    res.json({ 
-      message: 'Chat session saved successfully',
-      isSaved: chatSession.isSaved,
-      chat: {
-        savedByUsers: chatSession.savedByUsers,
-        isSaved: chatSession.isSaved
-      }
+    if (!isParticipant) {
+      return res.status(404).json({
+        success: false,
+        message: "Chat session not found",
+      });
+    }
+
+    const alreadySaved = chatSession.savedByUsers.some(
+      (savedId) => savedId?.toString() === userId.toString()
+    );
+
+    if (!alreadySaved) {
+      chatSession.savedByUsers.push(userId);
+    }
+
+    const requiredSaves = chatSession.participants.length;
+    const isSaved = chatSession.savedByUsers.length >= requiredSaves;
+
+    if (isSaved) {
+      chatSession.isSaved = true;
+    }
+
+    await chatSession.save();
+    const responseChat = chatSession.toObject();
+
+    return res.status(200).json({
+      success: true,
+      chat: responseChat,
+      isSaved,
     });
   } catch (error) {
-    console.error("Error saving chat session:", error);
-    res.status(500).json({ message: "Server error" });
+    console.error("Error saving chat:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Server error",
+    });
   }
 };

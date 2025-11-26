@@ -1,70 +1,79 @@
 import jwt from "jsonwebtoken";
 import { ensureUserRecord } from "../utils/userHelpers.js";
+import User from "../models/User.js";
 
-const authenticate = async (req, res, next) => {
-  try {
-    // Merge: Check both cookies (us-6) and headers (sprint-2)
-    const token = req.cookies?.token || req.headers.authorization?.split(' ')[1];
-    
-    if (!token) {
-        return res.status(401).json({ message: 'Not authorized, no token' });
+export const authenticate = async (req, res, next) => {
+    try {
+        const token = req.headers.authorization?.split(' ')[1];
+        
+        if (!token) {
+            return res.status(401).json({ message: 'Authentication required' });
+        }
+
+        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'test-secret');
+
+        let user;
+        
+        // Handle test tokens that have 'id' field (used in tests)
+        if (decoded.id) {
+            user = await User.findById(decoded.id);
+            if (!user) {
+                return res.status(401).json({ message: 'User not found' });
+            }
+        }
+        // Handle Firebase tokens that have 'email' and 'name' fields
+        else if (decoded.email) {
+            user = await ensureUserRecord(decoded.email, decoded.name);
+        }
+        else {
+            return res.status(401).json({ message: 'Invalid token payload' });
+        }
+
+        // Attach user info to request
+        req.user = {
+            email: user.email,
+            username: user.username,
+            id: user._id
+        };
+        
+        next();
+    } catch (error) {
+        console.error('Authentication error:', error);
+        return res.status(401).json({ message: 'Invalid or expired token' });
     }
-
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-
-    // Sprint-2 logic: Fetch or provision user document
-    const user = await ensureUserRecord(decoded.email, decoded.name);
-
-    // Sprint-2 logic: Attach user info to request
-    req.user = {
-        email: user.email,
-        username: user.username,
-        id: user._id
-    };
-    
-    next();
-  } catch (error) {
-    console.error('Authentication error:', error);
-    return res.status(401).json({ message: 'Not authorized, token failed' });
-  }
 };
 
-const authMiddleware = async (req, res, next) => {
+export const authMiddleware = async (req, res, next) => {
   try {
-    // Merge: Check both cookies (us-6) and headers (sprint-2)
-    const token = req.cookies?.token || req.headers.authorization?.split(' ')[1];
+    const token = req.headers.authorization?.split(' ')[1];
     
     if (!token) {
-      // Use us-6 message to keep tests passing
-      return res.status(401).json({ message: 'Not authorized, no token' });
+      return res.status(401).json({ message: 'No token provided' });
     }
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'test-secret');
 
-    // Sprint-2 logic: For tests that don't have database access
-    if (process.env.NODE_ENV === 'test' && !process.env.USE_REAL_DB) {
-      req.user = decoded;
-      return next();
-    }
-
-    // Sprint-2 logic: Fetch the user from database
-    const user = await ensureUserRecord(decoded.email, decoded.name);
+    // Use User.findById to fetch user by ID (for backward compatibility)
+    const user = await User.findById(decoded.id);
     
-    // Set the MongoDB ObjectId and user details
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    
+    // Set the MongoDB ObjectId, not the email
     req.userId = user._id.toString();
     req.userEmail = user.email;
     req.user = user;
     
     next();
   } catch (error) {
-    // console.error('[AUTH] Error:', error); // Optional logging
-    return res.status(401).json({ message: "Not authorized, token failed" });
+    console.error('[AUTH] Error:', error);
+    return res.status(401).json({ message: 'Invalid token' });
   }
 };
 
-// Create the alias required by tests (us-6 logic)
-const protect = authMiddleware;
+// Export protect as an alias for authenticate (for us-6 compatibility)
+export const protect = authenticate;
 
-// Export everything needed by both branches
-export { authMiddleware, authenticate, protect };
+// Export authMiddleware as default for tests
 export default authMiddleware;

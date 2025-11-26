@@ -5,7 +5,7 @@ import {
   getActiveChat,
   getChatHistory,
   endChatSession,
-  saveChatSession
+  saveChat
 } from "../controllers/chatController.js";
 import {
   joinQueue,
@@ -37,7 +37,7 @@ router.get('/:chatSessionId/history', authenticate, getChatHistory);
 
 // Define additional chat management routes
 router.post("/end", protect, endChatSession);
-router.post("/save", protect, saveChatSession);
+router.post("/:sessionId/save", protect, saveChat);
 
 // Add default export
 export default router;

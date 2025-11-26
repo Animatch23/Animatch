@@ -1,59 +1,78 @@
-import express from "express";
-import dotenv from "dotenv";
-import cors from "cors";
-import cookieParser from "cookie-parser";
-import cron from 'node-cron';
-import { expireChats } from './controllers/cronController.js';
-import { createServer } from "http";
-import { Server } from "socket.io";
-import jwt from "jsonwebtoken";
-import connectDB from "./config/db.js";
+import express from 'express';
+import cors from 'cors';
+import dotenv from 'dotenv';
+import { createServer } from 'http';
+import { Server } from 'socket.io';
+import connectDB from './config/db.js';
+import authRoute from './routes/authRoute.js';
+import uploadRoute from './routes/uploadRoute.js';
+import testRoute from './routes/testRoute.js';
+import existRoute from './routes/existRoute.js';
+import blurRoute from './routes/blurRoute.js';
+import queueRoutes from './routes/queueRoutes.js';
+import matchRoutes from './routes/matchRoutes.js';
+import chatRoutes from './routes/chatRoutes.js';
+import termsRoutes from './routes/termsRoutes.js';
 
-// ... (routes imports)
+// Load environment variables
+dotenv.config();
 
-// ... (middleware and routes setup)
+// Connect to database
+connectDB();
 
-// Cron job from sprint-2
-cron.schedule('0 * * * *', () => {
-  console.log('Running scheduled hourly check for chat expiry...');
-  expireChats();
+const app = express();
+
+// Create HTTP server
+const httpServer = createServer(app);
+
+// Initialize Socket.IO
+const io = new Server(httpServer, {
+  cors: {
+    origin: process.env.FRONTEND_URL || "http://localhost:3000",
+    methods: ["GET", "POST"],
+    credentials: true
+  }
 });
 
-// Server startup function
-export const startServer = async () => {
-  try {
-    await connectDB();
-    console.log('✅ Database connected successfully!');
-    
-    const PORT = process.env.PORT || 5000;
-    
-    // Combined logging
-    console.log('\n🌐 CORS CONFIGURATION:');
-    console.log(`  Allowed Origins (${allowedOrigins.length}):`);
-    allowedOrigins.forEach(origin => console.log(`    - ${origin}`));
-    
-    const server = httpServer.listen(PORT, '0.0.0.0', () => {
-      console.log('\n');
-      console.log('╔═══════════════════════════════════════════════════════════════════╗');
-      console.log('║              🚀 ANIMATCH BACKEND STARTING 🚀                      ║');
-      console.log('╚═══════════════════════════════════════════════════════════════════╝');
-      console.log(`║  ✅ SERVER IS LIVE ON PORT ${PORT}                               ║`);
-      console.log('║  🌐 Listening on 0.0.0.0 (accepting all connections)              ║');
-      console.log(`║  🕐 Started at: ${new Date().toISOString()}                  ║`);
-      console.log('╚═══════════════════════════════════════════════════════════════════╝');
-      console.log('\n👀 Waiting for incoming requests...\n');
-    });
-    return server;
-  } catch (err) {
-    console.error('Failed to start server:', err);
-    process.exit(1);
-  }
-};
+// Middleware
+app.use(cors({
+  origin: process.env.FRONTEND_URL || "http://localhost:3000",
+  credentials: true
+}));
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
-// Start server if not in test mode
-if (process.env.NODE_ENV !== "test") {
-  startServer();
-}
+// Serve static files
+app.use('/uploads', express.static('uploads'));
+
+// Routes
+app.use('/api/auth', authRoute);
+app.use('/api/upload', uploadRoute);
+app.use('/api/test', testRoute);
+app.use('/api/exist', existRoute);
+app.use('/api/blur', blurRoute);
+app.use('/api/queue', queueRoutes);
+app.use('/api/match', matchRoutes);
+app.use('/api/chat', chatRoutes);
+app.use('/api/terms', termsRoutes);
+
+// Socket.IO connection handler
+io.on('connection', (socket) => {
+  console.log('New client connected:', socket.id);
+
+  socket.on('disconnect', () => {
+    console.log('Client disconnected:', socket.id);
+  });
+});
+
+// Make io accessible to routes
+app.set('io', io);
+
+// Error handling middleware
+app.use((err, req, res, next) => {
+  console.error(err.stack);
+  res.status(500).json({ message: 'Something went wrong!' });
+});
 
 export default app;
 export { httpServer, io };

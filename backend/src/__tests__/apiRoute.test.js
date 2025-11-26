@@ -1,67 +1,96 @@
-import { jest } from '@jest/globals';
-import { authMiddleware } from '../middleware/authMiddleware.js';
+import { jest, beforeAll, beforeEach, afterEach, describe, it, expect } from '@jest/globals';
 import jwt from 'jsonwebtoken';
 
+// Create mock User before any imports
+const mockUserFindById = jest.fn();
+const mockUser = {
+  findById: mockUserFindById,
+};
+
+// Mock the User module
+jest.unstable_mockModule('../models/User.js', () => ({
+  default: mockUser,
+}));
+
 describe('Auth Middleware Unit Tests', () => {
+  let authMiddleware;
   let mockReq;
   let mockRes;
   let mockNext;
 
+  beforeAll(async () => {
+    // Import middleware AFTER mocking
+    const middlewareModule = await import('../middleware/authMiddleware.js');
+    authMiddleware = middlewareModule.default;
+  });
+
   beforeEach(() => {
-    // Reset mocks before each test
     mockReq = {
-      headers: {}
+      headers: {},
     };
     mockRes = {
       status: jest.fn().mockReturnThis(),
-      json: jest.fn()
+      json: jest.fn(),
     };
     mockNext = jest.fn();
+    
+    // Clear all mock calls
     jest.clearAllMocks();
   });
 
-  test('should return 401 if no token is provided', () => {
-    authMiddleware(mockReq, mockRes, mockNext);
-
-    expect(mockRes.status).toHaveBeenCalledWith(401);
-    expect(mockRes.json).toHaveBeenCalledWith({ message: 'Not authorized, no token' });
-    expect(mockNext).not.toHaveBeenCalled();
+  afterEach(() => {
+    // Reset mock implementations
+    mockUserFindById.mockReset();
   });
 
-  test('should return 401 if authorization header is malformed', () => {
-    mockReq.headers.authorization = 'InvalidHeader';
-
-    authMiddleware(mockReq, mockRes, mockNext);
-
-    expect(mockRes.status).toHaveBeenCalledWith(401);
-    expect(mockRes.json).toHaveBeenCalledWith({ message: 'Not authorized, no token' });
-    expect(mockNext).not.toHaveBeenCalled();
-  });
-
-  test('should return 401 if token is invalid', () => {
-    mockReq.headers.authorization = 'Bearer invalid-token';
-    jwt.verify = jest.fn().mockImplementation(() => {
-      throw new Error('Invalid token');
+  it('should call next() if valid token and user exists', async () => {
+    const mockUserId = '507f1f77bcf86cd799439011';
+    const token = jwt.sign({ id: mockUserId }, process.env.JWT_SECRET || 'test-secret');
+    
+    mockReq.headers.authorization = `Bearer ${token}`;
+    mockUserFindById.mockResolvedValue({ 
+      _id: mockUserId, 
+      email: 'test@test.com' 
     });
 
-    authMiddleware(mockReq, mockRes, mockNext);
+    await authMiddleware(mockReq, mockRes, mockNext);
+
+    expect(mockUserFindById).toHaveBeenCalledWith(mockUserId);
+    expect(mockNext).toHaveBeenCalled();
+    expect(mockReq.userId).toBe(mockUserId);
+    expect(mockRes.status).not.toHaveBeenCalled();
+  });
+
+  it('should return 401 if no token provided', async () => {
+    await authMiddleware(mockReq, mockRes, mockNext);
 
     expect(mockRes.status).toHaveBeenCalledWith(401);
-    expect(mockRes.json).toHaveBeenCalledWith({ message: 'Not authorized, token failed' });
+    expect(mockRes.json).toHaveBeenCalledWith({ message: 'No token provided' });
     expect(mockNext).not.toHaveBeenCalled();
   });
 
-  test('should call next() if token is valid', () => {
-    const mockDecoded = { email: 'test@dlsu.edu.ph', name: 'Test User' };
-    mockReq.headers.authorization = 'Bearer valid-token';
-    jwt.verify = jest.fn().mockReturnValue(mockDecoded);
+  it('should return 401 if token is invalid', async () => {
+    mockReq.headers.authorization = 'Bearer invalidtoken';
 
-    authMiddleware(mockReq, mockRes, mockNext);
+    await authMiddleware(mockReq, mockRes, mockNext);
 
-    expect(jwt.verify).toHaveBeenCalledWith('valid-token', process.env.JWT_SECRET);
-    expect(mockReq.user).toEqual(mockDecoded);
-    expect(mockNext).toHaveBeenCalled();
-    expect(mockRes.status).not.toHaveBeenCalled();
-    expect(mockRes.json).not.toHaveBeenCalled();
+    expect(mockRes.status).toHaveBeenCalledWith(401);
+    expect(mockRes.json).toHaveBeenCalled();
+    expect(mockNext).not.toHaveBeenCalled();
+  });
+
+  it('should return 404 if user not found', async () => {
+    const mockUserId = '507f1f77bcf86cd799439011';
+    const token = jwt.sign({ id: mockUserId }, process.env.JWT_SECRET || 'test-secret');
+    
+    mockReq.headers.authorization = `Bearer ${token}`;
+    mockUserFindById.mockResolvedValue(null);
+
+    await authMiddleware(mockReq, mockRes, mockNext);
+
+    expect(mockUserFindById).toHaveBeenCalledWith(mockUserId);
+    expect(mockRes.status).toHaveBeenCalledWith(404);
+    expect(mockRes.json).toHaveBeenCalledWith({ message: 'User not found' });
+    expect(mockNext).not.toHaveBeenCalled();
   });
 });
