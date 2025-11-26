@@ -176,6 +176,7 @@ test.describe("save chat test", () => {
       username1 = await setupUser(page1);
       await page1.click(saveChatSelector)
       // await expect(page1.locator(successSelector)).toBeVisible();
+      await page1.waitForTimeout(5000); 
       await page1.goto("http://localhost:3000/match");
     };
 
@@ -183,6 +184,7 @@ test.describe("save chat test", () => {
       username2 = await setupUser(page2);
       await page2.click(saveChatSelector);
       // await expect(page2.locator(successSelector)).toBeVisible();
+      await page2.waitForTimeout(5000); 
       await page2.goto("http://localhost:3000/match");
     };
 
