@@ -2,6 +2,7 @@ import mongoose from 'mongoose';
 import { MongoMemoryServer } from 'mongodb-memory-server';
 import Queue from '../models/Queue.js';
 import ChatSession from '../models/ChatSession.js';
+import User from '../models/User.js';
 import { joinQueue, leaveQueue, checkQueueStatus } from '../controllers/queueController.js';
 
 let mongoServer;
@@ -52,10 +53,18 @@ afterAll(async () => {
 beforeEach(async () => {
   await Queue.deleteMany({});
   await ChatSession.deleteMany({});
+  await User.deleteMany({});
 });
 
 describe('Queue Controller Tests', () => {
   test('joinQueue should add a user to the queue', async () => {
+    // Create user in database first
+    await User.create({
+      _id: mockUser1.id,
+      email: 'user1@test.com',
+      username: 'testuser1'
+    });
+
     const req = mockRequest(mockUser1);
     const res = mockResponse();
     
@@ -63,7 +72,8 @@ describe('Queue Controller Tests', () => {
     
     // Check response using our custom properties instead of jest.fn() expectations
     expect(res._jsonData).toBeTruthy();
-    expect(res._jsonData.matched === false).toBe(true);
+    expect(res._jsonData.matched).toBe(false);
+    expect(res._jsonData.queued).toBe(true);
     
     const queueEntries = await Queue.find({});
     expect(queueEntries.length).toBe(1);

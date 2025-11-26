@@ -114,7 +114,6 @@ router.post('/', upload.single('profilePhoto'), async (req, res) => {
         const email = req.body.email;
         const username = req.body.username;
         const acceptTermsFlag = req.body.acceptTerms === 'true' || req.body.acceptTerms === true;
-        const interestsRaw = req.body.interests;
         
         validateEmailInput(email);
         validateUsernameInput(username);
@@ -123,30 +122,43 @@ router.post('/', upload.single('profilePhoto'), async (req, res) => {
         const profilePicture = createProfilePictureObject(req.file, uploadDir);
         const userData = createUserData(email, username, profilePicture);
         
-        // Parse profile data if provided (handle JSON from multipart/form-data)
-        if (interestsRaw) {
-            try {
-                const parsed = typeof interestsRaw === 'string' ? JSON.parse(interestsRaw) : interestsRaw;
-                // Map old 'dorm' to new 'housing' field
-                userData.course = parsed.course || "";
-                userData.housing = parsed.dorm || parsed.housing || "";
-                userData.organizations = Array.isArray(parsed.organizations) ? parsed.organizations : [];
-            } catch (e) {
-                console.warn("Failed to parse profile data:", e);
-            }
+        // Build update payload
+        const updatePayload = {
+            $set: {
+                username: userData.username,
+            },
+            $setOnInsert: {
+                email: userData.email,
+            },
+        };
+
+        // Add profile picture to $set if provided, otherwise to $setOnInsert
+        if (profilePicture) {
+            updatePayload.$set.profilePicture = profilePicture;
+        } else {
+            updatePayload.$setOnInsert.profilePicture = null;
         }
-        
-        // If acceptTerms flag is set, include terms acceptance
+
+        // If acceptTerms flag is set, include terms acceptance in $set
         if (acceptTermsFlag) {
-            userData.termsAccepted = true;
-            userData.termsAcceptedDate = new Date();
-            userData.termsAcceptedVersion = "1.0";
+            updatePayload.$set.termsAccepted = true;
+            updatePayload.$set.termsAcceptedDate = new Date();
+            updatePayload.$set.termsAcceptedVersion = "1.0";
         }
-        
-        const newUser = new User(userData);
-        await newUser.save();
-        
-        res.status(201).json({ message: "User created", user: newUser });
+
+        const updateResult = await User.findOneAndUpdate(
+            { email: userData.email },
+            updatePayload,
+            { new: true, upsert: true, setDefaultsOnInsert: true, rawResult: true }
+        );
+
+        const updatedUser = updateResult.value;
+        const updatedExisting = Boolean(updateResult?.lastErrorObject?.updatedExisting);
+
+        res.status(updatedExisting ? 200 : 201).json({
+            message: updatedExisting ? "User profile updated" : "User created",
+            user: updatedUser,
+        });
     } catch (err) {
         if (err instanceof multer.MulterError) {
             return res.status(400).json({ message: "Upload error", error: err.message });

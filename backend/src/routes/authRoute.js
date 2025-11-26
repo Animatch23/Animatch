@@ -56,6 +56,9 @@ router.post("/google", async (req, res) => {
             return res.status(403).json({ message: "Access denied: not a DLSU email" });
         }
 
+        // Note: We do NOT create user here - user is created in profile-setup
+        // This allows new users to go through terms acceptance flow
+
         // Generates session JWT valid for 24hrs
         const sessionToken = jwt.sign(
             { email, name: payload.name, picture: payload.picture },

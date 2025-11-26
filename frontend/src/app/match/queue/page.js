@@ -1,159 +1,213 @@
 "use client";
 
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+
+const API_BASE = process.env.NEXT_PUBLIC_API_URL;
+const POLL_INTERVAL_MS = 3000;
 
 export default function MatchQueuePage() {
   const router = useRouter();
-  const pollingIntervalRef = useRef(null);
-  const hasJoinedQueue = useRef(false);
-
-  // 1. Define shared functions using useCallback so they are stable
-  // (We need these for both the UI buttons AND the useEffect cleanup)
-  
-  const stopPolling = useCallback(() => {
-    if (pollingIntervalRef.current) {
-      clearInterval(pollingIntervalRef.current);
-      pollingIntervalRef.current = null;
-    }
-  }, []);
-
-  const leaveQueue = useCallback(async () => {
-    try {
-      const token = localStorage.getItem("sessionToken");
-      if (!token) return;
-
-      // We use fetch with keepalive: true if supported, or just standard fetch
-      // Note: In a cleanup context, sometimes sendBeacon is better, but fetch works in most modern browsers
-      await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/queue/leave`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-    } catch (error) {
-      console.error("Error leaving queue:", error);
-    }
-  }, []);
+  const [status, setStatus] = useState("joining");
+  const [error, setError] = useState("");
+  const [position, setPosition] = useState(null);
+  const [isCancelling, setIsCancelling] = useState(false);
+  const authTokenRef = useRef("");
+  const pollTimerRef = useRef(null);
+  const isUnmountedRef = useRef(false);
+  const isJoiningRef = useRef(false);
 
   useEffect(() => {
-    // Check authentication
     const token = localStorage.getItem("sessionToken");
     if (!token) {
-      router.push("/login");
+      router.replace("/login");
       return;
     }
 
-    // 2. Define internal logic functions (join/poll) INSIDE the effect.
-    // This prevents dependency cycles and infinite loops.
+    isUnmountedRef.current = false;
+    authTokenRef.current = token;
+    sessionStorage.removeItem("activeChatSessionId");
 
-    const handleMatchFound = (data) => {
-      stopPolling(); // Use the stable outer function
-      router.push(`/match/chat?matchId=${data.matchId}`);
+    if (!API_BASE) {
+      setError("API URL is not configured.");
+      setStatus("error");
+      return;
+    }
+
+    const handleMatch = (chatSessionId) => {
+      if (!chatSessionId) {
+        return;
+      }
+      sessionStorage.setItem("activeChatSessionId", chatSessionId);
+      router.replace(`/match/chat?session=${chatSessionId}`);
     };
 
-    const startPolling = () => {
-      // Poll every 2 seconds
-      pollingIntervalRef.current = setInterval(async () => {
-        try {
-          const currentToken = localStorage.getItem("sessionToken");
-          const response = await fetch(
-            `${process.env.NEXT_PUBLIC_API_URL}/api/queue/status`,
-            {
-              headers: {
-                Authorization: `Bearer ${currentToken}`,
-              },
-            }
-          );
-
-          if (!response.ok) {
-            if (response.status === 401) {
-              stopPolling();
-              localStorage.removeItem("sessionToken");
-              router.push("/login");
-              return;
-            }
-            return;
-          }
-
-          const data = await response.json();
-
-          if (data.matched) {
-            handleMatchFound(data);
-          }
-        } catch (error) {
-          console.error("Polling error:", error);
-        }
-      }, 2000);
-    };
-
-    const joinQueue = async () => {
-      if (hasJoinedQueue.current) return;
-      hasJoinedQueue.current = true;
-
+    const pollStatus = async () => {
       try {
-        const currentToken = localStorage.getItem("sessionToken");
-        const response = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/api/queue/join`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${currentToken}`,
-            },
-          }
-        );
+        const response = await fetch(`${API_BASE}/api/chat/queue/status`, {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${authTokenRef.current}`,
+          },
+        });
 
-        const data = await response.json();
+        const data = await response.json().catch(() => ({}));
 
         if (!response.ok) {
-          if (response.status === 401) {
-            localStorage.removeItem("sessionToken");
-            router.push("/login");
-            return;
-          }
-          console.error("Failed to join queue:", data.message);
-          router.push("/match");
+          throw new Error(data.message || "Failed to check queue status");
+        }
+
+        if (isUnmountedRef.current) {
           return;
         }
 
-        if (data.matched) {
-          handleMatchFound(data);
-        } else {
-          startPolling();
+        if (data.matched && data.chatSessionId) {
+          setStatus("matched");
+          if (pollTimerRef.current) {
+            clearInterval(pollTimerRef.current);
+            pollTimerRef.current = null;
+          }
+          handleMatch(data.chatSessionId);
+          return;
         }
-      } catch (error) {
-        console.error("Queue join error:", error);
-        router.push("/match");
+
+        setStatus("waiting");
+        setPosition(typeof data.position === "number" ? data.position : null);
+      } catch (err) {
+        if (isUnmountedRef.current) {
+          return;
+        }
+        setError(err instanceof Error ? err.message : "Failed to check queue status");
+        setStatus("error");
+        if (pollTimerRef.current) {
+          clearInterval(pollTimerRef.current);
+          pollTimerRef.current = null;
+        }
       }
     };
 
-    // 3. Kick off the process
+    const joinQueue = async () => {
+      // Prevent multiple simultaneous join requests
+      if (isJoiningRef.current) {
+        return;
+      }
+
+      try {
+        isJoiningRef.current = true;
+        setStatus("joining");
+        setError("");
+
+        const response = await fetch(`${API_BASE}/api/chat/queue/join`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${authTokenRef.current}`,
+          },
+        });
+
+        const data = await response.json().catch(() => ({}));
+
+        if (!response.ok) {
+          throw new Error(data.message || "Failed to join queue");
+        }
+
+        if (isUnmountedRef.current) {
+          return;
+        }
+
+        if (data.matched && data.chatSessionId) {
+          setStatus("matched");
+          if (pollTimerRef.current) {
+            clearInterval(pollTimerRef.current);
+            pollTimerRef.current = null;
+          }
+          handleMatch(data.chatSessionId);
+          return;
+        }
+
+        setStatus("waiting");
+        setPosition(typeof data.position === "number" ? data.position : null);
+        pollTimerRef.current = window.setInterval(pollStatus, POLL_INTERVAL_MS);
+      } catch (err) {
+        if (isUnmountedRef.current) {
+          return;
+        }
+        setError(err instanceof Error ? err.message : "Failed to join queue");
+        setStatus("error");
+      } finally {
+        isJoiningRef.current = false;
+      }
+    };
+
     joinQueue();
 
-    // 4. Cleanup on unmount
     return () => {
-      stopPolling();
-      leaveQueue();
-    };
-  }, [router, stopPolling, leaveQueue]); // Dependencies are now stable
+      isUnmountedRef.current = true;
+      if (pollTimerRef.current) {
+        clearInterval(pollTimerRef.current);
+        pollTimerRef.current = null;
+      }
 
-  // UI Event Handler
+      if (API_BASE && authTokenRef.current) {
+        fetch(`${API_BASE}/api/chat/queue/leave`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${authTokenRef.current}`,
+          },
+        }).catch(() => {});
+      }
+    };
+  }, [router]);
+
   const handleCancel = async () => {
-    stopPolling();
-    await leaveQueue();
-    router.push("/match");
+    if (!API_BASE || !authTokenRef.current || isCancelling) {
+      router.replace("/match");
+      return;
+    }
+
+    try {
+      setIsCancelling(true);
+      await fetch(`${API_BASE}/api/chat/queue/leave`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${authTokenRef.current}`,
+        },
+      }).catch(() => {});
+    } finally {
+      router.replace("/match");
+    }
+  };
+
+  const getStatusLabel = () => {
+    if (error) {
+      return "We hit an issue while matching.";
+    }
+
+    switch (status) {
+      case "joining":
+        return "Joining the queue...";
+      case "waiting":
+        return position && position > 1
+          ? `You are in the queue (position ${position}).`
+          : "Looking for a great match...";
+      case "matched":
+        return "Match found! Connecting you now...";
+      case "error":
+        return "We hit an issue while matching.";
+      default:
+        return "Preparing your match...";
+    }
   };
 
   return (
-    <div className="min-h-screen bg-[#286633] text-white relative overflow-hidden">
-      {/* Close button */}
+    <div className="min-h-[calc(100vh-4rem)] bg-[#286633] text-white relative overflow-hidden">
       <div className="absolute top-4 left-4">
         <button
           type="button"
           aria-label="Cancel matching"
           className="p-2 rounded-md hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/40"
           onClick={handleCancel}
+          disabled={isCancelling}
         >
           <svg viewBox="0 0 24 24" className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
             <path d="M6 6l12 12M18 6L6 18" />
@@ -161,14 +215,10 @@ export default function MatchQueuePage() {
         </button>
       </div>
 
-      {/* Center spinner with icon */}
-      <div className="flex flex-col items-center justify-center min-h-screen gap-6">
+      <div className="flex flex-col items-center justify-center min-h-[calc(100vh-4rem)] gap-6 px-4 text-center">
         <div className="relative w-56 h-56">
-          {/* SVG spinner with rounded arc caps */}
           <svg viewBox="0 0 100 100" className="absolute inset-0 w-full h-full">
-            {/* Base ring */}
             <circle cx="50" cy="50" r="40" fill="none" stroke="rgba(255,255,255,0.35)" strokeWidth="12" />
-            {/* Rotating arc with rounded ends */}
             <g className="animate-spin origin-center [transform-box:fill-box]" style={{ animationDuration: "1.5s" }}>
               <animateTransform attributeName="transform" type="rotate" from="0 50 50" to="360 50 50" dur="1.5s" repeatCount="indefinite" />
               <circle
@@ -184,7 +234,6 @@ export default function MatchQueuePage() {
             </g>
           </svg>
 
-          {/* Center icon */}
           <div className="absolute inset-0 flex items-center justify-center">
             <svg
               viewBox="0 0 64 64"
@@ -203,8 +252,20 @@ export default function MatchQueuePage() {
             </svg>
           </div>
         </div>
-        {/* Helper text under spinner */}
-        <div className="text-white/90 text-base">Finding a good match for you...</div>
+
+        <div className="space-y-3 max-w-lg">
+          <div className="text-lg font-medium text-white/95">{getStatusLabel()}</div>
+          {error && (
+            <div className="rounded-md border border-red-100 bg-red-50/80 px-4 py-3 text-sm text-red-900">
+              {error}
+            </div>
+          )}
+          {status === "waiting" && position && position > 1 && (
+            <div className="text-sm text-white/80">
+              Hang tight! There {position === 2 ? "is" : "are"} {position - 1} {position - 1 === 1 ? "person" : "people"} ahead of you.
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
