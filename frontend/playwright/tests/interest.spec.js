@@ -24,12 +24,12 @@ test.describe("interests tests", () => {
     });
 
     test("complete interest", async ({ page }) => {
-        
-        
+
+
         const courseButtons = page.locator(
             'label:has-text("Your Course / Major") + div button'
         );
-        
+
         const courseCount = await courseButtons.count();
         let selectedCourse;
         let courseButton;
@@ -47,26 +47,26 @@ test.describe("interests tests", () => {
         }
         await courseButton.innerText();
         await courseButton.click();
-        
+
         const housingButtons = page.locator(
             'label:has-text("Your Housing") + div button'
         );
-        
+
         const housingCount = await housingButtons.count();
         const randomHousingIndex = Math.floor(Math.random() * housingCount);
-        
+
         const housingButton = housingButtons.nth(randomHousingIndex);
         await housingButton.innerText();
         await housingButton.click();
-        
-        
+
+
         const orgButtons = page.locator(
             'p:has-text("Popular organizations:") + div button'
         );
-        
+
         const orgCount = await orgButtons.count();
-        const howMany = Math.floor(Math.random() * 3) + 2; 
-        
+        const howMany = Math.floor(Math.random() * 3) + 2;
+
         let selectedOrganizations = [];
         const clickedIndices = new Set();
 
@@ -80,10 +80,10 @@ test.describe("interests tests", () => {
                 selectedOrganizations.push(text);
 
                 await btn.click();
-                await page.waitForTimeout(200); // small delay for UI
+                await page.waitForTimeout(200);
             }
         }
-        
+
         const completeBtn = page.getByRole("button", { name: "Complete Setup" });
 
         await expect(completeBtn).toBeEnabled({ timeout: 10000 });
@@ -95,38 +95,38 @@ test.describe("interests tests", () => {
     });
 
     test("missing course/major interest", async ({ page }) => {
-        
-        
+
+
         // const courseButtons = page.locator(
         //     'label:has-text("Your Course / Major") + div button'
         // );
-        
+
         // const courseCount = await courseButtons.count();
         // const randomCourseIndex = Math.floor(Math.random() * courseCount);
-        
+
         // const courseButton = courseButtons.nth(randomCourseIndex);
         // await courseButton.innerText();
         // await courseButton.click();
-        
+
         const housingButtons = page.locator(
             'label:has-text("Your Housing") + div button'
         );
-        
+
         const housingCount = await housingButtons.count();
         const randomHousingIndex = Math.floor(Math.random() * housingCount);
-        
+
         const housingButton = housingButtons.nth(randomHousingIndex);
         await housingButton.innerText();
         await housingButton.click();
-        
-        
+
+
         const orgButtons = page.locator(
             'p:has-text("Popular organizations:") + div button'
         );
-        
+
         const orgCount = await orgButtons.count();
-        const howMany = Math.floor(Math.random() * 3) + 2; 
-        
+        const howMany = Math.floor(Math.random() * 3) + 2;
+
         let selectedOrganizations = [];
         const clickedIndices = new Set();
 
@@ -140,23 +140,23 @@ test.describe("interests tests", () => {
                 selectedOrganizations.push(text);
 
                 await btn.click();
-                await page.waitForTimeout(200); 
+                await page.waitForTimeout(200);
             }
         }
-        
+
         const completeBtn = page.getByRole("button", { name: "Complete Setup" });
 
         await expect(completeBtn).toBeDisabled();
-        
+
     });
 
     test("missing housing interest", async ({ page }) => {
-        
-        
+
+
         const courseButtons = page.locator(
             'label:has-text("Your Course / Major") + div button'
         );
-        
+
         const courseCount = await courseButtons.count();
         let selectedCourse;
         let courseButton;
@@ -174,26 +174,26 @@ test.describe("interests tests", () => {
         }
         await courseButton.innerText();
         await courseButton.click();
-        
+
         // const housingButtons = page.locator(
         //     'label:has-text("Your Housing") + div button'
         // );
-        
+
         // const housingCount = await housingButtons.count();
         // const randomHousingIndex = Math.floor(Math.random() * housingCount);
-        
+
         // const housingButton = housingButtons.nth(randomHousingIndex);
         // await housingButton.innerText();
         // await housingButton.click();
-        
-        
+
+
         const orgButtons = page.locator(
             'p:has-text("Popular organizations:") + div button'
         );
-        
+
         const orgCount = await orgButtons.count();
-        const howMany = Math.floor(Math.random() * 3) + 2; 
-        
+        const howMany = Math.floor(Math.random() * 3) + 2;
+
         let selectedOrganizations = [];
         const clickedIndices = new Set();
 
@@ -207,23 +207,23 @@ test.describe("interests tests", () => {
                 selectedOrganizations.push(text);
 
                 await btn.click();
-                await page.waitForTimeout(200); 
+                await page.waitForTimeout(200);
             }
         }
-        
+
         const completeBtn = page.getByRole("button", { name: "Complete Setup" });
 
         await expect(completeBtn).toBeDisabled();
-        
+
     });
 
     test("missing organizations interest", async ({ page }) => {
-        
-        
+
+
         const courseButtons = page.locator(
             'label:has-text("Your Course / Major") + div button'
         );
-        
+
         const courseCount = await courseButtons.count();
         let selectedCourse;
         let courseButton;
@@ -241,54 +241,54 @@ test.describe("interests tests", () => {
         }
         await courseButton.innerText();
         await courseButton.click();
-        
+
         const housingButtons = page.locator(
             'label:has-text("Your Housing") + div button'
         );
-        
+
         const housingCount = await housingButtons.count();
         const randomHousingIndex = Math.floor(Math.random() * housingCount);
-        
+
         const housingButton = housingButtons.nth(randomHousingIndex);
         await housingButton.innerText();
         await housingButton.click();
-        
-        
+
+
         // const orgButtons = page.locator(
         //     'p:has-text("Popular organizations:") + div button'
         // );
-        
+
         // const orgCount = await orgButtons.count();
         // const howMany = Math.floor(Math.random() * 3) + 2; 
-        
+
         // let selectedOrganizations = [];
-        
+
         // for (let i = 0; i < howMany; i++) {
         //     const index = Math.floor(Math.random() * orgCount);
         //     const btn = orgButtons.nth(index);
-            
+
         //     const text = await btn.innerText();
         //     selectedOrganizations.push(text);
-            
+
         //     await btn.click();
         //     await page.waitForTimeout(200); 
         // }
-        
+
         const completeBtn = page.getByRole("button", { name: "Complete Setup" });
 
         await expect(completeBtn).toBeDisabled();
-        
+
     });
 
     test("delete selected organizations", async ({ page }) => {
-        
+
         const orgButtons = page.locator(
             'p:has-text("Popular organizations:") + div button'
         );
-        
+
         const orgCount = await orgButtons.count();
-        const howMany = Math.floor(Math.random() * 3) + 4; 
-        
+        const howMany = Math.floor(Math.random() * 3) + 4;
+
         let selectedOrganizations = [];
         const clickedIndices = new Set();
 
@@ -302,10 +302,10 @@ test.describe("interests tests", () => {
                 selectedOrganizations.push(text);
 
                 await btn.click();
-                await page.waitForTimeout(200); 
+                await page.waitForTimeout(200);
             }
         }
-        
+
         let selectedOrgs = page.locator('div.flex.flex-wrap.gap-2 > span');
         while ((await selectedOrgs.count()) > 0) {
             const deleteBtn = selectedOrgs.nth(0).locator('button');
@@ -332,7 +332,7 @@ test.describe("interests tests", () => {
 
             await orgInput.fill(orgName);
             await orgInput.press("Enter");
-            await page.waitForTimeout(100); 
+            await page.waitForTimeout(100);
         }
 
         await expect(page.locator('div.flex.flex-wrap.gap-2 > span')).toHaveCount(5);
@@ -341,14 +341,14 @@ test.describe("interests tests", () => {
     test("type custom course/major", async ({ page }) => {
 
         const otherCourseButton = page.locator(
-            'label:has-text("Your Course / Major") + div button', 
+            'label:has-text("Your Course / Major") + div button',
             { hasText: "Other" }
         );
 
         await otherCourseButton.click();
         const courseInput = page.locator('input[placeholder="Type your course..."]');
 
-        const customCourse = faker.word.words({ count: 2 }); 
+        const customCourse = faker.word.words({ count: 2 });
 
         await courseInput.fill(customCourse);
 
