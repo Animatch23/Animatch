@@ -1,11 +1,17 @@
+
+const randomName = Date.now()
+
 describe('Authentication with Google', () => {
   beforeEach(() => {
-    cy.visit('/login');
+    cy.login()
+    cy.mockSession()
+    cy.visit('/terms')
+    cy.contains('Accept & Continue').click()
   });
 
-  it('should display Google login button', () => {
-    cy.contains('Login with your DLSU Google Account').should('be.visible');
-    cy.get('button').contains('Login with your DLSU Google Account').should('exist');
+  it('should setup profile', () => {
+    cy.get('input[placeholder="Username *"]input').type('randomName')
+    cy.contains('Complete Setup').click()
   });
 //this one currently is not implemented yet
   /*it('should redirect to Google OAuth', () => {

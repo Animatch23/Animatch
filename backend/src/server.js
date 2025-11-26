@@ -89,12 +89,17 @@ if (process.env.NODE_ENV !== 'test') {
     console.log(`║ Content-Type: ${req.headers['content-type'] || 'No content type'}`);
     console.log(`║ Query Params:`, JSON.stringify(req.query));
     
-    // Safely handle body logging
-    try {
-      const bodyStr = req.body ? JSON.stringify(req.body) : '{}';
-      console.log(`║ Body Preview:`, bodyStr.substring(0, 100));
-    } catch (e) {
-      console.log(`║ Body Preview: [Unable to stringify body]`);
+    // Safely handle body logging - skip for multipart/form-data (file uploads)
+    const contentType = req.headers['content-type'] || '';
+    if (contentType.includes('multipart/form-data')) {
+      console.log(`║ Body Preview: [multipart/form-data - will be parsed by multer]`);
+    } else {
+      try {
+        const bodyStr = req.body ? JSON.stringify(req.body) : '{}';
+        console.log(`║ Body Preview:`, bodyStr.substring(0, 100));
+      } catch (e) {
+        console.log(`║ Body Preview: [Unable to stringify body]`);
+      }
     }
     console.log('╚════════════════════════════════════════════════════════════');
     

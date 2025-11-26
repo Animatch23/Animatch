@@ -1,12 +1,17 @@
+const randomName = Date.now()
 describe('Profile-Setup', () => {
   beforeEach(() => {
-    cy.visit('/profile-setup');
+  
+  cy.login()
+  cy.mockSession()
+  cy.visit('/terms')
+  cy.contains('Accept & Continue').click()
   });
 
   it('Correct name information', () => {
-    cy.get('input[placeholder="Username *"]').type('Karl Matthew Dela Cruz');
+    cy.get('input[placeholder="Username *"]').type(randomName);
     cy.uploadFile('input[type="file"]', 'TEST.png', 'image/png');
-    cy.get('button').contains('Continue').click();
+    cy.get('button').contains('Complete Setup').click();
   });
 
   it('should display profile setup page', () => {
@@ -16,22 +21,28 @@ describe('Profile-Setup', () => {
 
   it('should upload photo and enter username', () => {
     cy.uploadFile('input[type="file"]', 'TEST.png', 'image/png');
-    cy.get('input[placeholder="Username *"]').type('Karl Matthew Dela Cruz');
-    cy.get('button').contains('Continue').click();
+    cy.get('input[placeholder="Username *"]').type(randomName+'1');
+    cy.get('button').contains('Complete Setup').click();
   });
 
   it('should show error for username less than 3 characters', () => {
     cy.get('input[placeholder="Username *"]').type('ab');
-    cy.get('button').contains('Continue').click();
+    cy.get('button').contains('Complete Setup').click();
     cy.contains('Username must be at least 3 characters').should('be.visible');
   });
 
   it('should disable continue button when username is empty', () => {
-    cy.get('button').contains('Continue').should('be.disabled');
+    cy.get('button').contains('Complete Setup').should('be.disabled');
   });
 
   it('should reject invalid file types', () => {
     cy.uploadFile('input[type="file"]', 'testFileFormat.pdf', 'application/pdf');
     cy.contains('Please select a valid image file').should('be.visible');
+  });
+
+  it('should upload photo and enter username', () => {
+    cy.uploadFile('input[type="file"]', 'TEST.png', 'image/png');
+    cy.get('input[placeholder="Username *"]').type(' ');
+    cy.get('button').contains('Complete Setup').should('be.disabled');
   });
 });
