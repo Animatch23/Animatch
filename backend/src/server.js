@@ -324,10 +324,12 @@ io.on('connection', async (socket) => {
   });
 });
 
-cron.schedule('0 * * * *', () => {
-  console.log('Running scheduled hourly check for chat expiry...');
-  expireChats();
-});
+if (process.env.NODE_ENV !== 'test') {
+  cron.schedule('0 * * * *', () => {
+    console.log('Running scheduled hourly check for chat expiry...');
+    expireChats();
+  });
+}
 
 const PORT = process.env.PORT || 5000;
 
