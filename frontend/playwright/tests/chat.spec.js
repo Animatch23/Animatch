@@ -36,9 +36,12 @@ test.describe("chat test", () => {
       await setupUser(page1);
       await page1.getByText("Start Matching").click();
       
-      // Wait for match to be established
-      await page1.waitForSelector('input[placeholder="Say hello..."]', { timeout: 15000 });
-      await page1.waitForTimeout(2000); // Additional wait for socket connection
+      // Wait for redirect to chat page after match is found
+      await page1.waitForURL('**/match/chat?session=*', { timeout: 30000 });
+      
+      // Wait for chat interface to load
+      await page1.waitForSelector('input[placeholder="Say hello..."]', { timeout: 10000 });
+      await page1.waitForTimeout(1000); // Additional wait for socket connection
 
       await page1.getByPlaceholder("Say hello...").fill("Hello");
       await page1.getByRole("button", { name: "Send" }).click();
@@ -52,9 +55,12 @@ test.describe("chat test", () => {
       await setupUser(page2);
       await page2.getByText("Start Matching").click();
       
-      // Wait for match to be established
-      await page2.waitForSelector('input[placeholder="Say hello..."]', { timeout: 15000 });
-      await page2.waitForTimeout(2000); // Additional wait for socket connection
+      // Wait for redirect to chat page after match is found
+      await page2.waitForURL('**/match/chat?session=*', { timeout: 30000 });
+      
+      // Wait for chat interface to load
+      await page2.waitForSelector('input[placeholder="Say hello..."]', { timeout: 10000 });
+      await page2.waitForTimeout(1000); // Additional wait for socket connection
 
       await page2.getByPlaceholder("Say hello...").fill("Hello");
       await page2.getByRole("button", { name: "Send" }).click();

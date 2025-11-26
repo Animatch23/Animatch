@@ -36,22 +36,57 @@ test.describe("save chat test", () => {
     const page2 = await context2.newPage();
 
     const saveChatSelector = 'button:has-text("Save Chat")';
-    const successSelector = 'span:has-text("You saved the chat")';
+    // Look for either success message (waiting for partner OR both saved)
+    const successSelector = 'div.p-2.text-sm.rounded span';
 
     let username1, username2;
     const flow1 = async () => {
       username1 = await setupUser(page1);
-      await page1.waitForTimeout(2000); // Wait for match to establish
+      
+      // Wait for redirect to chat page after match is found
+      await page1.waitForURL('**/match/chat?session=*', { timeout: 30000 });
+      
+      // Wait for chat interface and Save Chat button to be ready
+      await page1.waitForSelector('button:has-text("Save Chat")', { timeout: 10000 });
+      await page1.waitForTimeout(1000); // Wait for socket connection
+      
       await page1.click(saveChatSelector, { timeout: 10000 });
-      await expect(page1.locator(successSelector)).toBeVisible({ timeout: 10000 });
+      
+      // Check that feedback message appears (either waiting or success)
+      const feedbackSpan = page1.locator(successSelector);
+      await expect(feedbackSpan).toBeVisible({ timeout: 10000 });
+      const feedbackText = await feedbackSpan.textContent();
+      
+      // Verify it's a save-related message
+      if (!feedbackText.includes("saved") && !feedbackText.includes("Waiting")) {
+        throw new Error(`Unexpected feedback: ${feedbackText}`);
+      }
+      
       await page1.goto("http://localhost:3000/match");
     };
 
     const flow2 = async () => {
       username2 = await setupUser(page2);
-      await page2.waitForTimeout(2000); // Wait for match to establish
+      
+      // Wait for redirect to chat page after match is found
+      await page2.waitForURL('**/match/chat?session=*', { timeout: 30000 });
+      
+      // Wait for chat interface and Save Chat button to be ready
+      await page2.waitForSelector('button:has-text("Save Chat")', { timeout: 10000 });
+      await page2.waitForTimeout(1000); // Wait for socket connection
+      
       await page2.click(saveChatSelector, { timeout: 10000 });
-      await expect(page2.locator(successSelector)).toBeVisible({ timeout: 10000 });
+      
+      // Check that feedback message appears (either waiting or success)
+      const feedbackSpan = page2.locator(successSelector);
+      await expect(feedbackSpan).toBeVisible({ timeout: 10000 });
+      const feedbackText = await feedbackSpan.textContent();
+      
+      // Verify it's a save-related message
+      if (!feedbackText.includes("saved") && !feedbackText.includes("Waiting")) {
+        throw new Error(`Unexpected feedback: ${feedbackText}`);
+      }
+      
       await page2.goto("http://localhost:3000/match");
     };
 
