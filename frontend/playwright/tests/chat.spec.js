@@ -22,11 +22,11 @@ test.describe("chat test", () => {
   });
 
   test("chat", async () => {
-    const browser1 = await chromium.launch({ headless: false });
+    const browser1 = await chromium.launch();
     const context1 = await browser1.newContext();
     const page1 = await context1.newPage();
 
-    const browser2 = await chromium.launch({ headless: false });
+    const browser2 = await chromium.launch();
     const context2 = await browser2.newContext();
     const page2 = await context2.newPage();
 

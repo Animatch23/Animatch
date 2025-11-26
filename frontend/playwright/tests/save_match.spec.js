@@ -25,11 +25,11 @@ test.describe("save chat test", () => {
   });
 
   test("save chat", async () => {
-    const browser1 = await chromium.launch({ headless: false });
+    const browser1 = await chromium.launch();
     const context1 = await browser1.newContext();
     const page1 = await context1.newPage();
 
-    const browser2 = await chromium.launch({ headless: false });
+    const browser2 = await chromium.launch();
     const context2 = await browser2.newContext();
     const page2 = await context2.newPage();
 
@@ -53,7 +53,7 @@ test.describe("save chat test", () => {
 
     await Promise.all([flow1(), flow2()]);
 
-    const browser3 = await chromium.launch({ headless: false });
+    const browser3 = await chromium.launch();
     const context3 = await browser3.newContext();
     const page3 = await context3.newPage();
     await setupUser(page3)
@@ -71,7 +71,7 @@ test.describe("save chat test", () => {
       page2.locator("h1.text-lg.font-semibold.text-gray-900")
     ).toHaveText(username1);
 
-    const browser4 = await chromium.launch({ headless: false });
+    const browser4 = await chromium.launch();
     const context4 = await browser4.newContext();
     const page4 = await context4.newPage();
     await setupUser(page4)
