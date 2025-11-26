@@ -46,11 +46,10 @@ const authMiddleware = async (req, res, next) => {
     
     return next();
   } catch (error) {
-    // Keep logs minimal during test runs
-    console.error(
-      "[AUTH] Error:",
-      process.env.NODE_ENV === "test" ? (error?.message || String(error)) : error
-    );
+    // Keep logs minimal during test runs - only log in non-test environments
+    if (process.env.NODE_ENV !== "test") {
+      console.error("[AUTH] Error:", error);
+    }
     return res.status(401).json({ message: "Invalid token" });
   }
 };

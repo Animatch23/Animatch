@@ -19,8 +19,7 @@ const messageSchema = new mongoose.Schema({
   },
   sentAt: {
     type: Date,
-    default: Date.now,
-    index: true
+    default: Date.now
   }
 }, { 
   timestamps: true 
