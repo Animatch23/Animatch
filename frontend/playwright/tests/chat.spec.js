@@ -147,8 +147,6 @@ async function setupUser(page) {
   const username = faker.person.firstName() + Math.floor(Math.random() * 9000 + 1000);
   await page.locator('input[placeholder="Username *"]').fill(username);
 
-  await page.waitForTimeout(2000);
-
   await page.getByRole("button", { name: "Continue" }).click();
   await completeInterestSetup(page, "Engineering", "Dorm A", ["Gaming Society"]);
 }
@@ -157,16 +155,15 @@ test.describe("chat test", () => {
   test.describe.configure({
     repeatEach: 1,
     retries: 1,
-    timeout: 60000,
   });
 
   test("chat", async () => {
-    const browser1 = await chromium.launch();
-    const context1 = await browser1.newContext();
-    const page1 = await context1.newPage();
+    const browser = await chromium.launch({ headless: false });
 
-    const browser2 = await chromium.launch();
-    const context2 = await browser2.newContext();
+    const context1 = await browser.newContext();
+    const context2 = await browser.newContext();
+
+    const page1 = await context1.newPage();
     const page2 = await context2.newPage();
 
     const flow1 = async () => {
@@ -193,10 +190,9 @@ test.describe("chat test", () => {
       ).toBeVisible();
     };
 
-    await flow1();
-    await flow2();
+    await Promise.all([flow1(), flow2()]);
 
-    await browser1.close();
-    await browser2.close();
+    await Promise.all([context1.close(), context2.close()]);
+    await browser.close();
   });
 });
