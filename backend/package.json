@@ -21,7 +21,8 @@
     },
     "testEnvironment": "node",
     "clearMocks": true,
-    "testTimeout": 10000
+    "testTimeout": 10000,
+    "setupFilesAfterEnv": ["<rootDir>/jest.setup.js"]
   },
   "keywords": [],
   "author": "",
@@ -39,7 +40,6 @@
     "mongodb": "^6.20.0",
     "mongoose": "^8.18.1",
     "node-mocks-http": "^1.17.2",
-    "socket.io": "^4.6.1",
     "multer": "^2.0.2",
     "node-cron": "^4.2.1",
     "sharp": "^0.34.4",

@@ -36,14 +36,17 @@ export const authenticate = async (req, res, next) => {
             id: user._id
         };
         
-        next();
-    } catch (error) {
-        console.error('Authentication error:', error);
-        return res.status(401).json({ message: 'Invalid or expired token' });
+    next();
+  } catch (error) {
+    // Reduce verbose output during test runs
+    if (process.env.NODE_ENV !== 'test') {
+      console.error('[AUTH] Error:', error);
+    } else {
+      console.error('[AUTH] Error:', error?.message || String(error));
     }
-};
-
-export const authMiddleware = async (req, res, next) => {
+    return res.status(401).json({ message: 'Invalid or expired token' });
+  }
+};export const authMiddleware = async (req, res, next) => {
   try {
     const token = req.headers.authorization?.split(' ')[1];
     
@@ -67,7 +70,12 @@ export const authMiddleware = async (req, res, next) => {
     
     next();
   } catch (error) {
-    console.error('[AUTH] Error:', error);
+    // Reduce verbose output during test runs
+    if (process.env.NODE_ENV !== 'test') {
+      console.error('[AUTH] Error:', error);
+    } else {
+      console.error('[AUTH] Error:', error?.message || String(error));
+    }
     return res.status(401).json({ message: 'Invalid token' });
   }
 };

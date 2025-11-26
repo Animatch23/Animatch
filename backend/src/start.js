@@ -2,7 +2,7 @@ import { createServer } from 'http';
 import { Server } from 'socket.io';
 import mongoose from 'mongoose';
 import connectDB from './config/db.js';
-import app from './server.js';
+import createApp from './app.js';
 
 const PORT = process.env.PORT || 5000;
 
@@ -19,6 +19,9 @@ export async function startServer() {
     // Connect to database
     await connectDB();
     console.log('Database connected');
+
+    // Create Express app
+    const app = createApp();
 
     // Create HTTP server
     httpServer = createServer(app);
@@ -48,6 +51,13 @@ export async function startServer() {
     return new Promise((resolve, reject) => {
       httpServer.listen(PORT, () => {
         console.log(`Server running on port ${PORT}`);
+        
+        // Expose server globally for Jest teardown if needed
+        if (typeof global !== 'undefined') {
+          global.__SERVER__ = httpServer;
+          global.__IO__ = io;
+        }
+        
         resolve({ server: httpServer, io });
       });
       httpServer.on('error', reject);
