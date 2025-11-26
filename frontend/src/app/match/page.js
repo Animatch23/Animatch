@@ -86,7 +86,7 @@ export default function MatchIntroPage() {
             Start Matching
           </Link>
           <Link
-            href="/profile-setup"
+            href="/profile/interests"
             className="text-center bg-white text-green-800 font-semibold rounded-lg py-3 shadow hover:bg-white/90 transition-colors"
           >
             Select Interests
