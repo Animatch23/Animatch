@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import SavedChatsList from "./SavedChatsList";
 import { io } from "socket.io-client";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL;
@@ -34,6 +35,7 @@ export default function ChatInterface({
   const [feedback, setFeedback] = useState(null);
   const [saveStatus, setSaveStatus] = useState({ currentUserSaved: false, partnerSaved: false, bothSaved: false });
   const [partnerLeft, setPartnerLeft] = useState(false);
+  const [showSavedChats, setShowSavedChats] = useState(false);
 
   const socketRef = useRef(null);
   const messagesEndRef = useRef(null);
@@ -51,6 +53,12 @@ export default function ChatInterface({
   useEffect(() => {
     currentUserIdRef.current = currentUserId ?? "";
   }, [currentUserId]);
+
+  useEffect(() => {
+    const toggleSavedChatsListener = () => setShowSavedChats((v) => !v);
+    window.addEventListener("animatch:toggleSavedChats", toggleSavedChatsListener);
+    return () => window.removeEventListener("animatch:toggleSavedChats", toggleSavedChatsListener);
+  }, []);
 
   useEffect(() => {
     if (!API_BASE || !chatSessionId || !token) {
@@ -392,6 +400,7 @@ export default function ChatInterface({
 
   return (
     <div className="flex flex-col min-h-[calc(100vh-4rem)] bg-gray-50">
+      <SavedChatsList visible={showSavedChats} onClose={() => setShowSavedChats(false)} />
       <header className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
         <div>
           <h1 className="text-lg font-semibold text-gray-900">

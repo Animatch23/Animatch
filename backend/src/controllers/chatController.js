@@ -257,6 +257,7 @@ export const getSavedChats = async (req, res) => {
         // 2. The user is a participant
         const savedChats = await ChatSession.find({
         isSaved: true,
+        active: true,
         participants: { $in: [userId] }
         })
         .populate('participants', 'username profilePicture')
