@@ -75,7 +75,7 @@ app.use(
         if (lower.endsWith('.vercel.app') && lower.includes('animatch')) {
           return callback(null, true);
         }
-      } catch (e) {
+      } catch {
         // fallthrough to rejection
       }
 
@@ -117,7 +117,7 @@ if (process.env.NODE_ENV !== 'test') {
     try {
       const bodyStr = req.body ? JSON.stringify(req.body) : '{}';
       console.log(`║ Body Preview:`, bodyStr.substring(0, 100));
-    } catch (e) {
+    } catch {
       console.log(`║ Body Preview: [Unable to stringify body]`);
     }
     console.log('╚════════════════════════════════════════════════════════════');
@@ -134,7 +134,7 @@ if (process.env.NODE_ENV !== 'test') {
       } else if (data) {
         try {
           responsePreview = JSON.stringify(data).substring(0, 100);
-        } catch (e) {
+        } catch {
           responsePreview = '[Unable to stringify response]';
         }
       }
@@ -186,7 +186,7 @@ app.use((req, res) => {
 });
 
 // Error handler
-app.use((err, req, res, next) => {
+app.use((err, req, res) => {
   console.error("Error:", err);
   const status = err.status || 500;
   res.status(status).json({ error: err.message || "Internal Server Error" });
@@ -399,7 +399,7 @@ process.on('uncaughtException', (error) => {
   process.exit(1);
 });
 
-process.on('unhandledRejection', (reason, promise) => {
+process.on('unhandledRejection', (reason) => {
   console.error('\n💥 UNHANDLED PROMISE REJECTION:');
   console.error('Reason:', reason);
   process.exit(1);

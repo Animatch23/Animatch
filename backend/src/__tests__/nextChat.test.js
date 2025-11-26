@@ -498,8 +498,8 @@ describe('US #6: Next Chat Option', () => {
         });
 
         test('multiple sequential next chat cycles should work correctly', async () => {
-            let currentToken = token1;
-            let currentUser = user1;
+            const currentToken = token1;
+            const currentUser = user1;
 
             // Perform 3 cycles of "next chat"
             for (let i = 0; i < 3; i++) {

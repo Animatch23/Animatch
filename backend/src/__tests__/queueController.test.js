@@ -3,13 +3,12 @@ import { MongoMemoryServer } from 'mongodb-memory-server';
 import Queue from '../models/Queue.js';
 import ChatSession from '../models/ChatSession.js';
 import User from '../models/User.js';
-import { joinQueue, leaveQueue, checkQueueStatus } from '../controllers/queueController.js';
+import { joinQueue } from '../controllers/queueController.js';
 
 let mongoServer;
 
 // Mock user data
 const mockUser1 = { id: new mongoose.Types.ObjectId() };
-const mockUser2 = { id: new mongoose.Types.ObjectId() };
 
 // Mock request/response
 const mockRequest = (userData = {}) => ({

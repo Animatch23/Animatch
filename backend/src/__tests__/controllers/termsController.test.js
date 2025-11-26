@@ -1,4 +1,3 @@
-import mongoose from 'mongoose';
 import { afterAll, jest } from '@jest/globals';
 import { connectTestDB, disconnectTestDB, clearDatabase } from '../../utils/testDb.js';
 import User from '../../models/User.js';
