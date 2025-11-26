@@ -113,6 +113,7 @@ export const joinQueue = async (req, res) => {
 
     // Determine if we should use random matching (after 30 seconds)
     const SIMILARITY_TIMEOUT_SECONDS = 30;
+    const MINIMUM_SIMILARITY_THRESHOLD = 20; // Don't match below this score unless timeout
     const useRandomMatching = timeInQueue >= SIMILARITY_TIMEOUT_SECONDS;
 
     if (useRandomMatching) {
@@ -192,6 +193,12 @@ export const joinQueue = async (req, res) => {
       const partnerUser = candidate.user;
       const partner = candidate.queueEntry;
 
+      // Skip low-similarity matches unless we're in random matching mode
+      if (!useRandomMatching && candidate.score < MINIMUM_SIMILARITY_THRESHOLD) {
+        console.log(`[QUEUE JOIN] Skipping ${partnerUser.email} - similarity ${candidate.score} below threshold ${MINIMUM_SIMILARITY_THRESHOLD}`);
+        continue;
+      }
+
       console.log(`[QUEUE JOIN] Attempting to match: ${user.email} <-> ${partnerUser.email} (similarity: ${candidate.score})`);
 
       // Try to remove both from queue atomically to prevent double-matching
@@ -269,6 +276,7 @@ export const getQueueStatus = async (req, res) => {
       const now = new Date();
       const timeInQueue = (now - queueEntry.createdAt) / 1000; // Time in seconds
       const SIMILARITY_TIMEOUT_SECONDS = 30;
+      const MINIMUM_SIMILARITY_THRESHOLD = 20; // Don't match below this score unless timeout
       const useRandomMatching = timeInQueue >= SIMILARITY_TIMEOUT_SECONDS;
 
       if (useRandomMatching) {
@@ -339,6 +347,12 @@ export const getQueueStatus = async (req, res) => {
           for (const candidate of candidatesWithScores) {
             const partnerUser = candidate.user;
             const partner = candidate.queueEntry;
+
+            // Skip low-similarity matches unless we're in random matching mode
+            if (!useRandomMatching && candidate.score < MINIMUM_SIMILARITY_THRESHOLD) {
+              console.log(`[QUEUE STATUS] Skipping ${partnerUser.email} - similarity ${candidate.score} below threshold ${MINIMUM_SIMILARITY_THRESHOLD}`);
+              continue;
+            }
 
             // Try to remove both from queue atomically
             const deleteResult = await Queue.deleteMany({
