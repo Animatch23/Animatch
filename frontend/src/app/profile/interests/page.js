@@ -1,9 +1,9 @@
 "use client";
 
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
-export default function ProfileInterestsPage() {
+function InterestsContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [returnPath, setReturnPath] = useState("/profile");
@@ -274,5 +274,19 @@ export default function ProfileInterestsPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function ProfileInterestsPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex items-center justify-center min-h-screen bg-gray-100">
+        <div className="bg-white p-8 rounded-lg shadow-lg">
+          <p className="text-gray-600">Loading...</p>
+        </div>
+      </div>
+    }>
+      <InterestsContent />
+    </Suspense>
   );
 }
