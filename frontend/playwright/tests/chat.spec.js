@@ -64,14 +64,14 @@ test.describe("chat test", () => {
 
     // Now test messaging
     await page1.getByPlaceholder("Type your message...").fill("Hello");
-    await page1.getByRole("button", { name: "Send" }).click();
+    await page1.locator('button[type="submit"]').click(); // Send button
 
     await expect(
       page1.locator("div.bg-green-600").filter({ hasText: "Hello" })
     ).toBeVisible({ timeout: 10000 });
 
     await page2.getByPlaceholder("Type your message...").fill("Hello");
-    await page2.getByRole("button", { name: "Send" }).click();
+    await page2.locator('button[type="submit"]').click(); // Send button
 
     await expect(
       page2.locator("div.bg-green-600").filter({ hasText: "Hello" })
