@@ -1,4 +1,6 @@
 import { Montserrat } from "next/font/google";
+import TopBarWrapper from "../components/TopBarWrapper";
+import Providers from "./providers";
 import "./globals.css";
 
 const montserrat = Montserrat({
@@ -15,10 +17,12 @@ export const metadata = {
 export default function RootLayout({ children }) {
   return (
     <html lang="en">
-      <body
-        className={`${montserrat.variable} antialiased font-sans`}
-      >
-        {children}
+      <body className={`${montserrat.variable} antialiased font-sans`}>
+        <Providers>
+          {/* Global TopBar except on login and /profile-setup */}
+          <TopBarWrapper />
+          {children}
+        </Providers>
       </body>
     </html>
   );

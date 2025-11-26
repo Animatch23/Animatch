@@ -21,10 +21,9 @@ export default function TermsModal() {
 
       {/* Modal */}
       {isOpen && (
-        <div 
+        <div
           className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50"
           onClick={(e) => {
-            // Close modal when clicking on backdrop
             if (e.target === e.currentTarget) {
               setIsOpen(false);
             }
@@ -38,7 +37,12 @@ export default function TermsModal() {
               aria-label="Close modal"
             >
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M6 18L18 6M6 6l12 12"
+                />
               </svg>
             </button>
 
@@ -47,74 +51,85 @@ export default function TermsModal() {
               Terms and Conditions
             </h2>
 
-            {/* Scrollable content */}
+            {/* Scrollable Content */}
             <div className="bg-green-50 p-4 rounded-md flex-1 overflow-y-auto mb-6">
               <div className="space-y-4 text-sm text-gray-700">
-                {/* Placeholder content - replace with actual terms */}
+
                 <div>
-                  <h3 className="font-semibold text-green-800 mb-2">1. Acceptance of Terms</h3>
+                  <h3 className="font-semibold text-green-800 mb-2">
+                    1. Acceptance of Terms
+                  </h3>
                   <p>
-                    By accessing and using AniMatch, you accept and agree to be bound by the terms 
-                    and provision of this agreement. If you do not agree to abide by the above, 
-                    please do not use this service.
+                    By accessing and using AniMatch, you accept and agree to be bound by these terms.
+                    If you do not agree to abide by them, please do not use this service.
                   </p>
                 </div>
 
                 <div>
-                  <h3 className="font-semibold text-green-800 mb-2">2. DLSU Student Handbook Compliance</h3>
+                  <h3 className="font-semibold text-green-800 mb-2">
+                    2. DLSU Student Handbook Compliance
+                  </h3>
                   <p>
-                    All users must comply with the De La Salle University Student Handbook. 
-                    Any violation of university policies through this platform may result in 
-                    account suspension and reporting to university authorities.
+                    All users must comply with the De La Salle University Student Handbook.
+                    Any violation of university policies may result in account suspension and
+                    reporting to university authorities.
                   </p>
                 </div>
 
                 <div>
-                  <h3 className="font-semibold text-green-800 mb-2">3. User Conduct</h3>
+                  <h3 className="font-semibold text-green-800 mb-2">
+                    3. User Conduct
+                  </h3>
                   <p>
-                    Users are expected to maintain respectful and appropriate behavior. 
+                    Users are expected to maintain respectful and appropriate behavior.
                     Harassment, inappropriate content, or misuse of the platform is strictly prohibited.
                   </p>
                 </div>
 
                 <div>
-                  <h3 className="font-semibold text-green-800 mb-2">4. Privacy and Data</h3>
+                  <h3 className="font-semibold text-green-800 mb-2">
+                    4. Privacy and Data
+                  </h3>
                   <p>
-                    Your privacy is important to us. We collect and use information in accordance 
-                    with our Privacy Policy. By using AniMatch, you consent to the collection 
-                    and use of information as outlined in our privacy practices.
+                    Your privacy is important to us. By using AniMatch, you consent to the collection
+                    and use of information in accordance with our privacy practices.
                   </p>
                 </div>
 
                 <div>
-                  <h3 className="font-semibold text-green-800 mb-2">5. Intellectual Property</h3>
+                  <h3 className="font-semibold text-green-800 mb-2">
+                    5. Intellectual Property
+                  </h3>
                   <p>
-                    All content on AniMatch is protected by intellectual property laws. 
+                    All content on AniMatch is protected by intellectual property laws.
                     Users may not reproduce, distribute, or create derivative works without permission.
                   </p>
                 </div>
 
                 <div>
-                  <h3 className="font-semibold text-green-800 mb-2">6. Limitation of Liability</h3>
+                  <h3 className="font-semibold text-green-800 mb-2">
+                    6. Limitation of Liability
+                  </h3>
                   <p>
-                    AniMatch is provided "as is" without warranties. We are not liable for any 
-                    damages arising from the use of this service.
+                    AniMatch is provided &quot;as is&quot; without warranties.
+                    We are not liable for any damages arising from use of the service.
                   </p>
                 </div>
 
                 <div>
-                  <h3 className="font-semibold text-green-800 mb-2">7. Changes to Terms</h3>
+                  <h3 className="font-semibold text-green-800 mb-2">
+                    7. Changes to Terms
+                  </h3>
                   <p>
-                    These terms may be updated periodically. Continued use of the service 
+                    These terms may be updated periodically. Continued use of the service
                     constitutes acceptance of revised terms.
                   </p>
                 </div>
 
                 <div className="pt-2 border-t border-green-200">
-                  <p className="text-xs text-gray-500">
-                    Last updated: October 1, 2025
-                  </p>
+                  <p className="text-xs text-gray-500">Last updated: October 1, 2025</p>
                 </div>
+
               </div>
             </div>
 
@@ -133,6 +148,7 @@ export default function TermsModal() {
                 Accept
               </button>
             </div>
+
           </div>
         </div>
       )}

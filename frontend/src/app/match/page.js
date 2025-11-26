@@ -5,26 +5,10 @@ import Link from "next/link";
 // Intro/landing for matching flow (UI-only)
 export default function MatchIntroPage() {
   return (
-    <div className="min-h-screen bg-[#286633] text-white relative overflow-hidden">
-      {/* Top bar with sidebar (saved chats) icon */}
-      <div className="absolute top-4 left-4">
-        <button
-          type="button"
-          aria-label="Open saved chats sidebar"
-          className="p-2 rounded-md hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/40"
-          onClick={() => console.log("[UI ONLY] open saved chats sidebar")}
-        >
-          {/* Hamburger */}
-          <div className="space-y-1.5">
-            <span className="block w-7 h-0.5 bg-white rounded"></span>
-            <span className="block w-7 h-0.5 bg-white rounded"></span>
-            <span className="block w-7 h-0.5 bg-white rounded"></span>
-          </div>
-        </button>
-      </div>
+    <div className="min-h-[calc(100vh-4rem)] bg-[#286633] text-white relative overflow-hidden">
 
       {/* Content */}
-      <div className="flex flex-col items-center justify-center min-h-screen px-6">
+  <div className="flex flex-col items-center justify-center min-h-[calc(100vh-4rem)] px-6">
         {/* Center icon (simple bow/arrow style) */}
         <svg
           viewBox="0 0 64 64"

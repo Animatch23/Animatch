@@ -1,9 +1,37 @@
 import express from 'express';
-import { saveMatch, getChatHistory, getChatSession } from '../controllers/chatController.js';
+import { authenticate } from '../middleware/authMiddleware.js';
+import {
+  getActiveChat,
+  getChatHistory,
+  endChatSession,
+  leaveChatSession,
+  saveChatSession,
+  getSavedChats,
+  getChatSession
+} from '../controllers/chatController.js';
+import {
+  joinQueue,
+  getQueueStatus,
+  leaveQueue,
+  getActiveMatch
+} from '../controllers/queueController.js';
 
 const router = express.Router();
-router.get('/history', getChatHistory);
-router.get('/:sessionId', getChatSession);
-router.post('/:sessionId/save', saveMatch);
+
+router.post('/queue/join', authenticate, joinQueue);
+router.get('/queue/status', authenticate, getQueueStatus);
+router.post('/queue/leave', authenticate, leaveQueue);
+router.get('/match/active', authenticate, getActiveMatch);
+
+// All routes require authentication
+router.get('/active', authenticate, getActiveChat);
+router.get('/:chatSessionId/history', authenticate, getChatHistory);
+router.post('/:chatSessionId/end', authenticate, endChatSession);
+router.post('/:chatSessionId/leave', authenticate, leaveChatSession);
+router.post('/:chatSessionId/save', authenticate, saveChatSession);
+
+// Additional routes from us-8 for chat history and session details
+router.get('/history', authenticate, getSavedChats);
+router.get('/:sessionId', authenticate, getChatSession);
 
 export default router;
