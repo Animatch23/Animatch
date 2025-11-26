@@ -158,7 +158,7 @@ test.describe("chat test", () => {
   });
 
   test("chat", async () => {
-    const browser = await chromium.launch();
+    const browser = await chromium.launch({ headless: false });
 
     const context1 = await browser.newContext();
     const context2 = await browser.newContext();
@@ -166,31 +166,25 @@ test.describe("chat test", () => {
     const page1 = await context1.newPage();
     const page2 = await context2.newPage();
 
-    const flow1 = async () => {
-      await setupUser(page1);
-      await page1.getByText("Start Matching").click();
+    await Promise.all([  
+      setupUser(page1),
+      setupUser(page2)
+    ]);
 
-      await page1.getByPlaceholder("Say hello...").fill("Hello");
-      await page1.getByRole("button", { name: "Send" }).click();
+    await page1.getByText("Start Matching").click();
+    await page2.getByText("Start Matching").click();
+    await page1.getByPlaceholder("Say hello...").fill("Hello");
+    await page2.getByPlaceholder("Say hello...").fill("Hello");
+    await page1.getByRole("button", { name: "Send" }).click();
+    await page2.getByRole("button", { name: "Send" }).click();
 
-      await expect(
-        page1.locator("div.bg-white").filter({ hasText: "Hello" })
-      ).toBeVisible();
-    };
+    await expect(
+      page2.locator("div.bg-white").filter({ hasText: "Hello" })
+    ).toBeVisible();
 
-    const flow2 = async () => {
-      await setupUser(page2);
-      await page2.getByText("Start Matching").click();
-
-      await page2.getByPlaceholder("Say hello...").fill("Hello");
-      await page2.getByRole("button", { name: "Send" }).click();
-
-      await expect(
-        page2.locator("div.bg-white").filter({ hasText: "Hello" })
-      ).toBeVisible();
-    };
-
-    await Promise.all([flow1(), flow2()]);
+    await expect(
+      page1.locator("div.bg-white").filter({ hasText: "Hello" })
+    ).toBeVisible();
 
     await Promise.all([context1.close(), context2.close()]);
     await browser.close();
