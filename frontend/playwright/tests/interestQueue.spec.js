@@ -440,4 +440,48 @@ test.describe("interest queue tests", () => {
             console.log("\nAll contexts closed.");
         }
     });
+
+    test("allow saving zero interests (remove all and save)", async ({ page }) => {
+        await mockSession(page);
+        await login(page);
+
+        await page.goto("http://localhost:3000/terms");
+        await page.getByText("Accept & Continue").click();
+
+        const username = faker.person.firstName() + Math.floor(Math.random() * 9000 + 1000);
+        await page.locator('input[placeholder="Username *"]').fill(username);
+        await page.getByRole("button", { name: "Continue" }).click();
+
+        // Setup minimal course, housing and orgs
+        const courseButtons = page.locator('label:has-text("Your Course / Major") + div button');
+        await courseButtons.nth(0).click();
+        const housingButtons = page.locator('label:has-text("Your Housing") + div button');
+        await housingButtons.nth(0).click();
+        const orgButtons = page.locator('p:has-text("Popular organizations:") + div button');
+        await orgButtons.nth(0).click();
+        const completeBtn = page.getByRole("button", { name: "Complete Setup" });
+        await expect(completeBtn).toBeEnabled({ timeout: 10000 });
+        await completeBtn.click();
+        await page.waitForURL("**/match", { timeout: 15000 });
+
+        // Navigate to interests page
+        await page.goto("http://localhost:3000/profile/interests?from=match");
+        await page.waitForLoadState("networkidle");
+
+        // Add an interest, then remove it
+        const topicBtn = page.getByRole("button", { name: "Music" }).first();
+        await topicBtn.click();
+        await page.waitForTimeout(200);
+        const removeBtn = page.getByRole('button', { name: 'Remove Music' }).first();
+        if (await removeBtn.isVisible().catch(() => false)) {
+            await removeBtn.click();
+            await page.waitForTimeout(200);
+        }
+
+        // Ensure Save is enabled even after removing all
+        const saveBtn = page.getByRole("button", { name: "Save" });
+        await expect(saveBtn).toBeEnabled({ timeout: 5000 });
+        await saveBtn.click();
+        await page.waitForURL("**/match", { timeout: 10000 });
+    });
 });
