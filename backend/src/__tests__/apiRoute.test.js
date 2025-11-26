@@ -79,7 +79,7 @@ describe('Auth Middleware Unit Tests', () => {
     expect(mockNext).not.toHaveBeenCalled();
   });
 
-  it('should return 404 if user not found', async () => {
+  it('should return 401 if user not found', async () => {
     const mockUserId = '507f1f77bcf86cd799439011';
     const token = jwt.sign({ id: mockUserId }, process.env.JWT_SECRET || 'test-secret');
     
@@ -89,7 +89,7 @@ describe('Auth Middleware Unit Tests', () => {
     await authMiddleware(mockReq, mockRes, mockNext);
 
     expect(mockUserFindById).toHaveBeenCalledWith(mockUserId);
-    expect(mockRes.status).toHaveBeenCalledWith(404);
+    expect(mockRes.status).toHaveBeenCalledWith(401);
     expect(mockRes.json).toHaveBeenCalledWith({ message: 'User not found' });
     expect(mockNext).not.toHaveBeenCalled();
   });

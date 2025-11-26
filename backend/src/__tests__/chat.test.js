@@ -124,7 +124,7 @@ describe('POST /api/chat/:sessionId/save', () => {
             .post(`/api/chat/${fakeSessionId}/save`);
 
         expect(res.status).toBe(401);
-        expect(res.body.message).toBe('Authentication required');
+        expect(res.body.message).toBe('No token provided');
     });
 
     // --- Test 5: Idempotency - Same User Saves Twice ---
