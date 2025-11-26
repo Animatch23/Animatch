@@ -3,6 +3,65 @@ import Queue from '../models/Queue.js';
 import User from '../models/User.js';
 
 /**
+ * Calculate similarity score between two users (0-100)
+ * Higher score = more similar
+ * 
+ * Scoring breakdown:
+ * - Course match: 30 points (case-insensitive match)
+ * - Housing match: 20 points (case-insensitive match)
+ * - Organizations: up to 25 points (5 points per shared org, max 5 orgs, case-insensitive)
+ * - Interests: up to 25 points (2.5 points per shared interest, max 10 interests, case-insensitive)
+ * 
+ * @param {Object} user1 - First user object with course, housing, organizations, interests
+ * @param {Object} user2 - Second user object with course, housing, organizations, interests
+ * @returns {number} Similarity score from 0 to 100
+ */
+const calculateSimilarity = (user1, user2) => {
+  let score = 0;
+
+  // Course similarity (30 points for case-insensitive match)
+  // Handles "Other" courses and custom entries
+  if (user1.course && user2.course && 
+      user1.course.toLowerCase().trim() === user2.course.toLowerCase().trim()) {
+    score += 30;
+  }
+
+  // Housing similarity (20 points for case-insensitive match)
+  if (user1.housing && user2.housing && 
+      user1.housing.toLowerCase().trim() === user2.housing.toLowerCase().trim()) {
+    score += 20;
+  }
+
+  // Organizations similarity (up to 25 points, case-insensitive)
+  if (user1.organizations && user2.organizations && 
+      user1.organizations.length > 0 && user2.organizations.length > 0) {
+    // Normalize organizations to lowercase for comparison
+    const user1OrgsLower = user1.organizations.map(org => org.toLowerCase().trim());
+    const user2OrgsLower = user2.organizations.map(org => org.toLowerCase().trim());
+    
+    const sharedOrgs = user1OrgsLower.filter(org => user2OrgsLower.includes(org));
+    // 5 points per shared org, max 5 orgs = 25 points
+    score += Math.min(sharedOrgs.length * 5, 25);
+  }
+
+  // Interests similarity (up to 25 points, case-insensitive)
+  if (user1.interests && user2.interests && 
+      user1.interests.length > 0 && user2.interests.length > 0) {
+    // Normalize interests to lowercase for comparison
+    const user1InterestsLower = user1.interests.map(interest => interest.toLowerCase().trim());
+    const user2InterestsLower = user2.interests.map(interest => interest.toLowerCase().trim());
+    
+    const sharedInterests = user1InterestsLower.filter(interest => 
+      user2InterestsLower.includes(interest)
+    );
+    // 2.5 points per shared interest, max 10 interests = 25 points
+    score += Math.min(sharedInterests.length * 2.5, 25);
+  }
+
+  return score;
+};
+
+/**
  * Join the matchmaking queue
  * Ensures only 1 active chat session per user
  */
@@ -34,54 +93,106 @@ export const joinQueue = async (req, res) => {
     }
 
     // Check if user is already in queue
-    const existingQueueEntry = await Queue.findOne({ userId });
+    let existingQueueEntry = await Queue.findOne({ userId });
+    const now = new Date();
+    let timeInQueue = 0;
+
     if (existingQueueEntry) {
-      console.log(`[QUEUE JOIN] User ${user.email} already in queue, attempting to match`);
+      timeInQueue = (now - existingQueueEntry.createdAt) / 1000; // Time in seconds
+      console.log(`[QUEUE JOIN] User ${user.email} already in queue for ${timeInQueue.toFixed(1)}s, attempting to match`);
     } else {
       // Add to queue using upsert to prevent duplicates
       await Queue.updateOne(
         { userId },
-        { $set: { userId, status: 'waiting', createdAt: new Date() } },
+        { $set: { userId, status: 'waiting', createdAt: now } },
         { upsert: true }
       );
       console.log(`[QUEUE JOIN] Added ${user.email} to queue`);
+      existingQueueEntry = await Queue.findOne({ userId }); // Fetch the created entry
     }
 
-    // Try to find a match - look for ANY waiting user except current user
+    // Determine if we should use random matching (after 30 seconds)
+    const SIMILARITY_TIMEOUT_SECONDS = 30;
+    const useRandomMatching = timeInQueue >= SIMILARITY_TIMEOUT_SECONDS;
+
+    if (useRandomMatching) {
+      console.log(`[QUEUE JOIN] ⏰ User ${user.email} has been waiting ${timeInQueue.toFixed(1)}s (>= ${SIMILARITY_TIMEOUT_SECONDS}s), switching to random matching`);
+    }
+
+    // Try to find a match - look for waiting users and calculate similarity
     const waitingUsers = await Queue.find({
       status: 'waiting',
       userId: { $ne: userId }
-    }).sort({ createdAt: 1 }).limit(10); // Get multiple candidates
+    }).sort({ createdAt: 1 }).limit(50); // Get more candidates for better matching
 
     if (waitingUsers.length === 0) {
       console.log(`[QUEUE JOIN] No match found for ${user.email}, staying in queue`);
       return res.json({ matched: false, queued: true });
     }
 
-    // Try to match with each waiting user until successful
-    for (const partner of waitingUsers) {
-      const partnerUser = await User.findById(partner.userId);
-
-      if (!partnerUser) {
-        console.log(`[QUEUE JOIN] Partner user not found, trying next`);
+    // Calculate similarity scores for all candidates
+    const candidatesWithScores = [];
+    for (const queueEntry of waitingUsers) {
+      const candidateUser = await User.findById(queueEntry.userId);
+      
+      if (!candidateUser) {
         continue;
       }
 
-      // ⭐ CRITICAL: Check partner doesn't have an active chat (enforces 1 active session rule)
-      const partnerActiveChat = await ChatSession.findOne({
-        participants: partner.userId,
+      // Check if candidate has active chat
+      const candidateActiveChat = await ChatSession.findOne({
+        participants: queueEntry.userId,
         active: true,
         expiresAt: { $gt: new Date() }
       });
 
-      if (partnerActiveChat) {
-        console.log(`[QUEUE JOIN] Partner ${partnerUser.email} already in active chat, trying next`);
-        // Remove them from queue since they shouldn't be there
-        await Queue.deleteOne({ userId: partner.userId });
+      if (candidateActiveChat) {
+        // Remove from queue if they have active chat
+        await Queue.deleteOne({ userId: queueEntry.userId });
         continue;
       }
 
-      console.log(`[QUEUE JOIN] Attempting to match: ${user.email} <-> ${partnerUser.email}`);
+      // Calculate similarity score
+      const similarityScore = calculateSimilarity(user, candidateUser);
+      
+      candidatesWithScores.push({
+        queueEntry,
+        user: candidateUser,
+        score: similarityScore
+      });
+
+      console.log(`[QUEUE JOIN] Candidate ${candidateUser.email}: similarity score = ${similarityScore}`);
+    }
+
+    if (candidatesWithScores.length === 0) {
+      console.log(`[QUEUE JOIN] No valid candidates for ${user.email}, staying in queue`);
+      return res.json({ matched: false, queued: true });
+    }
+
+    // Sort candidates based on matching strategy
+    if (useRandomMatching) {
+      // Random matching: Sort by queue time only (FIFO = random)
+      candidatesWithScores.sort((a, b) => {
+        return new Date(a.queueEntry.createdAt) - new Date(b.queueEntry.createdAt);
+      });
+      console.log(`[QUEUE JOIN] 🎲 Random matching active - using FIFO order`);
+    } else {
+      // Similarity-based matching: Sort by score first, then by queue time
+      candidatesWithScores.sort((a, b) => {
+        if (b.score !== a.score) {
+          return b.score - a.score; // Higher score first
+        }
+        // If scores equal, prioritize who joined queue first
+        return new Date(a.queueEntry.createdAt) - new Date(b.queueEntry.createdAt);
+      });
+      console.log(`[QUEUE JOIN] 🎯 Interest-based matching active - best match: ${candidatesWithScores[0].user.email} (score: ${candidatesWithScores[0].score})`);
+    }
+    // Try to match with candidates in order of similarity
+    for (const candidate of candidatesWithScores) {
+      const partnerUser = candidate.user;
+      const partner = candidate.queueEntry;
+
+      console.log(`[QUEUE JOIN] Attempting to match: ${user.email} <-> ${partnerUser.email} (similarity: ${candidate.score})`);
 
       // Try to remove both from queue atomically to prevent double-matching
       const deleteResult = await Queue.deleteMany({
@@ -104,7 +215,7 @@ export const joinQueue = async (req, res) => {
         savedByUsers: []
       });
 
-      console.log(`[QUEUE JOIN] ✅ Match created: ${chatSession._id} - ${user.email} <-> ${partnerUser.email}`);
+      console.log(`[QUEUE JOIN] ✅ Match created: ${chatSession._id} - ${user.email} <-> ${partnerUser.email} (similarity score: ${candidate.score})`);
 
       return res.json({
         matched: true,
@@ -154,65 +265,110 @@ export const getQueueStatus = async (req, res) => {
     // Check queue position
     const queueEntry = await Queue.findOne({ userId });
     if (queueEntry) {
+      // Calculate time in queue for timeout logic
+      const now = new Date();
+      const timeInQueue = (now - queueEntry.createdAt) / 1000; // Time in seconds
+      const SIMILARITY_TIMEOUT_SECONDS = 30;
+      const useRandomMatching = timeInQueue >= SIMILARITY_TIMEOUT_SECONDS;
+
+      if (useRandomMatching) {
+        console.log(`[QUEUE STATUS] ⏰ User ${user.email} has been waiting ${timeInQueue.toFixed(1)}s (>= ${SIMILARITY_TIMEOUT_SECONDS}s), switching to random matching`);
+      }
+
       // Try to find a match while checking status
       const waitingUsers = await Queue.find({
         status: 'waiting',
         userId: { $ne: userId }
-      }).sort({ createdAt: 1 }).limit(10);
+      }).sort({ createdAt: 1 }).limit(50); // Get more candidates for better matching
 
       if (waitingUsers.length > 0) {
-        console.log(`[QUEUE STATUS] Found potential match for ${user.email}, attempting to create chat`);
+        console.log(`[QUEUE STATUS] Found potential matches for ${user.email}, calculating similarity scores`);
 
-        // Try each candidate until successful
-        for (const partner of waitingUsers) {
-          const partnerUser = await User.findById(partner.userId);
-
-          if (!partnerUser) {
+        // Calculate similarity scores for all candidates
+        const candidatesWithScores = [];
+        for (const queueEntry of waitingUsers) {
+          const candidateUser = await User.findById(queueEntry.userId);
+          
+          if (!candidateUser) {
             continue;
           }
 
           // ⭐ Check partner doesn't have active chat
-          const partnerActiveChat = await ChatSession.findOne({
-            participants: partner.userId,
+          const candidateActiveChat = await ChatSession.findOne({
+            participants: queueEntry.userId,
             active: true,
             expiresAt: { $gt: new Date() }
           });
 
-          if (partnerActiveChat) {
-            console.log(`[QUEUE STATUS] Partner ${partnerUser.email} already in active chat, trying next`);
-            // Remove them from queue
-            await Queue.deleteOne({ userId: partner.userId });
+          if (candidateActiveChat) {
+            console.log(`[QUEUE STATUS] Candidate ${candidateUser.email} already in active chat, removing from queue`);
+            await Queue.deleteOne({ userId: queueEntry.userId });
             continue;
           }
 
-          // Try to remove both from queue atomically
-          const deleteResult = await Queue.deleteMany({
-            userId: { $in: [userId, partner.userId] }
+          // Calculate similarity score
+          const similarityScore = calculateSimilarity(user, candidateUser);
+          
+          candidatesWithScores.push({
+            queueEntry,
+            user: candidateUser,
+            score: similarityScore
           });
+        }
 
-          if (deleteResult.deletedCount === 2) {
-            // Create ChatSession
-            const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
-            const chatSession = await ChatSession.create({
-              participants: [userId, partner.userId],
-              active: true,
-              startedAt: new Date(),
-              expiresAt,
-              isSaved: false,
-              savedByUsers: []
+        if (candidatesWithScores.length > 0) {
+          // Sort candidates based on matching strategy
+          if (useRandomMatching) {
+            // Random matching: Sort by queue time only (FIFO = random)
+            candidatesWithScores.sort((a, b) => {
+              return new Date(a.queueEntry.createdAt) - new Date(b.queueEntry.createdAt);
             });
-
-            console.log(`[QUEUE STATUS] ✅ Match created: ${chatSession._id} - ${user.email} <-> ${partnerUser.email}`);
-
-            return res.json({
-              queued: false,
-              matched: true,
-              chatSessionId: chatSession._id.toString()
-            });
+            console.log(`[QUEUE STATUS] 🎲 Random matching active - using FIFO order`);
           } else {
-            // Race condition - try next candidate
-            console.log(`[QUEUE STATUS] Race condition, trying next candidate`);
-            continue;
+            // Similarity-based matching: Sort by score first
+            candidatesWithScores.sort((a, b) => {
+              if (b.score !== a.score) {
+                return b.score - a.score;
+              }
+              return new Date(a.queueEntry.createdAt) - new Date(b.queueEntry.createdAt);
+            });
+            console.log(`[QUEUE STATUS] 🎯 Interest-based matching active - best candidate score: ${candidatesWithScores[0].score}`);
+          }
+
+          // Try each candidate until successful
+          for (const candidate of candidatesWithScores) {
+            const partnerUser = candidate.user;
+            const partner = candidate.queueEntry;
+
+            // Try to remove both from queue atomically
+            const deleteResult = await Queue.deleteMany({
+              userId: { $in: [userId, partner.userId] }
+            });
+
+            if (deleteResult.deletedCount === 2) {
+              // Create ChatSession
+              const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+              const chatSession = await ChatSession.create({
+                participants: [userId, partner.userId],
+                active: true,
+                startedAt: new Date(),
+                expiresAt,
+                isSaved: false,
+                savedByUsers: []
+              });
+
+              console.log(`[QUEUE STATUS] ✅ Match created: ${chatSession._id} - ${user.email} <-> ${partnerUser.email} (similarity: ${candidate.score})`);
+
+              return res.json({
+                queued: false,
+                matched: true,
+                chatSessionId: chatSession._id.toString()
+              });
+            } else {
+              // Race condition - try next candidate
+              console.log(`[QUEUE STATUS] Race condition, trying next candidate`);
+              continue;
+            }
           }
         }
 

@@ -1,10 +1,23 @@
 "use client";
 
 import { useMemo, useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 export default function ProfileInterestsPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const [returnPath, setReturnPath] = useState("/profile");
+  
+  useEffect(() => {
+    // Check query parameter to determine where to return
+    const from = searchParams.get('from');
+    if (from === 'match') {
+      setReturnPath('/match');
+    } else {
+      setReturnPath('/profile');
+    }
+  }, [searchParams]);
+  
   const SUGGESTED_TOPICS = useMemo(
     () => [
       "Sports","Movies","Music","Books","Technology","Gaming","Cooking","Travel","Anime","Pets",
@@ -112,8 +125,8 @@ export default function ProfileInterestsPage() {
       // Persist locally as backup
       try { localStorage.setItem("animatch:interests", JSON.stringify(selectedInterests)); } catch {}
       
-      // Redirect to matching page
-      router.push("/match");
+      // Redirect back to where user came from
+      router.push(returnPath);
     } catch (err) {
       console.error("Error saving interests:", err);
       setError(err.message || "Failed to save interests. Please try again.");
@@ -238,7 +251,7 @@ export default function ProfileInterestsPage() {
               <button
                 type="button"
                 className="px-6 py-3 rounded-lg bg-rose-500 text-white font-semibold hover:bg-rose-600 transition-colors"
-                onClick={() => router.push("/profile")}
+                onClick={() => router.push(returnPath)}
               >
                 Cancel
               </button>

@@ -4,36 +4,88 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 
 export default function ProfilePage() {
-  const [profile, setProfile] = useState({ username: "", hasPhoto: false });
+  const [profile, setProfile] = useState({ username: "", hasPhoto: false, profilePicture: null });
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem("animatch:profile");
-      if (raw) setProfile(JSON.parse(raw));
-    } catch {}
+    const loadProfile = async () => {
+      try {
+        const email = localStorage.getItem("userEmail");
+        if (!email) {
+          setIsLoading(false);
+          return;
+        }
+
+        // Fetch user profile from database
+        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/exist`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email })
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          if (data.user) {
+            setProfile({
+              username: data.user.username || "",
+              hasPhoto: !!data.user.profilePicture,
+              profilePicture: data.user.profilePicture
+            });
+          }
+        } else {
+          // Fallback to localStorage
+          const raw = localStorage.getItem("animatch:profile");
+          if (raw) setProfile(JSON.parse(raw));
+        }
+      } catch (err) {
+        console.error("Error loading profile:", err);
+        // Fallback to localStorage
+        try {
+          const raw = localStorage.getItem("animatch:profile");
+          if (raw) setProfile(JSON.parse(raw));
+        } catch {}
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadProfile();
   }, []);
 
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-3xl mx-auto p-6">
         <h1 className="text-3xl font-bold text-green-800 mb-6">My Profile</h1>
+        {isLoading ? (
+          <div className="bg-white rounded-lg shadow p-6">
+            <p className="text-gray-600">Loading profile...</p>
+          </div>
+        ) : (
         <div className="bg-white rounded-lg shadow p-6 flex items-center gap-6">
           <div className="w-24 h-24 rounded-full bg-green-100 border border-green-200 flex items-center justify-center overflow-hidden">
-            {/* Placeholder avatar */}
-            <svg className="w-12 h-12 text-green-700" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0z" />
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-            </svg>
+            {profile.profilePicture?.url ? (
+              <img
+                src={`${process.env.NEXT_PUBLIC_API_URL}/api${profile.profilePicture.url}`}
+                alt="Profile"
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <svg className="w-12 h-12 text-green-700" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+              </svg>
+            )}
           </div>
           <div className="flex-1">
             <div className="text-xl font-semibold text-gray-800">{profile.username || "Anonymous"}</div>
             <div className="text-sm text-gray-500">Photo: {profile.hasPhoto ? "Uploaded" : "Not set"}</div>
             <div className="mt-4 flex gap-3">
               <Link href="/profile/edit" className="px-4 py-2 rounded-md bg-green-700 text-white hover:bg-green-800">Edit Profile</Link>
-              <Link href="/profile/interests" className="px-4 py-2 rounded-md bg-gray-200 hover:bg-gray-300 text-gray-800">Edit Interests</Link>
+              <Link href="/profile/interests?from=profile" className="px-4 py-2 rounded-md bg-gray-200 hover:bg-gray-300 text-gray-800">Edit Interests</Link>
             </div>
           </div>
         </div>
+        )}
       </div>
     </div>
   );
