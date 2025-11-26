@@ -40,14 +40,14 @@ test.describe("chat test", () => {
       await page1.waitForURL('**/match/chat?session=*', { timeout: 30000 });
       
       // Wait for chat interface to load
-      await page1.waitForSelector('input[placeholder="Say hello..."]', { timeout: 10000 });
+      await page1.waitForSelector('input[placeholder="Type your message..."]', { timeout: 10000 });
       await page1.waitForTimeout(1000); // Additional wait for socket connection
 
-      await page1.getByPlaceholder("Say hello...").fill("Hello");
+      await page1.getByPlaceholder("Type your message...").fill("Hello");
       await page1.getByRole("button", { name: "Send" }).click();
 
       await expect(
-        page1.locator("div.bg-white").filter({ hasText: "Hello" })
+        page1.locator("div.bg-green-600").filter({ hasText: "Hello" })
       ).toBeVisible({ timeout: 10000 });
     };
 
@@ -59,14 +59,14 @@ test.describe("chat test", () => {
       await page2.waitForURL('**/match/chat?session=*', { timeout: 30000 });
       
       // Wait for chat interface to load
-      await page2.waitForSelector('input[placeholder="Say hello..."]', { timeout: 10000 });
+      await page2.waitForSelector('input[placeholder="Type your message..."]', { timeout: 10000 });
       await page2.waitForTimeout(1000); // Additional wait for socket connection
 
-      await page2.getByPlaceholder("Say hello...").fill("Hello");
+      await page2.getByPlaceholder("Type your message...").fill("Hello");
       await page2.getByRole("button", { name: "Send" }).click();
 
       await expect(
-        page2.locator("div.bg-white").filter({ hasText: "Hello" })
+        page2.locator("div.bg-green-600").filter({ hasText: "Hello" })
       ).toBeVisible({ timeout: 10000 });
     };
 
