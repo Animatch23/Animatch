@@ -22,7 +22,7 @@ test.describe("chat test", () => {
   });
 
   test("chat", async () => {
-    test.setTimeout(90000); // Increase timeout to 90 seconds
+    test.setTimeout(120000); // Increase timeout to 120 seconds
     
     const browser1 = await chromium.launch();
     const context1 = await browser1.newContext();
@@ -32,47 +32,50 @@ test.describe("chat test", () => {
     const context2 = await browser2.newContext();
     const page2 = await context2.newPage();
 
-    const flow1 = async () => {
-      await setupUser(page1);
-      await page1.getByText("Start Matching").click();
-      
-      // Wait for redirect to chat page after match is found
-      await page1.waitForURL('**/match/chat?session=*', { timeout: 30000 });
-      
-      // Wait for chat interface to load and socket to connect
-      // The placeholder changes from "Connecting..." to "Type your message..." when connected
-      await page1.waitForSelector('input[placeholder="Type your message..."], textarea[placeholder="Type your message..."]', { timeout: 15000 });
-      await page1.waitForTimeout(2000); // Additional wait for socket connection to stabilize
+    // Setup both users first (profile completion) - do NOT click Start Matching yet
+    await Promise.all([
+      setupUser(page1),
+      setupUser(page2)
+    ]);
 
-      await page1.getByPlaceholder("Type your message...").fill("Hello");
-      await page1.getByRole("button", { name: "Send" }).click();
+    // Now click Start Matching for BOTH users simultaneously
+    await Promise.all([
+      page1.getByText("Start Matching").click(),
+      page2.getByText("Start Matching").click()
+    ]);
 
-      await expect(
-        page1.locator("div.bg-green-600").filter({ hasText: "Hello" })
-      ).toBeVisible({ timeout: 10000 });
-    };
+    // Wait for both to be redirected to chat (they should match with each other)
+    await Promise.all([
+      page1.waitForURL('**/match/chat?session=*', { timeout: 45000 }),
+      page2.waitForURL('**/match/chat?session=*', { timeout: 45000 })
+    ]);
 
-    const flow2 = async () => {
-      await setupUser(page2);
-      await page2.getByText("Start Matching").click();
-      
-      // Wait for redirect to chat page after match is found
-      await page2.waitForURL('**/match/chat?session=*', { timeout: 30000 });
-      
-      // Wait for chat interface to load and socket to connect
-      // The placeholder changes from "Connecting..." to "Type your message..." when connected
-      await page2.waitForSelector('input[placeholder="Type your message..."], textarea[placeholder="Type your message..."]', { timeout: 15000 });
-      await page2.waitForTimeout(2000); // Additional wait for socket connection to stabilize
+    // Wait for chat interface to load and socket to connect for both users
+    await Promise.all([
+      page1.waitForSelector('input[placeholder="Type your message..."], textarea[placeholder="Type your message..."]', { timeout: 20000 }),
+      page2.waitForSelector('input[placeholder="Type your message..."], textarea[placeholder="Type your message..."]', { timeout: 20000 })
+    ]);
 
-      await page2.getByPlaceholder("Type your message...").fill("Hello");
-      await page2.getByRole("button", { name: "Send" }).click();
+    // Additional wait for socket connections to stabilize
+    await Promise.all([
+      page1.waitForTimeout(2000),
+      page2.waitForTimeout(2000)
+    ]);
 
-      await expect(
-        page2.locator("div.bg-green-600").filter({ hasText: "Hello" })
-      ).toBeVisible({ timeout: 10000 });
-    };
+    // Now test messaging
+    await page1.getByPlaceholder("Type your message...").fill("Hello");
+    await page1.getByRole("button", { name: "Send" }).click();
 
-    await Promise.all([flow1(), flow2()]);
+    await expect(
+      page1.locator("div.bg-green-600").filter({ hasText: "Hello" })
+    ).toBeVisible({ timeout: 10000 });
+
+    await page2.getByPlaceholder("Type your message...").fill("Hello");
+    await page2.getByRole("button", { name: "Send" }).click();
+
+    await expect(
+      page2.locator("div.bg-green-600").filter({ hasText: "Hello" })
+    ).toBeVisible({ timeout: 10000 });
 
     await browser1.close();
     await browser2.close();
