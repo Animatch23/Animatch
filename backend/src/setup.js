@@ -10,8 +10,19 @@ import mongoose from 'mongoose';
 const originalConnect = mongoose.connect;
 mongoose.connect = jest.fn().mockImplementation(() => Promise.resolve());
 
-// Restore original after tests
+// Global cleanup after all tests in each file
 afterAll(async () => {
+  // Restore original mongoose.connect
   mongoose.connect = originalConnect;
-  await new Promise(resolve => setTimeout(resolve, 500)); 
+  
+  // Close all mongoose connections
+  if (mongoose.connection.readyState !== 0) {
+    await mongoose.connection.close();
+  }
+  
+  // Close all other mongoose connections if any
+  await mongoose.disconnect();
+  
+  // Give time for async operations to complete
+  await new Promise(resolve => setTimeout(resolve, 500));
 });
