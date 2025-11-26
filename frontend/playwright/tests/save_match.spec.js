@@ -179,7 +179,7 @@ test.describe("save chat test", () => {
       username1 = await setupUser(page1);
       await page1.click(saveChatSelector)
       // await expect(page1.locator(successSelector)).toBeVisible();
-      await page.waitForTimeout(5000); 
+      await page1.waitForTimeout(5000); 
       await page1.goto("http://localhost:3000/match");
     };
 
