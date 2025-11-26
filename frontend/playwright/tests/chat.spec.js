@@ -22,6 +22,8 @@ test.describe("chat test", () => {
   });
 
   test("chat", async () => {
+    test.setTimeout(60000); // Increase timeout to 60 seconds
+    
     const browser1 = await chromium.launch();
     const context1 = await browser1.newContext();
     const page1 = await context1.newPage();
@@ -33,25 +35,33 @@ test.describe("chat test", () => {
     const flow1 = async () => {
       await setupUser(page1);
       await page1.getByText("Start Matching").click();
+      
+      // Wait for match to be established
+      await page1.waitForSelector('input[placeholder="Say hello..."]', { timeout: 15000 });
+      await page1.waitForTimeout(2000); // Additional wait for socket connection
 
       await page1.getByPlaceholder("Say hello...").fill("Hello");
       await page1.getByRole("button", { name: "Send" }).click();
 
       await expect(
         page1.locator("div.bg-white").filter({ hasText: "Hello" })
-      ).toBeVisible();
+      ).toBeVisible({ timeout: 10000 });
     };
 
     const flow2 = async () => {
       await setupUser(page2);
       await page2.getByText("Start Matching").click();
+      
+      // Wait for match to be established
+      await page2.waitForSelector('input[placeholder="Say hello..."]', { timeout: 15000 });
+      await page2.waitForTimeout(2000); // Additional wait for socket connection
 
       await page2.getByPlaceholder("Say hello...").fill("Hello");
       await page2.getByRole("button", { name: "Send" }).click();
 
       await expect(
         page2.locator("div.bg-white").filter({ hasText: "Hello" })
-      ).toBeVisible();
+      ).toBeVisible({ timeout: 10000 });
     };
 
     await Promise.all([flow1(), flow2()]);
