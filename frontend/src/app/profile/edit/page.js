@@ -93,11 +93,10 @@ export default function ProfileEditPage() {
           const data = await response.json();
           setUsername(data.user?.username || "");
           
-          // Load interests if available
-          const interests = data.user?.interests || {};
-          setCourse(interests.course || "");
-          setDorm(interests.dorm || "");
-          setOrganizations(interests.organizations || []);
+          // Load profile data - check both old and new structure for backwards compatibility
+          setCourse(data.user?.course || data.user?.interests?.course || "");
+          setDorm(data.user?.housing || data.user?.interests?.dorm || data.user?.interests?.housing || "");
+          setOrganizations(data.user?.organizations || data.user?.interests?.organizations || []);
         }
       } catch (err) {
         console.error("Error loading profile:", err);

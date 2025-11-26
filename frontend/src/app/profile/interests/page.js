@@ -16,13 +16,48 @@ export default function ProfileInterestsPage() {
   const [selectedInterests, setSelectedInterests] = useState([]);
   const [interestInput, setInterestInput] = useState("");
   const [isSaving, setIsSaving] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
 
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem("animatch:interests");
-      if (raw) setSelectedInterests(JSON.parse(raw));
-    } catch {}
+    const loadInterests = async () => {
+      try {
+        const email = localStorage.getItem("userEmail");
+        if (!email) {
+          setIsLoading(false);
+          return;
+        }
+
+        // Fetch user profile from database
+        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/exist`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email })
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          if (data.user?.interests && Array.isArray(data.user.interests)) {
+            setSelectedInterests(data.user.interests);
+          } else {
+            // Fallback to localStorage if database doesn't have interests
+            const raw = localStorage.getItem("animatch:interests");
+            if (raw) setSelectedInterests(JSON.parse(raw));
+          }
+        }
+      } catch (err) {
+        console.error("Error loading interests:", err);
+        // Fallback to localStorage
+        try {
+          const raw = localStorage.getItem("animatch:interests");
+          if (raw) setSelectedInterests(JSON.parse(raw));
+        } catch {}
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadInterests();
   }, []);
 
   const addInterest = (value) => {
@@ -51,10 +86,37 @@ export default function ProfileInterestsPage() {
     setError("");
     setIsSaving(true);
     try {
-      // Persist locally (placeholder for API)
+      // Get user email from localStorage
+      const email = localStorage.getItem("userEmail");
+      if (!email) {
+        setError("User email not found. Please log in again.");
+        router.push("/login");
+        return;
+      }
+
+      // Save interests to database
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/upload/update-interests`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email,
+          interests: selectedInterests
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to save interests");
+      }
+
+      // Persist locally as backup
       try { localStorage.setItem("animatch:interests", JSON.stringify(selectedInterests)); } catch {}
+      
       // Redirect to matching page
       router.push("/match");
+    } catch (err) {
+      console.error("Error saving interests:", err);
+      setError(err.message || "Failed to save interests. Please try again.");
     } finally {
       setIsSaving(false);
     }
@@ -62,7 +124,12 @@ export default function ProfileInterestsPage() {
 
   return (
     <div className="flex items-center justify-center min-h-screen bg-gray-100">
-      <div className="bg-white p-8 md:p-10 rounded-lg shadow-lg w-full max-w-5xl">
+      {isLoading ? (
+        <div className="bg-white p-8 rounded-lg shadow-lg">
+          <p className="text-gray-600">Loading interests...</p>
+        </div>
+      ) : (
+        <div className="bg-white p-8 md:p-10 rounded-lg shadow-lg w-full max-w-5xl">
         <div className="flex items-start justify-between mb-6">
           <div>
             <h1 className="text-3xl font-bold text-green-800">Select Interests</h1>
@@ -191,7 +258,8 @@ export default function ProfileInterestsPage() {
             {error && <p className="text-red-600 text-sm mt-3">{error}</p>}
           </div>
         </div>
-      </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -15,12 +15,17 @@ export const joinQueue = async (req, res) => {
     const idStr = userIdObj.toString();
     console.log(`[joinQueue] User ${idStr} attempting to join queue`);
 
-    // Fetch user's interests from User model
+    // Fetch user's profile data from User model
     const user = await User.findById(userIdObj);
-    const interests = user?.interests || {};
+    const profileData = {
+      course: user?.course || "",
+      housing: user?.housing || "",
+      organizations: user?.organizations || [],
+      interests: user?.interests || []
+    };
     const username = user?.username || "Anonymous";
     
-    console.log(`[joinQueue] User ${idStr} interests:`, interests);
+    console.log(`[joinQueue] User ${idStr} profile:`, profileData);
 
     await Queue.updateOne(
       { $or: [{ userId: userIdObj }, { userId: idStr }] },
@@ -30,7 +35,7 @@ export const joinQueue = async (req, res) => {
           username: username,
           status: "waiting", 
           chatId: null,
-          interests: interests // Store interests in queue for matching
+          profileData: profileData // Store profile data in queue for matching
         } 
       },
       { upsert: true }
@@ -158,9 +163,9 @@ const findMatch = async (userId) => {
   let minScoreThreshold = 0;
   
   if (waitTimeSeconds < 10) {
-      minScoreThreshold = 5; // Strict: Must be very similar
+      minScoreThreshold = 1; // Prefer similar matches (same course = 3 pts passes)
   } else if (waitTimeSeconds < 30) {
-      minScoreThreshold = 2; // Moderate: Some similarity
+      minScoreThreshold = 1; // Moderate: Some similarity
   } else {
       minScoreThreshold = 0; // Desperate: Anyone will do
   }
@@ -172,6 +177,10 @@ const findMatch = async (userId) => {
   }).lean();
 
   console.log(`[findMatch] Found ${candidates.length} potential candidates`);
+  console.log(`[findMatch] Current user profileData:`, currentUser.profileData);
+  if (candidates.length > 0) {
+    console.log(`[findMatch] First candidate profileData:`, candidates[0].profileData);
+  }
 
   if (candidates.length === 0) {
     console.log(`[findMatch] No candidates available for user ${userId}`);
@@ -179,7 +188,7 @@ const findMatch = async (userId) => {
   }
 
   // Use interest-based matching algorithm
-  const bestMatch = findBestMatch(currentUser, candidates, minScoreThreshold);
+  const bestMatch = findBestMatch(currentUser.profileData, candidates, minScoreThreshold);
   
   if (!bestMatch) {
     console.log(`[findMatch] No suitable match found for user ${userId}`);
@@ -187,8 +196,8 @@ const findMatch = async (userId) => {
   }
 
   const matchedUserId = bestMatch.userId;
-  const similarityScore = calculateSimilarityScore(currentUser.interests, bestMatch.interests);
-  const strategy = getMatchingStrategy(similarityScore);
+  const similarityScore = calculateSimilarityScore(currentUser.profileData, bestMatch.profileData);
+  const strategy = getMatchingStrategy(similarityScore, minScoreThreshold);
   
   console.log(`[findMatch] Best match for ${userId} is ${matchedUserId}`);
   console.log(`[findMatch] Similarity score: ${similarityScore}`);

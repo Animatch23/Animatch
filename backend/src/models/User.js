@@ -25,19 +25,21 @@ const userSchema = new mongoose.Schema({
         type: profilePictureSchema,
         default: null    
     },
+    course: {
+        type: String,
+        default: ""
+    },
+    housing: {
+        type: String,
+        default: ""
+    },
+    organizations: {
+        type: [String],
+        default: []
+    },
     interests: {
-        course: {
-            type: String,
-            default: ""
-        },
-        dorm: {
-            type: String,
-            default: ""
-        },
-        organizations: {
-            type: [String],
-            default: []
-        }
+        type: [String],
+        default: []
     },
     termsAccepted: {
         type: Boolean,

@@ -12,19 +12,20 @@ const queueSchema = new mongoose.Schema({
     },
     joinedAt: {
         type: Date,
-        default: Date.now,
-        index: true // Add index for better query performance
+        default: Date.now
+        // Index removed from here - defined at schema level below
     },
     status: {
         type: String,
         enum: ['waiting', 'matched'],
         default: 'waiting'
     },
-    // Interest-based matchmaking fields - stored for quick access during matching
-    interests: {
+    // Profile data for matchmaking - stored for quick access during matching
+    profileData: {
         course: { type: String, default: "" },
-        dorm: { type: String, default: "" },
-        organizations: { type: [String], default: [] }
+        housing: { type: String, default: "" },
+        organizations: { type: [String], default: [] },
+        interests: { type: [String], default: [] }
     }
 });
 

@@ -12,19 +12,22 @@ router.post("/", async (req, res) => {
         
         const user = await User.findOne({ email });
         
-        // Check if user exists and has completed profile setup (has course set in interests)
-        const hasProfile = !!(user && user.interests && user.interests.course);
+        // Check if user exists and has completed profile setup (has course set)
+        const hasProfile = !!(user && user.course);
         const exists = !!user; // Keep original meaning of "account exists"
         
-        let userWithInterests = null;
+        let userWithData = null;
         if (user) {
-            userWithInterests = {
+            userWithData = {
                 _id: user._id,
                 email: user.email,
                 username: user.username,
                 profilePicture: user.profilePicture,
                 termsAccepted: user.termsAccepted,
-                interests: user.interests || {}
+                course: user.course,
+                housing: user.housing,
+                organizations: user.organizations,
+                interests: user.interests || []
             };
         }
         
@@ -42,7 +45,7 @@ router.post("/", async (req, res) => {
         
         res.json({ 
             exists: hasProfile, // Use the profile completion check as the 'exists' flag for frontend flow
-            user: userWithInterests
+            user: userWithData
         });
     } catch (err) {
         console.error("user exists error:", err);

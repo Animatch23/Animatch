@@ -2,47 +2,47 @@
  * Interest-Based Matchmaking Algorithm
  * 
  * This module implements a priority-based matching system that:
- * 1. Calculates similarity scores based on shared interests (course, dorm, organizations)
+ * 1. Calculates similarity scores based on shared profile data (course, housing, organizations)
  * 2. Prioritizes matches with higher similarity
  * 3. Falls back to random matching if no suitable matches are found
  */
 
 /**
- * Calculate similarity score between two users based on their interests
+ * Calculate similarity score between two users based on their profile data
  * 
  * Scoring system:
  * - Same Course: +3 points
- * - Same Dorm: +2 points
+ * - Same Housing: +2 points
  * - Each shared Organization: +1 point
  * 
- * @param {Object} userInterests - Current user's interests { course, dorm, organizations }
- * @param {Object} candidateInterests - Candidate user's interests { course, dorm, organizations }
+ * @param {Object} userProfile - Current user's profile { course, housing, organizations, interests }
+ * @param {Object} candidateProfile - Candidate user's profile { course, housing, organizations, interests }
  * @returns {number} Similarity score (0 = no match, higher = more similar)
  */
-export function calculateSimilarityScore(userInterests, candidateInterests) {
+export function calculateSimilarityScore(userProfile, candidateProfile) {
     let score = 0;
     
     // Validate inputs
-    if (!userInterests || !candidateInterests) {
+    if (!userProfile || !candidateProfile) {
         return score;
     }
 
     // 1. Check Course Match (High Priority)
-    if (userInterests.course && candidateInterests.course && 
-        userInterests.course.trim().toLowerCase() === candidateInterests.course.trim().toLowerCase()) {
+    if (userProfile.course && candidateProfile.course && 
+        userProfile.course.trim().toLowerCase() === candidateProfile.course.trim().toLowerCase()) {
         score += 3;
     }
 
-    // 2. Check Dorm Match (Medium Priority)
-    if (userInterests.dorm && candidateInterests.dorm && 
-        userInterests.dorm.trim().toLowerCase() === candidateInterests.dorm.trim().toLowerCase()) {
+    // 2. Check Housing Match (Medium Priority)
+    if (userProfile.housing && candidateProfile.housing && 
+        userProfile.housing.trim().toLowerCase() === candidateProfile.housing.trim().toLowerCase()) {
         score += 2;
     }
 
     // 3. Check Organizations Match (Cumulative)
-    if (Array.isArray(userInterests.organizations) && Array.isArray(candidateInterests.organizations)) {
-        const userOrgs = new Set(userInterests.organizations.map(o => o.trim().toLowerCase()));
-        const candidateOrgs = new Set(candidateInterests.organizations.map(o => o.trim().toLowerCase()));
+    if (Array.isArray(userProfile.organizations) && Array.isArray(candidateProfile.organizations)) {
+        const userOrgs = new Set(userProfile.organizations.map(o => o.trim().toLowerCase()));
+        const candidateOrgs = new Set(candidateProfile.organizations.map(o => o.trim().toLowerCase()));
 
         for (const org of userOrgs) {
             if (candidateOrgs.has(org)) {
@@ -62,12 +62,12 @@ export function calculateSimilarityScore(userInterests, candidateInterests) {
  * 2. If no similar candidates, return random candidate
  * 3. If no candidates at all, return null
  * 
- * @param {Object} userInterests - Current user's interests
- * @param {Array} candidates - Array of candidate queue entries with interests
+ * @param {Object} userProfile - Current user's profile data
+ * @param {Array} candidates - Array of candidate queue entries with profile data
  * @param {number} minSimilarityThreshold - Minimum score to prefer over random (default: 1)
  * @returns {Object|null} Best match candidate or null if no candidates
  */
-export function findBestMatch(userInterests, candidates, minSimilarityThreshold = 1) {
+export function findBestMatch(userProfile, candidates, minSimilarityThreshold = 1) {
     // No candidates available
     if (!candidates || candidates.length === 0) {
         return null;
@@ -81,7 +81,7 @@ export function findBestMatch(userInterests, candidates, minSimilarityThreshold 
     // Calculate scores for all candidates
     const candidatesWithScores = candidates.map(candidate => ({
         candidate,
-        score: calculateSimilarityScore(userInterests, candidate.interests)
+        score: calculateSimilarityScore(userProfile, candidate.profileData)
     }));
 
     // Sort by score (descending)

@@ -123,17 +123,16 @@ router.post('/', upload.single('profilePhoto'), async (req, res) => {
         const profilePicture = createProfilePictureObject(req.file, uploadDir);
         const userData = createUserData(email, username, profilePicture);
         
-        // Parse interests if provided (handle JSON from multipart/form-data)
+        // Parse profile data if provided (handle JSON from multipart/form-data)
         if (interestsRaw) {
             try {
                 const parsed = typeof interestsRaw === 'string' ? JSON.parse(interestsRaw) : interestsRaw;
-                userData.interests = {
-                    course: parsed.course || "",
-                    dorm: parsed.dorm || "",
-                    organizations: Array.isArray(parsed.organizations) ? parsed.organizations : []
-                };
+                // Map old 'dorm' to new 'housing' field
+                userData.course = parsed.course || "";
+                userData.housing = parsed.dorm || parsed.housing || "";
+                userData.organizations = Array.isArray(parsed.organizations) ? parsed.organizations : [];
             } catch (e) {
-                console.warn("Failed to parse interests:", e);
+                console.warn("Failed to parse profile data:", e);
             }
         }
         
@@ -183,20 +182,18 @@ const updateProfileHandler = async (req, res) => {
             return res.status(404).json({ message: "User not found" });
         }
 
-        // Validate and structure interests
-        const interestsToSave = {
-            course: interests?.course || "",
-            dorm: interests?.dorm || "",
-            organizations: Array.isArray(interests?.organizations) ? interests.organizations : []
-        };
+        // Validate and structure profile data
+        const updateData = {};
+        
+        if (interests?.course) updateData.course = interests.course;
+        if (interests?.dorm || interests?.housing) updateData.housing = interests.dorm || interests.housing;
+        if (Array.isArray(interests?.organizations)) updateData.organizations = interests.organizations;
         
         // Update User model (Source of Truth)
         const updatedUser = await User.findOneAndUpdate(
             { email },
             { 
-                $set: { 
-                    interests: interestsToSave
-                } 
+                $set: updateData
             },
             { 
                 new: true
@@ -204,11 +201,18 @@ const updateProfileHandler = async (req, res) => {
         );
         
         console.log('[POST /upload/update-profile] User updated successfully:', updatedUser._id);
-        console.log('Saved interests:', updatedUser.interests);
+        console.log('Saved profile data:', { 
+            course: updatedUser.course, 
+            housing: updatedUser.housing, 
+            organizations: updatedUser.organizations 
+        });
         
         res.status(200).json({ 
             message: "Profile updated successfully", 
             user: {
+                course: updatedUser.course,
+                housing: updatedUser.housing,
+                organizations: updatedUser.organizations,
                 interests: updatedUser.interests
             }
         });
@@ -221,7 +225,47 @@ const updateProfileHandler = async (req, res) => {
     }
 };
 
+// Handler for updating interests array (hobby interests, not profile data)
+const updateInterestsHandler = async (req, res) => {
+    try {
+        const { email, interests } = req.body;
+        console.log('[POST /upload/update-interests] Email:', email, 'Interests:', interests);
+
+        if (!email) {
+            return res.status(400).json({ error: "Email is required" });
+        }
+
+        if (!Array.isArray(interests)) {
+            return res.status(400).json({ error: "Interests must be an array" });
+        }
+
+        const user = await User.findOne({ email });
+        if (!user) {
+            return res.status(404).json({ error: "User not found" });
+        }
+
+        // Update the interests array
+        user.interests = interests;
+        await user.save();
+
+        console.log('[POST /upload/update-interests] Interests updated successfully for user:', user._id);
+        console.log('New interests:', user.interests);
+
+        res.status(200).json({ 
+            message: "Interests updated successfully",
+            interests: user.interests
+        });
+    } catch (err) {
+        console.error('[POST /upload/update-interests] Error:', err);
+        res.status(500).json({ 
+            message: "Failed to update interests", 
+            error: err.message 
+        });
+    }
+};
+
 router.post('/update-profile', updateProfileHandler);
+router.post('/update-interests', updateInterestsHandler);
 
 // Legacy route support (redirects to update-profile logic if needed, or just handles interests)
 router.post('/interests', updateProfileHandler);

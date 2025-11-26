@@ -1,10 +1,10 @@
 /**
- * Integration Test for Interest-Based Matchmaking
+ * Integration Test for Profile-Based Matchmaking
  * 
  * This script tests the full flow from frontend to backend:
- * 1. Creating profiles with interests
+ * 1. Creating profiles with course, housing, organizations
  * 2. Joining the matchmaking queue
- * 3. Verifying interest-based matching
+ * 3. Verifying profile-based matching
  */
 
 import mongoose from 'mongoose';
@@ -16,34 +16,28 @@ import { joinQueue, checkQueueStatus } from '../controllers/queueController.js';
 
 let mongoServer;
 
-// Mock users with different interests
+// Mock users with different profile data
 const testUsers = [
   {
     email: 'alice@test.com',
     username: 'Alice',
-    interests: {
-      course: 'Computer Science',
-      dorm: 'Dorm A',
-      organizations: ['Anime Club', 'Gaming Society']
-    }
+    course: 'Computer Science',
+    housing: 'Dorm A',
+    organizations: ['Anime Club', 'Gaming Society']
   },
   {
     email: 'bob@test.com',
     username: 'Bob',
-    interests: {
-      course: 'Computer Science',
-      dorm: 'Dorm B',
-      organizations: ['Tech Club']
-    }
+    course: 'Computer Science',
+    housing: 'Dorm B',
+    organizations: ['Tech Club']
   },
   {
     email: 'charlie@test.com',
     username: 'Charlie',
-    interests: {
-      course: 'Business',
-      dorm: 'Dorm C',
-      organizations: ['Finance Club']
-    }
+    course: 'Business',
+    housing: 'Dorm C',
+    organizations: ['Finance Club']
   }
 ];
 
@@ -95,16 +89,22 @@ describe('Full Integration: Profile Setup → Matching', () => {
     const createdUsers = [];
     
     for (const userData of testUsers) {
-      // Create user
+      // Create user with new schema structure
       const user = new User({
         email: userData.email,
         username: userData.username,
-        interests: userData.interests
+        course: userData.course,
+        housing: userData.housing,
+        organizations: userData.organizations
       });
       await user.save();
       
       createdUsers.push(user);
-      console.log(`  ✓ Created user: ${userData.username} with interests:`, userData.interests);
+      console.log(`  ✓ Created user: ${userData.username} with profile:`, {
+        course: user.course,
+        housing: user.housing,
+        organizations: user.organizations
+      });
     }
     
     // Step 2: Users join the matchmaking queue
@@ -151,8 +151,8 @@ describe('Full Integration: Profile Setup → Matching', () => {
     expect(participantIds).toContain(createdUsers[1]._id.toString()); // Bob
     expect(participantIds).not.toContain(createdUsers[2]._id.toString()); // Charlie
     
-    console.log(`  ✓ Alice matched with Bob (similar interests: both CS students)`);
-    console.log(`  ✓ Alice did NOT match with Charlie (different interests: Business)`);
+    console.log(`  ✓ Alice matched with Bob (similar profile: both CS students)`);
+    console.log(`  ✓ Alice did NOT match with Charlie (different profile: Business)`);
     
     // Verify it was similarity-based, not random
     expect(chatSession.metadata.matchingStrategy).toBe('similarity-based');
@@ -175,32 +175,28 @@ describe('Full Integration: Profile Setup → Matching', () => {
   test('Fallback to random when no similar interests', async () => {
     console.log('\n=== Testing Random Fallback ===\n');
     
-    // Create two users with completely different interests
+    // Create two users with completely different profile data
     const user1 = new User({ 
         email: 'user1@test.com', 
         username: 'User1',
-        interests: {
-          course: 'Computer Science',
-          dorm: 'Dorm A',
-          organizations: ['Anime Club']
-        }
+        course: 'Computer Science',
+        housing: 'Dorm A',
+        organizations: ['Anime Club']
     });
     await user1.save();
     
     const user2 = new User({ 
         email: 'user2@test.com', 
         username: 'User2',
-        interests: {
-          course: 'Business',
-          dorm: 'Dorm B',
-          organizations: ['Finance Club']
-        }
+        course: 'Business',
+        housing: 'Dorm B',
+        organizations: ['Finance Club']
     });
     await user2.save();
     
-    console.log('User1 interests:', user1.interests);
-    console.log('User2 interests:', user2.interests);
-    console.log('(No common interests)');
+    console.log('User1 profile:', { course: user1.course, housing: user1.housing, organizations: user1.organizations });
+    console.log('User2 profile:', { course: user2.course, housing: user2.housing, organizations: user2.organizations });
+    console.log('(No common profile data)');
     
     // Both join queue
     await joinQueue(mockRequest(user1._id), mockResponse());
@@ -216,7 +212,7 @@ describe('Full Integration: Profile Setup → Matching', () => {
     
     const chatSession = await ChatSession.findById(res._jsonData.chatSession._id);
     
-    console.log(`\n✓ Users matched despite no common interests`);
+    console.log(`\n✓ Users matched despite no common profile data`);
     console.log(`→ Strategy: ${chatSession.metadata.matchingStrategy}`);
     console.log(`→ Score: ${chatSession.metadata.similarityScore}`);
     
@@ -227,35 +223,41 @@ describe('Full Integration: Profile Setup → Matching', () => {
     console.log('✓ Random fallback working correctly\n');
   });
   
-  test('Profile interests persist after creation', async () => {
-    console.log('\n=== Testing Interest Persistence ===\n');
+  test('Profile data persists after creation', async () => {
+    console.log('\n=== Testing Profile Data Persistence ===\n');
     
     // Create user
-    const originalInterests = {
+    const profileData = {
       course: 'Computer Science',
-      dorm: 'Dorm A',
+      housing: 'Dorm A',
       organizations: ['Anime Club', 'Gaming Society', 'Tech Club']
     };
 
     const user = new User({
       email: 'test@test.com',
       username: 'TestUser',
-      interests: originalInterests
+      course: profileData.course,
+      housing: profileData.housing,
+      organizations: profileData.organizations
     });
     await user.save();
     
-    console.log('Created user with interests:', originalInterests);
+    console.log('Created user with profile data:', profileData);
     
     // Fetch user from database
     const fetchedUser = await User.findOne({ email: 'test@test.com' });
     
-    console.log('Fetched user interests:', fetchedUser.interests);
+    console.log('Fetched user profile:', { 
+      course: fetchedUser.course, 
+      housing: fetchedUser.housing, 
+      organizations: fetchedUser.organizations 
+    });
     
-    // Verify interests persisted correctly
-    expect(fetchedUser.interests.course).toBe(originalInterests.course);
-    expect(fetchedUser.interests.dorm).toBe(originalInterests.dorm);
-    expect(fetchedUser.interests.organizations).toEqual(expect.arrayContaining(originalInterests.organizations));
+    // Verify profile data persisted correctly
+    expect(fetchedUser.course).toBe(profileData.course);
+    expect(fetchedUser.housing).toBe(profileData.housing);
+    expect(fetchedUser.organizations).toEqual(expect.arrayContaining(profileData.organizations));
     
-    console.log('✓ All interests persisted correctly\n');
+    console.log('✓ All profile data persisted correctly\n');
   });
 });
