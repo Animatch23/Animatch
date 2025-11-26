@@ -3,7 +3,6 @@ import ChatSession from "../models/ChatSession.js";
 import Message from "../models/Message.js";
 import Queue from "../models/Queue.js";
 import User from "../models/User.js";
-import { io } from "../server.js";
 
 const normalizeObjectId = (value) => {
     if (!value) return null;
@@ -38,8 +37,8 @@ const upsertQueueEntry = async (userId) => {
     );
 };
 
-const emitEventSafely = (recipientId, event, payload) => {
-    if (!recipientId) {
+const emitEventSafely = (io, recipientId, event, payload) => {
+    if (!recipientId || !io) {
         return;
     }
     try {
@@ -59,6 +58,9 @@ export const nextChat = async (req, res) => {
                 message: "User authentication required to end chat",
             });
         }
+
+        // Get Socket.IO instance from app (may be null in tests)
+        const io = req.app.get('io');
 
         // Find active chat session
         const activeSession = await ChatSession.findOne({
@@ -89,7 +91,7 @@ export const nextChat = async (req, res) => {
         await activeSession.save();
 
         // Notify the other user via WebSocket
-        emitEventSafely(partnerId, "chat_ended", {
+        emitEventSafely(io, partnerId, "chat_ended", {
             reason: "next_chat",
             message: "Your chat partner has moved to the next chat",
             sessionId: activeSession._id,
@@ -102,12 +104,12 @@ export const nextChat = async (req, res) => {
         ]);
 
         // Notify both users they're back in queue
-        emitEventSafely(requesterId, "returned_to_queue", {
+        emitEventSafely(io, requesterId, "returned_to_queue", {
             message: "You've been added back to the queue",
             matched: false,
         });
 
-        emitEventSafely(partnerId, "returned_to_queue", {
+        emitEventSafely(io, partnerId, "returned_to_queue", {
             message: "You've been added back to the queue",
             matched: false,
         });

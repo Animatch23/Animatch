@@ -53,6 +53,14 @@ describe('Chat Controller - Next Chat Unit Tests', () => {
     req = httpMocks.createRequest();
     res = httpMocks.createResponse();
     req.user = { id: mockUserId };
+    
+    // Mock the app.get method to return the mock Socket.IO instance
+    req.app = {
+      get: jest.fn((key) => {
+        if (key === 'io') return mockIO;
+        return undefined;
+      })
+    };
 
     jest.clearAllMocks();
     mockIO.to.mockReset();
