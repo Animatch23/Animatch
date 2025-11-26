@@ -1,4 +1,5 @@
 import { createServer } from 'http';
+import { pathToFileURL } from 'url';
 import { Server } from 'socket.io';
 import mongoose from 'mongoose';
 import connectDB from './config/db.js';
@@ -119,7 +120,9 @@ process.on('SIGINT', async () => {
 
 // Only start server when run directly (not imported by tests)
 // For ESM modules, check if this is the main module
-const isMainModule = process.argv[1] && import.meta.url === `file://${process.argv[1].replace(/\\/g, '/')}`;
+const isMainModule = Boolean(
+  process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href
+);
 
 if (process.env.NODE_ENV !== 'test' && isMainModule) {
   startServer().catch((err) => {
