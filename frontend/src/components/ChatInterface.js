@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { io } from "socket.io-client";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL;
 const SOCKET_BASE = process.env.NEXT_PUBLIC_SOCKET_URL || API_BASE;
@@ -241,6 +242,7 @@ export default function ChatInterface({
       socket.disconnect();
       socketRef.current = null;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chatSessionId, socketUrl, token]);
 
   useEffect(() => {
@@ -762,9 +764,11 @@ export default function ChatInterface({
                     {message.type === "file" ? (
                       <div>
                         {message.isImage ? (
-                          <img
+                          <Image
                             src={message.fileUrl}
                             alt={message.fileName}
+                            width={256}
+                            height={256}
                             className="rounded-md mb-2 max-h-64 object-contain bg-white/10"
                           />
                         ) : (
@@ -887,7 +891,7 @@ export default function ChatInterface({
           <div className="absolute inset-0 bg-black/40" onClick={() => setConfirmBlockOpen(false)} />
           <div className="relative bg-white w-[90%] max-w-md rounded-2xl p-6 shadow-xl">
             <h2 className="text-2xl font-bold text-[#286633] text-center mb-2">Block user?</h2>
-            <p className="text-center text-gray-600 mb-6">You won't be matched with this user again.</p>
+            <p className="text-center text-gray-600 mb-6">You won&apos;t be matched with this user again.</p>
             <div className="flex gap-4">
               <button
                 type="button"

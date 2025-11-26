@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useGoogleLogin } from "@react-oauth/google";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import TermsModal from "../../components/TermsModal";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL;
@@ -127,7 +128,7 @@ export default function LoginPage() {
       <div className="flex w-full lg:w-1/2 justify-center items-center bg-white">
         <div className="w-full max-w-md px-8">
           <div className="flex items-center mb-6">
-            <img src="/dlsu logo.png" alt="AniMatch Logo" className="w-10 h-10 mr-2" />
+            <Image src="/dlsu logo.png" alt="AniMatch Logo" width={40} height={40} className="w-10 h-10 mr-2" />
             <h1 className="text-2xl font-bold">
               <span className="text-green-800">Ani</span>
               <span className="text-red-600">Match</span>
