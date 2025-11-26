@@ -4,6 +4,7 @@ import User from '../models/User.js';
 
 /**
  * Join the matchmaking queue
+ * Ensures only 1 active chat session per user
  */
 export const joinQueue = async (req, res) => {
   try {
@@ -16,7 +17,7 @@ export const joinQueue = async (req, res) => {
 
     console.log(`[QUEUE JOIN] User: ${user.email} (${user.username})`);
 
-    // Check if user already has an active chat
+    // ⭐ CRITICAL: Check if user already has an active chat (enforces 1 active session rule)
     const existingChat = await ChatSession.findOne({
       participants: userId,
       active: true,
@@ -24,10 +25,11 @@ export const joinQueue = async (req, res) => {
     });
 
     if (existingChat) {
-      console.log(`[QUEUE JOIN] User ${user.email} already in active chat`);
+      console.log(`[QUEUE JOIN] User ${user.email} already in active chat - cannot join queue`);
       return res.json({
         matched: true,
-        chatSessionId: existingChat._id.toString()
+        chatSessionId: existingChat._id.toString(),
+        alreadyInChat: true
       });
     }
 
@@ -56,68 +58,64 @@ export const joinQueue = async (req, res) => {
       return res.json({ matched: false, queued: true });
     }
 
-    // Pick the first available partner
-    const partner = waitingUsers[0];
-    const partnerUser = await User.findById(partner.userId);
+    // Try to match with each waiting user until successful
+    for (const partner of waitingUsers) {
+      const partnerUser = await User.findById(partner.userId);
+      
+      if (!partnerUser) {
+        console.log(`[QUEUE JOIN] Partner user not found, trying next`);
+        continue;
+      }
 
-    if (!partnerUser) {
-      console.log(`[QUEUE JOIN] Partner user not found, staying in queue`);
-      return res.json({ matched: false, queued: true });
-    }
+      // ⭐ CRITICAL: Check partner doesn't have an active chat (enforces 1 active session rule)
+      const partnerActiveChat = await ChatSession.findOne({
+        participants: partner.userId,
+        active: true,
+        expiresAt: { $gt: new Date() }
+      });
 
-    console.log(`[QUEUE JOIN] Attempting to match: ${user.email} <-> ${partnerUser.email}`);
+      if (partnerActiveChat) {
+        console.log(`[QUEUE JOIN] Partner ${partnerUser.email} already in active chat, trying next`);
+        // Remove them from queue since they shouldn't be there
+        await Queue.deleteOne({ userId: partner.userId });
+        continue;
+      }
 
-    // ⭐ NEW: Check if these two users already have an active chat together
-    const existingChatBetweenUsers = await ChatSession.findOne({
-      participants: { $all: [userId, partner.userId] },
-      active: true,
-      expiresAt: { $gt: new Date() }
-    });
+      console.log(`[QUEUE JOIN] Attempting to match: ${user.email} <-> ${partnerUser.email}`);
 
-    if (existingChatBetweenUsers) {
-      console.log(`[QUEUE JOIN] Users ${user.email} and ${partnerUser.email} already have an active chat, reusing it`);
-      // Remove both from queue
-      await Queue.deleteMany({
+      // Try to remove both from queue atomically to prevent double-matching
+      const deleteResult = await Queue.deleteMany({
         userId: { $in: [userId, partner.userId] }
       });
+
+      if (deleteResult.deletedCount < 2) {
+        console.log(`[QUEUE JOIN] Race condition detected, partner already matched with someone else`);
+        continue; // Try next candidate
+      }
+
+      // ⭐ Create ChatSession (expires in 24 hours unless saved)
+      const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+      const chatSession = await ChatSession.create({
+        participants: [userId, partner.userId],
+        active: true,
+        startedAt: new Date(),
+        expiresAt,
+        isSaved: false,
+        savedByUsers: []
+      });
+
+      console.log(`[QUEUE JOIN] ✅ Match created: ${chatSession._id} - ${user.email} <-> ${partnerUser.email}`);
+
       return res.json({
         matched: true,
-        chatSessionId: existingChatBetweenUsers._id.toString()
+        chatSessionId: chatSession._id.toString()
       });
     }
 
-    // Try to remove both from queue atomically to prevent double-matching
-    const deleteResult = await Queue.deleteMany({
-      userId: { $in: [userId, partner.userId] }
-    });
+    // No successful match found
+    console.log(`[QUEUE JOIN] No available partners for ${user.email}, staying in queue`);
+    return res.json({ matched: false, queued: true });
 
-    if (deleteResult.deletedCount < 2) {
-      console.log(`[QUEUE JOIN] Race condition detected, one user already matched`);
-      // Re-add current user to queue if partner was taken
-      await Queue.updateOne(
-        { userId },
-        { $set: { userId, status: 'waiting', createdAt: new Date() } },
-        { upsert: true }
-      );
-      return res.json({ matched: false, queued: true });
-    }
-
-    // Create ChatSession (expires in 30 minutes)
-    const expiresAt = new Date(Date.now() + 30 * 60 * 1000);
-    const chatSession = await ChatSession.create({
-      participants: [userId, partner.userId],
-      users: [userId, partner.userId],
-      active: true,
-      startedAt: new Date(),
-      expiresAt
-    });
-
-    console.log(`[QUEUE JOIN] Match created: ${chatSession._id} - ${user.email} <-> ${partnerUser.email}`);
-
-    return res.json({
-      matched: true,
-      chatSessionId: chatSession._id.toString()
-    });
   } catch (error) {
     console.error('[QUEUE JOIN] Error:', error);
     res.status(500).json({ message: 'Failed to join queue' });
@@ -126,13 +124,14 @@ export const joinQueue = async (req, res) => {
 
 /**
  * Get queue status
+ * Attempts to match while checking status
  */
 export const getQueueStatus = async (req, res) => {
   try {
     const userId = req.user?.id;
     const user = await User.findById(userId);
 
-    // Check active chat first
+    // ⭐ Check active chat first (enforces 1 active session rule)
     const activeChat = await ChatSession.findOne({
       participants: userId,
       active: true,
@@ -164,28 +163,26 @@ export const getQueueStatus = async (req, res) => {
       if (waitingUsers.length > 0) {
         console.log(`[QUEUE STATUS] Found potential match for ${user.email}, attempting to create chat`);
         
-        const partner = waitingUsers[0];
-        const partnerUser = await User.findById(partner.userId);
+        // Try each candidate until successful
+        for (const partner of waitingUsers) {
+          const partnerUser = await User.findById(partner.userId);
+          
+          if (!partnerUser) {
+            continue;
+          }
 
-        if (partnerUser) {
-          // ⭐ NEW: Check if these two users already have an active chat together
-          const existingChatBetweenUsers = await ChatSession.findOne({
-            participants: { $all: [userId, partner.userId] },
+          // ⭐ Check partner doesn't have active chat
+          const partnerActiveChat = await ChatSession.findOne({
+            participants: partner.userId,
             active: true,
             expiresAt: { $gt: new Date() }
           });
 
-          if (existingChatBetweenUsers) {
-            console.log(`[QUEUE STATUS] Users ${user.email} and ${partnerUser.email} already have an active chat, reusing it`);
-            // Remove both from queue
-            await Queue.deleteMany({
-              userId: { $in: [userId, partner.userId] }
-            });
-            return res.json({
-              queued: false,
-              matched: true,
-              chatSessionId: existingChatBetweenUsers._id.toString()
-            });
+          if (partnerActiveChat) {
+            console.log(`[QUEUE STATUS] Partner ${partnerUser.email} already in active chat, trying next`);
+            // Remove them from queue
+            await Queue.deleteOne({ userId: partner.userId });
+            continue;
           }
 
           // Try to remove both from queue atomically
@@ -195,16 +192,17 @@ export const getQueueStatus = async (req, res) => {
 
           if (deleteResult.deletedCount === 2) {
             // Create ChatSession
-            const expiresAt = new Date(Date.now() + 30 * 60 * 1000);
+            const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
             const chatSession = await ChatSession.create({
               participants: [userId, partner.userId],
-              users: [userId, partner.userId],
               active: true,
               startedAt: new Date(),
-              expiresAt
+              expiresAt,
+              isSaved: false,
+              savedByUsers: []
             });
 
-            console.log(`[QUEUE STATUS] Match created: ${chatSession._id} - ${user.email} <-> ${partnerUser.email}`);
+            console.log(`[QUEUE STATUS] ✅ Match created: ${chatSession._id} - ${user.email} <-> ${partnerUser.email}`);
 
             return res.json({
               queued: false,
@@ -212,14 +210,18 @@ export const getQueueStatus = async (req, res) => {
               chatSessionId: chatSession._id.toString()
             });
           } else {
-            // Race condition - re-add user if needed
-            await Queue.updateOne(
-              { userId },
-              { $set: { userId, status: 'waiting', createdAt: new Date() } },
-              { upsert: true }
-            );
+            // Race condition - try next candidate
+            console.log(`[QUEUE STATUS] Race condition, trying next candidate`);
+            continue;
           }
         }
+        
+        // No successful match, re-add user to queue
+        await Queue.updateOne(
+          { userId },
+          { $set: { userId, status: 'waiting', createdAt: new Date() } },
+          { upsert: true }
+        );
       }
 
       const position = await Queue.countDocuments({

@@ -1,5 +1,6 @@
 import express from 'express';
-import Match from '../models/Match.js';
+import ChatSession from '../models/ChatSession.js';
+import User from '../models/User.js';
 import { authenticate } from '../middleware/authMiddleware.js';
 import {
   joinQueue,
@@ -14,33 +15,39 @@ router.post('/queue/join', authenticate, joinQueue);
 router.get('/queue/status', authenticate, getQueueStatus);
 router.post('/queue/leave', authenticate, leaveQueue);
 
-// Get active match
+// Get active match (now queries ChatSession)
 router.get('/match/active', authenticate, async (req, res) => {
     try {
-        const { email } = req.user;
+        const userId = req.user?.id;
         
-        const match = await Match.findOne({
-            $or: [
-                { 'user1.userId': email },
-                { 'user2.userId': email }
-            ],
-            status: 'active'
-        });
+        if (!userId) {
+            return res.status(401).json({ message: 'User not authenticated' });
+        }
 
-        if (!match) {
+        const chatSession = await ChatSession.findOne({
+            participants: userId,
+            active: true,
+            expiresAt: { $gt: new Date() }
+        }).populate('participants', 'username');
+
+        if (!chatSession) {
             return res.status(404).json({ message: 'No active match' });
         }
 
-        const partner = match.user1.userId === email ? match.user2 : match.user1;
+        const partner = chatSession.participants.find(
+            p => p._id.toString() !== userId.toString()
+        );
 
-        console.log(`[MATCH ACTIVE] User ${email} has active match with ${partner.username}`);
+        console.log(`[MATCH ACTIVE] User ${userId} has active chat with ${partner?.username}`);
 
         res.json({
-            matchId: match._id,
+            chatSessionId: chatSession._id,
             partner: {
-                username: partner.username
+                username: partner?.username || 'Anonymous'
             },
-            createdAt: match.createdAt
+            createdAt: chatSession.startedAt,
+            expiresAt: chatSession.expiresAt,
+            isSaved: chatSession.isSaved
         });
 
     } catch (error) {
@@ -49,28 +56,32 @@ router.get('/match/active', authenticate, async (req, res) => {
     }
 });
 
-// End match
+// End match (now updates ChatSession)
 router.post('/match/end', authenticate, async (req, res) => {
     try {
-        const { email } = req.user;
+        const userId = req.user?.id;
         
-        const match = await Match.findOneAndUpdate(
+        if (!userId) {
+            return res.status(401).json({ message: 'User not authenticated' });
+        }
+
+        const chatSession = await ChatSession.findOneAndUpdate(
             {
-                $or: [
-                    { 'user1.userId': email },
-                    { 'user2.userId': email }
-                ],
-                status: 'active'
+                participants: userId,
+                active: true
             },
-            { status: 'ended' },
+            { 
+                active: false,
+                endedAt: new Date()
+            },
             { new: true }
         );
 
-        if (!match) {
+        if (!chatSession) {
             return res.status(404).json({ message: 'No active match to end' });
         }
 
-        console.log(`[MATCH END] User ${email} ended match ${match._id}`);
+        console.log(`[MATCH END] User ${userId} ended chat session ${chatSession._id}`);
 
         res.json({ message: 'Match ended successfully' });
 

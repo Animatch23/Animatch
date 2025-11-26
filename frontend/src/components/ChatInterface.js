@@ -32,6 +32,8 @@ export default function ChatInterface({
   const [isEnding, setIsEnding] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [feedback, setFeedback] = useState(null);
+  const [saveStatus, setSaveStatus] = useState({ currentUserSaved: false, partnerSaved: false, bothSaved: false });
+  const [partnerLeft, setPartnerLeft] = useState(false);
 
   const socketRef = useRef(null);
   const messagesEndRef = useRef(null);
@@ -163,8 +165,36 @@ export default function ChatInterface({
       setPartnerTyping(Boolean(isTyping));
     });
 
-    socket.on("chat:partner-disconnected", () => {
-      setConnectionStatus("partner-disconnected");
+    socket.on("chat:partner-saved", ({ savedByCount, isSaved }) => {
+      setSaveStatus(prev => ({
+        ...prev,
+        partnerSaved: true,
+        bothSaved: isSaved
+      }));
+      
+      if (isSaved) {
+        setFeedback({ 
+          type: "success", 
+          message: "🎉 Match saved! Both of you have saved this chat." 
+        });
+      }
+    });
+
+    socket.on("chat:partner-left", () => {
+      setPartnerLeft(true);
+      setFeedback({
+        type: "info",
+        message: "Your partner has left the chat. You can start a new match anytime."
+      });
+      
+      // Add a system message to the chat
+      setMessages(prev => [...prev, {
+        id: `system-${Date.now()}`,
+        content: "Your partner has left the chat",
+        sentAt: new Date().toISOString(),
+        isOwn: false,
+        isSystem: true
+      }]);
     });
 
     socket.on("disconnect", () => {
@@ -190,10 +220,8 @@ export default function ChatInterface({
     switch (connectionStatus) {
       case "connected":
         return "Connected";
-      case "partner-disconnected":
-        return "Your partner disconnected";
       case "disconnected":
-        return "Connection lost";
+        return "Reconnecting...";
       case "error":
         return "Connection error";
       case "connecting":
@@ -206,11 +234,10 @@ export default function ChatInterface({
     switch (connectionStatus) {
       case "connected":
         return "text-green-600";
-      case "partner-disconnected":
-        return "text-yellow-600";
       case "error":
-      case "disconnected":
         return "text-red-600";
+      case "disconnected":
+        return "text-yellow-600";
       default:
         return "text-gray-500";
     }
@@ -326,7 +353,24 @@ export default function ChatInterface({
         throw new Error(data.message || "Failed to save chat");
       }
 
-      setFeedback({ type: "success", message: "Chat saved to your account." });
+      // Update save status
+      setSaveStatus({
+        currentUserSaved: true,
+        partnerSaved: data.savedByCount === 2,
+        bothSaved: data.isSaved
+      });
+
+      if (data.isSaved) {
+        setFeedback({ 
+          type: "success", 
+          message: "🎉 Match saved! Both of you have saved this chat." 
+        });
+      } else {
+        setFeedback({ 
+          type: "waiting", 
+          message: "✓ You saved the chat. Waiting for your partner to save..." 
+        });
+      }
     } catch (err) {
       setFeedback({
         type: "error",
@@ -345,26 +389,41 @@ export default function ChatInterface({
             {partnerUsername || "Anonymous Match"}
           </h1>
           <p className={`text-sm ${statusColor}`}>{statusLabel}</p>
-          {partnerTyping && connectionStatus === "connected" && (
+          {partnerTyping && connectionStatus === "connected" && !partnerLeft && (
             <p className="text-xs text-gray-500 mt-1">{partnerUsername || "Partner"} is typing...</p>
+          )}
+          {partnerLeft && (
+            <p className="text-xs text-rose-600 mt-1 font-medium">⚠️ Partner has left the chat</p>
           )}
         </div>
         <div className="flex gap-2">
           <button
             type="button"
             onClick={handleSaveChat}
-            disabled={isSaving}
-            className="h-9 px-4 rounded-md bg-yellow-300 text-[#286633] text-sm font-medium shadow-sm hover:brightness-95 disabled:opacity-60"
+            disabled={isSaving || saveStatus.bothSaved || partnerLeft}
+            className={`h-9 px-4 rounded-md text-sm font-medium shadow-sm transition-all ${
+              saveStatus.bothSaved
+                ? "bg-green-100 text-green-700 cursor-not-allowed"
+                : saveStatus.currentUserSaved
+                ? "bg-blue-100 text-blue-700 cursor-wait"
+                : "bg-yellow-300 text-[#286633] hover:brightness-95"
+            } disabled:opacity-60`}
           >
-            {isSaving ? "Saving..." : "Save Chat"}
+            {saveStatus.bothSaved 
+              ? "✓ Saved by Both" 
+              : saveStatus.currentUserSaved 
+              ? "⏳ Waiting for Partner..." 
+              : isSaving 
+              ? "Saving..." 
+              : "Save Chat"}
           </button>
           <button
             type="button"
             onClick={handleLeaveChat}
-            disabled={isEnding}
+            disabled={isEnding || partnerLeft}
             className="h-9 px-4 rounded-md bg-rose-500 text-white text-sm font-medium shadow-sm hover:brightness-95 disabled:opacity-70"
           >
-            {isEnding ? "Leaving..." : "End Chat"}
+            {partnerLeft ? "Partner Left" : isEnding ? "Leaving..." : "End Chat"}
           </button>
         </div>
       </header>
@@ -378,13 +437,23 @@ export default function ChatInterface({
           )}
           {feedback && (
             <div
-              className={`rounded-md border px-4 py-3 text-sm ${
+              className={`rounded-md border px-4 py-3 text-sm flex items-start gap-2 ${
                 feedback.type === "success"
                   ? "border-green-200 bg-green-50 text-green-700"
+                  : feedback.type === "waiting"
+                  ? "border-blue-200 bg-blue-50 text-blue-700"
+                  : feedback.type === "info"
+                  ? "border-yellow-200 bg-yellow-50 text-yellow-700"
                   : "border-amber-200 bg-amber-50 text-amber-700"
               }`}
             >
-              {feedback.message}
+              {feedback.type === "waiting" && (
+                <svg className="w-5 h-5 animate-spin flex-shrink-0" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+              )}
+              <span>{feedback.message}</span>
             </div>
           )}
         </div>
@@ -396,15 +465,19 @@ export default function ChatInterface({
             <div
               key={message.id}
               className={`max-w-xl rounded-2xl px-4 py-3 text-sm shadow-sm ${
-                message.isOwn
+                message.isSystem
+                  ? "self-center bg-gray-200 text-gray-700 text-center italic"
+                  : message.isOwn
                   ? "self-end bg-[#286633] text-white"
                   : "self-start bg-white text-gray-900"
               }`}
             >
               <p className="whitespace-pre-wrap break-words">{message.content}</p>
-              <time className={`block text-xs mt-1 ${message.isOwn ? "text-white/70" : "text-gray-500"}`}>
-                {formatTimestamp(message.sentAt)}
-              </time>
+              {!message.isSystem && (
+                <time className={`block text-xs mt-1 ${message.isOwn ? "text-white/70" : "text-gray-500"}`}>
+                  {formatTimestamp(message.sentAt)}
+                </time>
+              )}
             </div>
           ))}
           <div ref={messagesEndRef} />

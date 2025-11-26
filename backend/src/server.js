@@ -52,6 +52,9 @@ const io = new Server(httpServer, {
   }
 });
 
+// Store io instance in app for use in controllers
+app.set('io', io);
+
 app.use(
   cors({
     origin: (origin, callback) => {
@@ -315,9 +318,9 @@ io.on('connection', async (socket) => {
   // Handle disconnection
   socket.on('disconnect', () => {
     console.log(`[SOCKET] User disconnected: ${socket.userId}`);
-    if (socket.chatSessionId) {
-      socket.to(socket.chatSessionId).emit('chat:partner-disconnected');
-    }
+    // Don't emit partner-disconnected on normal disconnect
+    // Users may just be navigating away temporarily (e.g., checking profile)
+    // The frontend will handle reconnection automatically
   });
 });
 

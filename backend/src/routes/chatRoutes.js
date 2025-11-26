@@ -4,6 +4,7 @@ import {
   getActiveChat,
   getChatHistory,
   endChatSession,
+  leaveChatSession,
   saveChatSession
 } from '../controllers/chatController.js';
 import {
@@ -24,6 +25,7 @@ router.get('/match/active', authenticate, getActiveMatch);
 router.get('/active', authenticate, getActiveChat);
 router.get('/:chatSessionId/history', authenticate, getChatHistory);
 router.post('/:chatSessionId/end', authenticate, endChatSession);
+router.post('/:chatSessionId/leave', authenticate, leaveChatSession);
 router.post('/:chatSessionId/save', authenticate, saveChatSession);
 
 export default router;
