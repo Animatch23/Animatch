@@ -9,8 +9,8 @@ import User from '../models/User.js';
  * Scoring breakdown:
  * - Course match: 30 points (case-insensitive match)
  * - Housing match: 20 points (case-insensitive match)
- * - Organizations: up to 25 points (5 points per shared org, max 5 orgs, case-insensitive)
- * - Interests: up to 25 points (2.5 points per shared interest, max 10 interests, case-insensitive)
+ * - Organizations: up to 30 points (5 points per shared org, max 6 orgs, case-insensitive)
+ * - Interests: up to 20 points (10 points per shared interest, max 2 interests, case-insensitive)
  * 
  * @param {Object} user1 - First user object with course, housing, organizations, interests
  * @param {Object} user2 - Second user object with course, housing, organizations, interests
@@ -32,7 +32,7 @@ const calculateSimilarity = (user1, user2) => {
     score += 20;
   }
 
-  // Organizations similarity (up to 25 points, case-insensitive)
+  // Organizations similarity (up to 30 points, case-insensitive)
   if (user1.organizations && user2.organizations && 
       user1.organizations.length > 0 && user2.organizations.length > 0) {
     // Normalize organizations to lowercase for comparison
@@ -40,11 +40,11 @@ const calculateSimilarity = (user1, user2) => {
     const user2OrgsLower = user2.organizations.map(org => org.toLowerCase().trim());
     
     const sharedOrgs = user1OrgsLower.filter(org => user2OrgsLower.includes(org));
-    // 5 points per shared org, max 5 orgs = 25 points
-    score += Math.min(sharedOrgs.length * 5, 25);
+    // 5 points per shared org, max 6 orgs = 30 points
+    score += Math.min(sharedOrgs.length * 5, 30);
   }
 
-  // Interests similarity (up to 25 points, case-insensitive)
+  // Interests similarity (up to 20 points, case-insensitive)
   if (user1.interests && user2.interests && 
       user1.interests.length > 0 && user2.interests.length > 0) {
     // Normalize interests to lowercase for comparison
@@ -54,8 +54,8 @@ const calculateSimilarity = (user1, user2) => {
     const sharedInterests = user1InterestsLower.filter(interest => 
       user2InterestsLower.includes(interest)
     );
-    // 2.5 points per shared interest, max 10 interests = 25 points
-    score += Math.min(sharedInterests.length * 2.5, 25);
+    // 10 points per shared interest, max 2 interests = 20 points
+    score += Math.min(sharedInterests.length * 10, 20);
   }
 
   return score;
