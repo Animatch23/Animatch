@@ -71,4 +71,28 @@ ChatSessionSchema.index(
   }
 );
 
+// Pre-remove hook: Clean up associated messages when a chat session is deleted
+ChatSessionSchema.pre('deleteOne', { document: true, query: false }, async function() {
+  try {
+    const Message = mongoose.model('Message');
+    await Message.deleteMany({ chatSessionId: this._id });
+    console.log(`[CLEANUP] Deleted messages for chat session ${this._id}`);
+  } catch (error) {
+    console.error(`[CLEANUP] Error deleting messages for chat session ${this._id}:`, error);
+  }
+});
+
+// Also handle findOneAndDelete
+ChatSessionSchema.post('findOneAndDelete', async function(doc) {
+  if (doc) {
+    try {
+      const Message = mongoose.model('Message');
+      await Message.deleteMany({ chatSessionId: doc._id });
+      console.log(`[CLEANUP] Deleted messages for chat session ${doc._id}`);
+    } catch (error) {
+      console.error(`[CLEANUP] Error deleting messages for chat session ${doc._id}:`, error);
+    }
+  }
+});
+
 export default mongoose.model("ChatSession", ChatSessionSchema);

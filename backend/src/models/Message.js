@@ -29,7 +29,9 @@ const messageSchema = new mongoose.Schema({
 // Compound index for efficient message retrieval
 messageSchema.index({ chatSessionId: 1, sentAt: 1 });
 
-// Auto-delete messages when chat session expires (after 24 hours)
-messageSchema.index({ sentAt: 1 }, { expireAfterSeconds: 86400 });
+// TTL index: Auto-delete messages ONLY for unsaved/expired chat sessions
+// Messages should persist if the chat session is saved
+// Note: We handle this by not having a TTL on messages directly
+// Instead, messages will be deleted when their parent ChatSession is deleted
 
 export default mongoose.model('Message', messageSchema);

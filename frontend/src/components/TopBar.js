@@ -8,9 +8,12 @@ export default function TopBar() {
   const pathname = usePathname();
   const showMenu = pathname === "/match/chat" || pathname?.startsWith("/match/chat/");
   const toggleSavedChats = () => {
+    console.log('[TopBar] Hamburger menu clicked, dispatching toggle event');
     try {
       window.dispatchEvent(new CustomEvent("animatch:toggleSavedChats"));
-    } catch (_) {
+      console.log('[TopBar] Event dispatched successfully');
+    } catch (err) {
+      console.error('[TopBar] Error dispatching event:', err);
       // no-op on SSR
     }
   };

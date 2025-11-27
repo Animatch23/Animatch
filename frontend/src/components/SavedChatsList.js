@@ -66,10 +66,12 @@ export default function SavedChatsList({ visible, onClose }) {
     return `${days}d`;
   };
 
+  console.log('[SavedChatsList] Render with visible:', visible);
+  
   if (!visible) return null;
 
   return (
-    <div className="fixed right-0 top-16 bottom-0 w-80 bg-white border-l shadow-2xl z-50 overflow-y-auto">
+    <div className="fixed right-0 top-16 bottom-0 w-80 bg-white border-l shadow-2xl z-[60] overflow-y-auto">
       <div className="p-4 border-b bg-gray-50">
         <div className="flex items-center justify-between">
           <h3 className="text-lg font-semibold text-gray-900">Saved Chats</h3>

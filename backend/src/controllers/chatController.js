@@ -66,7 +66,7 @@ export const getChatHistory = async (req, res) => {
     // Fetch messages
     const messages = await Message.find({ chatSessionId })
       .sort({ sentAt: 1 })
-      .limit(100) // Limit to last 100 messages
+      .limit(500) // Increased limit to 500 messages for better history retention
       .lean();
 
     // Anonymize sender info
