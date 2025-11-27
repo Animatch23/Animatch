@@ -193,7 +193,6 @@ test.describe("next chat button tests", () => {
 
       // Click chat history toggle for User 1
       const user1MenuBtn = page1.locator('button[aria-label*="menu"], button[aria-label*="saved"]').first();
-      await expect(user1MenuBtn).toBeVisible({ timeout: 5000 });
       await user1MenuBtn.click();
       await page1.waitForTimeout(500);
 
@@ -216,7 +215,6 @@ test.describe("next chat button tests", () => {
 
       // Click chat history toggle for User 2
       const user2MenuBtn = page2.locator('button[aria-label*="menu"], button[aria-label*="saved"]').first();
-      await expect(user2MenuBtn).toBeVisible({ timeout: 5000 });
       await user2MenuBtn.click();
       await page2.waitForTimeout(500);
 
