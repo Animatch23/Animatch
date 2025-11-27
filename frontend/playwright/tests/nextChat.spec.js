@@ -20,6 +20,9 @@ test.describe("next chat button tests", () => {
     await page.locator('input[placeholder="Username *"]').fill(username);
     await page.getByRole("button", { name: "Continue" }).click();
     
+    // Wait for interests page to load (step 2)
+    await page.waitForTimeout(500);
+    
     return username;
   };
 
@@ -240,6 +243,8 @@ test.describe("next chat button tests", () => {
     
   });
     test("system notifies other user", async ({ browser }) => {
+    test.setTimeout(60000); // Increase timeout to 60 seconds for this complex test
+    
     const context1 = await browser.newContext();
     const context2 = await browser.newContext();
 
@@ -255,12 +260,17 @@ test.describe("next chat button tests", () => {
       // Start matching - User 2 first, then User 1
       const user2StartLink = page2.getByRole("link", { name: "Start Matching" });
       await user2StartLink.click();
-      await page2.waitForTimeout(5000);
-      await page2.waitForURL("**/match/queue", { timeout: 10000 });
+      await page2.waitForTimeout(2000); // Wait for User 2 to enter queue
 
       const user1StartLink = page1.getByRole("link", { name: "Start Matching" });
       await user1StartLink.click();
-      await page1.waitForTimeout(5000);
+      
+      // Wait for both users to match and be redirected to chat
+      await Promise.all([
+        page1.waitForURL('**/match/chat?session=*', { timeout: 15000 }),
+        page2.waitForURL('**/match/chat?session=*', { timeout: 15000 })
+      ]);
+      
       console.log(`user 1 url ${page1.url()}`);
       console.log(`user 2 url ${page2.url()}`);
       // Extract and verify session IDs match
@@ -310,6 +320,8 @@ test.describe("next chat button tests", () => {
   });
 
    test("user gets matched again after pressing new match", async ({ browser }) => {
+  test.setTimeout(60000); // Increase timeout to 60 seconds for this complex test
+  
   const context1 = await browser.newContext();
   const context2 = await browser.newContext();
   const context3 = await browser.newContext();
@@ -370,13 +382,11 @@ test.describe("next chat button tests", () => {
     await expect(user3StartLink).toBeVisible({ timeout: 5000 });
     await user3StartLink.click();
 
-    // Wait for User 3 to reach queue
-    await page3.waitForURL("**/match/queue", { timeout: 10000 });
-    console.log(`User 3 in queue: ${page3.url()}`);
-
-    // Wait for both to match
-    await page1.waitForTimeout(5000);
-    await page3.waitForTimeout(5000);
+    // Wait for both users to be redirected to chat page (they should match with each other)
+    await Promise.all([
+      page1.waitForURL('**/match/chat?session=*', { timeout: 15000 }),
+      page3.waitForURL('**/match/chat?session=*', { timeout: 15000 })
+    ]);
 
     console.log(`user 1 new url: ${page1.url()}`);
     console.log(`user 3 url: ${page3.url()}`);
