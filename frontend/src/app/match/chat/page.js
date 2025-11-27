@@ -112,6 +112,10 @@ function ChatContent() {
             }
 
             sessionStorage.setItem("activeChatSessionId", data.chatSessionId);
+            
+            // Update URL to include session ID for QA visibility
+            window.history.replaceState(null, '', `/match/chat?session=${data.chatSessionId}`);
+            
             if (!isCancelled) {
               setChatInfo({
                 chatSessionId: data.chatSessionId,
