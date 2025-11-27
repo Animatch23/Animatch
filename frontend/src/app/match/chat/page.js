@@ -25,6 +25,7 @@ function ChatContent() {
   const [chatInfo, setChatInfo] = useState(null);
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(true);
+  const [active, setActive] = useState(false);
 
   useEffect(() => {
     const storedToken = localStorage.getItem("sessionToken");
@@ -67,7 +68,7 @@ function ChatContent() {
         // Since we don't have userId here, just get first participant as partner
         const partner = data.participants?.[0];
 
-        sessionStorage.setItem("activeChatSessionId", sessionId);
+        // Do NOT set activeChatSessionId in sessionStorage for history view
         if (!isCancelled) {
           setChatInfo({
             chatSessionId: sessionId,
@@ -75,6 +76,9 @@ function ChatContent() {
             currentUserId: "", // Will be determined from token/messages
             isSavedSession: true
           });
+          // Set active based on chat session status (Design consideration #6)
+          // If the chat is still active, user can continue chatting
+          setActive(data.active === true);
         }
       } catch (err) {
         if (!isCancelled) {
@@ -114,6 +118,7 @@ function ChatContent() {
                 partnerUsername: data.partnerUsername || "Match Partner",
                 currentUserId: data.currentUserId || "",
               });
+              setActive(true);
             }
             return;
           }
@@ -176,14 +181,29 @@ function ChatContent() {
     return null;
   }
 
+  const activeChatSessionId = sessionStorage.getItem("activeChatSessionId");
+  const showReturnToActive = activeChatSessionId && activeChatSessionId !== chatInfo.chatSessionId;
+
   return (
-    <ChatInterface
-      chatSessionId={chatInfo.chatSessionId}
-      partnerUsername={chatInfo.partnerUsername}
-      currentUserId={chatInfo.currentUserId}
-      token={token}
-      onChatEnded={handleChatEnded}
-    />
+    <div className="relative">
+      {showReturnToActive && (
+        <button
+          type="button"
+          onClick={() => router.push('/match/chat')}
+          className="fixed top-20 right-4 z-50 px-4 py-2 bg-[#286633] text-white text-sm font-medium rounded-md shadow-lg hover:brightness-110"
+        >
+          Return to Active Match
+        </button>
+      )}
+      <ChatInterface
+        chatSessionId={chatInfo.chatSessionId}
+        partnerUsername={chatInfo.partnerUsername}
+        currentUserId={chatInfo.currentUserId}
+        token={token}
+        onChatEnded={handleChatEnded}
+        isReadOnly={!active}
+      />
+    </div>
   );
 }
 

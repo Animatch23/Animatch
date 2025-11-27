@@ -98,6 +98,15 @@ export default function MatchQueuePage() {
         setStatus("joining");
         setError("");
 
+        // Safety timeout: reset state if join takes too long
+        const safetyTimeout = setTimeout(() => {
+          if (isJoiningRef.current) {
+            setError("Network timeout. Please try again.");
+            setStatus("error");
+            isJoiningRef.current = false;
+          }
+        }, 10000); // 10 seconds
+
         const response = await fetch(`${API_BASE}/api/chat/queue/join`, {
           method: "POST",
           headers: {
@@ -105,6 +114,8 @@ export default function MatchQueuePage() {
             Authorization: `Bearer ${authTokenRef.current}`,
           },
         });
+
+        clearTimeout(safetyTimeout); // Clear timeout on success
 
         const data = await response.json().catch(() => ({}));
 

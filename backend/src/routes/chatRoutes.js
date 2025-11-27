@@ -7,7 +7,9 @@ import {
   leaveChatSession,
   saveChatSession,
   getSavedChats,
-  getChatSession
+  getChatSession,
+  unmatchUser,
+  getChatSaveStatus
 } from '../controllers/chatController.js';
 import {
   joinQueue,
@@ -33,5 +35,7 @@ router.post('/:chatSessionId/save', authenticate, saveChatSession);
 // Additional routes from us-8 for chat history and session details
 router.get('/history', authenticate, getSavedChats);
 router.get('/:sessionId', authenticate, getChatSession);
+router.get('/:chatSessionId/save-status', authenticate, getChatSaveStatus);
+router.post('/:chatSessionId/unmatch', authenticate, unmatchUser);
 
 export default router;

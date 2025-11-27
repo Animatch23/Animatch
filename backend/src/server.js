@@ -405,7 +405,9 @@ process.on('unhandledRejection', (reason, promise) => {
   process.exit(1);
 });
 
-// Always start server (Render needs this)
-start();
+// Always start server (Render needs this) unless in test
+if (process.env.NODE_ENV !== 'test') {
+  start();
+}
 
 export default app;

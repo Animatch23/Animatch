@@ -24,6 +24,7 @@ export default function ProfileEditPage() {
   const [orgInput, setOrgInput] = useState("");
   const [usernameError, setUsernameError] = useState("");
   const fileInputRef = useRef(null);
+  const debounceTimeoutRef = useRef(null);
   const finalCourse = course === "Other" ? customCourse : course;
   
   const COURSES = useMemo(
@@ -157,22 +158,53 @@ export default function ProfileEditPage() {
     }
   };
 
-  const validateUsername = (value) => {
-    if (!value.trim()) {
-      return "Username is required";
-    } else if (value.length < 3) {
-      return "Username must be at least 3 characters";
-    } else if (!/^[a-zA-Z0-9_]+$/.test(value)) {
-      return "Username can only contain letters, numbers, and underscores";
-    }
-    return "";
+  const debounce = (func, delay) => {
+    return (...args) => {
+      if (debounceTimeoutRef.current) {
+        clearTimeout(debounceTimeoutRef.current);
+      }
+      debounceTimeoutRef.current = setTimeout(() => func(...args), delay);
+    };
   };
+
+  const checkUsernameAvailability = async (username) => {
+    if (!username.trim()) return;
+
+    try {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/upload/check-username`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: username.trim() })
+      });
+
+      if (!response.ok) {
+        console.error('Failed to check username availability');
+        return;
+      }
+
+      const data = await response.json();
+      if (!data.isAvailable && username.trim().toLowerCase() !== initialUsername.toLowerCase()) {
+        setUsernameError("Username already taken");
+      } else {
+        setUsernameError("");
+      }
+    } catch (err) {
+      console.error('Error checking username:', err);
+    }
+  };
+
+  const debouncedCheckUsername = debounce(checkUsernameAvailability, 500);
 
   const handleUsernameChange = (e) => {
     const newUsername = e.target.value;
     setUsername(newUsername);
     const error = validateUsername(newUsername);
     setUsernameError(error);
+
+    // If no validation error, check availability
+    if (!error) {
+      debouncedCheckUsername(newUsername);
+    }
   };
 
   const handleSave = async () => {

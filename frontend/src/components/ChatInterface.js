@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import SavedChatsList from "./SavedChatsList";
 import { io } from "socket.io-client";
 
@@ -24,7 +25,9 @@ export default function ChatInterface({
   token,
   currentUserId,
   onChatEnded,
+  isReadOnly = false,
 }) {
+  const router = useRouter();
   const [messages, setMessages] = useState([]);
   const [inputValue, setInputValue] = useState("");
   const [connectionStatus, setConnectionStatus] = useState("connecting");
@@ -36,6 +39,9 @@ export default function ChatInterface({
   const [saveStatus, setSaveStatus] = useState({ currentUserSaved: false, partnerSaved: false, bothSaved: false });
   const [partnerLeft, setPartnerLeft] = useState(false);
   const [showSavedChats, setShowSavedChats] = useState(false);
+  const [isUnmatched, setIsUnmatched] = useState(false);
+
+  const effectiveReadOnly = isReadOnly || isUnmatched;
 
   const socketRef = useRef(null);
   const messagesEndRef = useRef(null);
@@ -51,8 +57,30 @@ export default function ChatInterface({
   }, []);
 
   useEffect(() => {
-    currentUserIdRef.current = currentUserId ?? "";
-  }, [currentUserId]);
+    // Reset save status when chat session changes to prevent premature saves
+    setSaveStatus({ currentUserSaved: false, partnerSaved: false, bothSaved: false });
+    
+    // Fetch current save status from backend to handle reloads (Design consideration #1)
+    if (API_BASE && chatSessionId && token) {
+      fetch(`${API_BASE}/api/chat/${chatSessionId}/save-status`, {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+        .then(res => res.json())
+        .then(data => {
+          if (data.currentUserSaved !== undefined) {
+            setSaveStatus({
+              currentUserSaved: data.currentUserSaved,
+              partnerSaved: data.savedByCount === 2,
+              bothSaved: data.isSaved
+            });
+          }
+        })
+        .catch(err => console.error("Failed to fetch save status:", err));
+    }
+  }, [chatSessionId, token]);
 
   useEffect(() => {
     const toggleSavedChatsListener = () => {
@@ -214,6 +242,10 @@ export default function ChatInterface({
         isOwn: false,
         isSystem: true
       }]);
+    });
+
+    socket.on("chat:unmatched", () => {
+      setIsUnmatched(true);
     });
 
     socket.on("disconnect", () => {
@@ -400,6 +432,37 @@ export default function ChatInterface({
     }
   };
 
+  const handleUnmatch = async () => {
+    if (!window.confirm("Are you sure you want to unmatch? This will permanently end the conversation and remove it from your active list.")) {
+      return;
+    }
+
+    if (!API_BASE || !token) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`${API_BASE}/api/chat/${chatSessionId}/unmatch`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.message || "Failed to unmatch");
+      }
+
+      // Clear active chat session and redirect
+      sessionStorage.removeItem("activeChatSessionId");
+      router.replace("/match");
+      // Note: Toast/alert would be handled by a global toast system, but for now we'll rely on the redirect
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to unmatch");
+    }
+  };
+
   return (
     <div className="flex flex-col min-h-[calc(100vh-4rem)] bg-gray-50">
       <SavedChatsList visible={showSavedChats} onClose={() => setShowSavedChats(false)} />
@@ -441,6 +504,15 @@ export default function ChatInterface({
               ? "Saving..." 
               : "Save Chat"}
           </button>
+          {!effectiveReadOnly && (
+            <button
+              type="button"
+              onClick={handleUnmatch}
+              className="h-9 px-4 rounded-md bg-gray-200 text-red-600 text-sm font-medium shadow-sm hover:bg-gray-300"
+            >
+              Unmatch
+            </button>
+          )}
           <button
             type="button"
             onClick={handleLeaveChat}
@@ -452,8 +524,13 @@ export default function ChatInterface({
         </div>
       </header>
 
-      {(error || feedback) && (
+      {(error || feedback || isUnmatched) && (
         <div className="px-6 pt-4 space-y-3">
+          {isUnmatched && (
+            <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              Your partner has unmatched. This conversation is now closed.
+            </div>
+          )}
           {error && (
             <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
               {error}
@@ -509,19 +586,26 @@ export default function ChatInterface({
       </main>
 
       <form onSubmit={handleSubmit} className="bg-white border-t border-gray-200 px-6 py-4">
+        {effectiveReadOnly && (
+          <div className="mb-3 text-center text-sm text-gray-600">
+            {isUnmatched 
+              ? "This conversation is now closed." 
+              : "This is a saved chat history. You cannot send new messages."}
+          </div>
+        )}
         <div className="flex items-end gap-3">
           <textarea
             value={inputValue}
             onChange={handleInputChange}
             onBlur={handleInputBlur}
             rows={2}
-            placeholder={connectionStatus === "connected" ? "Say hello..." : "Waiting for connection"}
-            disabled={connectionStatus !== "connected"}
+            placeholder={effectiveReadOnly ? "Chat is read-only" : (connectionStatus === "connected" ? "Say hello..." : "Waiting for connection")}
+            disabled={effectiveReadOnly || connectionStatus !== "connected"}
             className="flex-1 resize-none rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#286633]/60 disabled:opacity-60"
           />
           <button
             type="submit"
-            disabled={!inputValue.trim() || connectionStatus !== "connected"}
+            disabled={!inputValue.trim() || effectiveReadOnly || connectionStatus !== "connected"}
             className="h-11 px-6 rounded-2xl bg-[#286633] text-white text-sm font-semibold shadow-sm hover:brightness-110 disabled:opacity-60"
           >
             Send

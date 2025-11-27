@@ -252,44 +252,46 @@ export const getSavedChats = async (req, res) => {
     try {
         const userId = req.user.id;
 
-        // Find all saved sessions where user is a participant
-        // Note: Removed active: true filter so saved chats persist after ending
-        const savedChats = await ChatSession.find({
-            isSaved: true,
-            participants: { $in: [userId] }
+        // Find only SAVED chat sessions where user is a participant (US-8 AC1, AC3)
+        // isSaved=true means both users have saved the chat
+        const chats = await ChatSession.find({
+            participants: { $in: [userId] },
+            isSaved: true // Only return saved chats
         })
-        .populate('participants', 'username profilePicture')
-        .select('-messages')
-        .sort({ endedAt: -1 })
-        .lean();
+        .populate('participants', 'username')
+        .sort({ startedAt: -1 });
 
-        // Attach last message for each chat session
-        const chatsWithLastMessage = await Promise.all(
-            savedChats.map(async (chat) => {
-                const lastMessage = await Message.findOne({ chatSessionId: chat._id })
-                    .sort({ sentAt: -1 })
-                    .populate('senderId', 'username')
-                    .lean();
+        // For each chat, get the last message
+        const chatsWithLastMessage = await Promise.all(chats.map(async (chat) => {
+            const lastMessage = await Message.findOne({ chatSessionId: chat._id })
+                .sort({ sentAt: -1 })
+                .populate('senderId', 'username')
+                .lean();
 
-                if (lastMessage) {
-                    // Determine if content is an attachment (URL or file path)
-                    const isAttachment = lastMessage.content && 
-                        (lastMessage.content.startsWith('http') || 
-                         lastMessage.content.startsWith('/uploads'));
-
-                    chat.lastMessage = {
-                        content: lastMessage.content,
-                        senderId: lastMessage.senderId._id,
-                        senderUsername: lastMessage.senderId.username,
-                        sentAt: lastMessage.sentAt,
-                        isOwn: lastMessage.senderId._id.toString() === userId.toString(),
-                        type: isAttachment ? 'attachment' : 'text'
-                    };
+            // Detect attachment type based on content
+            let messageType = 'text';
+            if (lastMessage && lastMessage.content) {
+                const content = lastMessage.content;
+                if (content.startsWith('/uploads/') || content.startsWith('http://') || content.startsWith('https://')) {
+                    messageType = 'attachment';
                 }
+            }
 
-                return chat;
-            })
-        );
+            const lastMessageObj = lastMessage ? {
+                content: lastMessage.content,
+                senderUsername: lastMessage.senderId.username,
+                sentAt: lastMessage.sentAt,
+                isOwn: lastMessage.senderId._id.toString() === userId.toString(),
+                type: lastMessage.type || messageType
+            } : null;
+
+            return {
+                ...chat.toObject(),
+                lastMessage: lastMessageObj,
+                isSaved: chat.isSaved,
+                currentUserSaved: chat.savedByUsers.some(id => id.toString() === userId.toString())
+            };
+        }));
 
         res.json(chatsWithLastMessage);
 
@@ -327,6 +329,89 @@ export const getChatSession = async (req, res) => {
     } catch (err) {
         console.error(err.message);
         res.status(500).send('Server Error');
+    }
+};
+
+/**
+ * Unmatch from a chat session
+ * Sets active to false, endedAt, and unmatchedBy
+ */
+export const unmatchUser = async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const { chatSessionId } = req.params;
+
+        // Find the chat session and verify user is a participant
+        const chatSession = await ChatSession.findOne({
+            _id: chatSessionId,
+            participants: { $in: [userId] }
+        });
+
+        if (!chatSession) {
+            return res.status(403).json({ error: 'Not authorized to unmatch this chat' });
+        }
+
+        // Update the chat session
+        chatSession.active = false;
+        chatSession.endedAt = new Date();
+        chatSession.unmatchedBy = userId;
+
+        await chatSession.save();
+
+        console.log(`[UNMATCH] User ${userId} unmatched from chat ${chatSessionId}`);
+
+        // Emit socket event to notify partner (US-9 AC2)
+        const io = req.app.get('io');
+        if (io) {
+            io.to(chatSessionId.toString()).emit('chat:unmatched', {
+                message: 'Your partner has unmatched. This conversation is now closed.',
+                unmatchedBy: userId
+            });
+        }
+
+        res.status(200).json({
+            message: 'Successfully unmatched from chat',
+            chatSessionId: chatSession._id
+        });
+
+    } catch (err) {
+        console.error('Error unmatching user:', err);
+        res.status(500).json({ error: 'Failed to unmatch from chat' });
+    }
+};
+
+/**
+ * Get save status for a chat session
+ * Returns whether current user has saved and overall save status
+ */
+export const getChatSaveStatus = async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const { chatSessionId } = req.params;
+
+        const chatSession = await ChatSession.findOne({
+            _id: chatSessionId,
+            participants: { $in: [userId] }
+        });
+
+        if (!chatSession) {
+            return res.status(404).json({ message: 'Chat session not found' });
+        }
+
+        const currentUserSaved = chatSession.savedByUsers.some(
+            id => id.toString() === userId.toString()
+        );
+
+        res.json({
+            currentUserSaved,
+            savedByCount: chatSession.savedByUsers.length,
+            isSaved: chatSession.isSaved,
+            active: chatSession.active
+        });
+
+    } catch (err) {
+        console.error('Error getting save status:', err);
+        res.status(500).json({ message: 'Failed to get save status' });
     }
 };
 

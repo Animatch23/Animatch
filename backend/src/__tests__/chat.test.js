@@ -186,14 +186,16 @@ describe('GET /api/chat/history', () => {
         savedChat1 = await ChatSession.create({
             participants: [user1Id, user2Id],
             isSaved: true,
+            savedByUsers: [user1Id, user2Id],
             active: true,
             endedAt: new Date(),
         });
 
-        // 2. An active, *unsaved* chat between User 1 and User 3
+        // 2. An active, *unsaved* chat between User 1 and User 3 (should NOT appear in history - US-8 AC3)
         unsavedChat = await ChatSession.create({
             participants: [user1Id, user3Id],
             isSaved: false,
+            savedByUsers: [],
             active: true,
         });
 
@@ -201,6 +203,7 @@ describe('GET /api/chat/history', () => {
         savedChat2 = await ChatSession.create({
             participants: [user2Id, user3Id],
             isSaved: true,
+            savedByUsers: [user2Id, user3Id],
             active: true,
             endedAt: new Date(),
         });
@@ -209,6 +212,7 @@ describe('GET /api/chat/history', () => {
         inactiveSavedChat = await ChatSession.create({
             participants: [user1Id, user2Id],
             isSaved: true,
+            savedByUsers: [user1Id, user2Id],
             active: false,
             endedAt: new Date(Date.now() - 86400000), // 1 day ago
         });
@@ -220,20 +224,36 @@ describe('GET /api/chat/history', () => {
         await Message.deleteMany({});
     });
 
-    it('should return only saved chats for a user', async () => {
+    // US-8 AC1: Only saved chats appear
+    it('should return only saved chats for a user (US-8 AC1)', async () => {
         const res = await request(app)
             .get('/api/chat/history')
             .set('Authorization', `Bearer ${token1}`);
 
         expect(res.status).toBe(200);
-        expect(res.body.length).toBeGreaterThanOrEqual(1);
-        // Should include both savedChat1 and inactiveSavedChat
+        // User1 should only see savedChat1 and inactiveSavedChat (both are saved)
+        // unsavedChat should NOT appear (US-8 AC3)
+        expect(res.body.length).toBe(2);
         const chatIds = res.body.map(c => c._id);
         expect(chatIds).toContain(savedChat1._id.toHexString());
+        expect(chatIds).toContain(inactiveSavedChat._id.toHexString());
+        expect(chatIds).not.toContain(unsavedChat._id.toHexString());
         // All returned chats should be saved
         res.body.forEach(chat => {
             expect(chat.isSaved).toBe(true);
         });
+    });
+
+    // US-8 AC3: Not saved chats should not appear
+    it('should NOT return unsaved chats (US-8 AC3)', async () => {
+        const res = await request(app)
+            .get('/api/chat/history')
+            .set('Authorization', `Bearer ${token1}`);
+
+        expect(res.status).toBe(200);
+        const chatIds = res.body.map(c => c._id);
+        // Unsaved chat should not be in the list
+        expect(chatIds).not.toContain(unsavedChat._id.toHexString());
     });
 
     it('should return saved chats regardless of active status', async () => {
@@ -253,7 +273,7 @@ describe('GET /api/chat/history', () => {
             .set('Authorization', `Bearer ${token2}`);
 
         expect(res.status).toBe(200);
-        // User2 is in savedChat1, savedChat2, and inactiveSavedChat
+        // User2 is in savedChat1, savedChat2, and inactiveSavedChat (all saved)
         expect(res.body).toHaveLength(3);
     });
 
@@ -279,6 +299,29 @@ describe('GET /api/chat/history', () => {
         expect(res.status).toBe(200);
         expect(res.body.length).toBeGreaterThan(0);
         expect(res.body[0].messages).toBeUndefined();
+    });
+
+    // US-8 AC2: Must support scrolling through multiple chats
+    it('should support multiple saved chats for scrolling (US-8 AC2)', async () => {
+        // Create 5 more saved chats for user1
+        for (let i = 0; i < 5; i++) {
+            const newUserId = new mongoose.Types.ObjectId().toHexString();
+            await User.create({ _id: newUserId, username: `extra_user_${i}`, email: `extra${i}@test.com` });
+            await ChatSession.create({
+                participants: [user1Id, newUserId],
+                isSaved: true,
+                savedByUsers: [user1Id, newUserId],
+                active: false,
+            });
+        }
+
+        const res = await request(app)
+            .get('/api/chat/history')
+            .set('Authorization', `Bearer ${token1}`);
+
+        expect(res.status).toBe(200);
+        // User1 should now have 7 saved chats (2 original + 5 new)
+        expect(res.body.length).toBe(7);
     });
 
     // NEW TESTS FOR LAST MESSAGE FEATURE (US #8)
@@ -372,7 +415,7 @@ describe('GET /api/chat/history', () => {
         expect(res.status).toBe(200);
         const chat = res.body.find(c => c._id === savedChat2._id.toHexString());
         expect(chat).toBeDefined();
-        expect(chat.lastMessage).toBeUndefined();
+        expect(chat.lastMessage).toBeNull();
     });
 
     it('should return most recent message when multiple exist', async () => {
@@ -467,13 +510,15 @@ describe('GET /api/chat/:sessionId', () => {
         expect(res.body.msg).toBe('User not authorized for this chat');
     });
 
-    it('should return 403 if the chat is not saved', async () => {
+    it('should return session data for active unsaved chats (200 OK)', async () => {
         const res = await request(app)
             .get(`/api/chat/${unsavedChat._id.toHexString()}`)
             .set('Authorization', `Bearer ${token1}`);
 
-        expect(res.status).toBe(403);
-        expect(res.body.msg).toBe('This chat has not been saved');
+        expect(res.status).toBe(200);
+        expect(res.body._id).toBe(unsavedChat._id.toHexString());
+        expect(res.body.isSaved).toBe(false);
+        expect(res.body.participants).toBeDefined();
     });
 
     it('should return 404 if the chat ID does not exist', async () => {
@@ -483,5 +528,249 @@ describe('GET /api/chat/:sessionId', () => {
             .set('Authorization', `Bearer ${token1}`);
 
         expect(res.status).toBe(404);
+    });
+});
+
+// US-9: Unmatch User Tests
+describe('POST /api/chat/:chatSessionId/unmatch', () => {
+    let user1Id, user2Id, user3Id;
+    let token1, token2, token3;
+    let activeChat, savedChat;
+
+    beforeEach(async () => {
+        user1Id = new mongoose.Types.ObjectId().toHexString();
+        user2Id = new mongoose.Types.ObjectId().toHexString();
+        user3Id = new mongoose.Types.ObjectId().toHexString();
+
+        await User.create([
+            { _id: user1Id, username: 'user1', email: 'user1@test.com' },
+            { _id: user2Id, username: 'user2', email: 'user2@test.com' },
+            { _id: user3Id, username: 'user3', email: 'user3@test.com' },
+        ]);
+
+        token1 = generateToken(user1Id, 'user1@test.com');
+        token2 = generateToken(user2Id, 'user2@test.com');
+        token3 = generateToken(user3Id, 'user3@test.com');
+
+        // Active chat between user1 and user2
+        activeChat = await ChatSession.create({
+            participants: [user1Id, user2Id],
+            active: true,
+            isSaved: false,
+            savedByUsers: [],
+        });
+
+        // Saved chat between user1 and user2
+        savedChat = await ChatSession.create({
+            participants: [user1Id, user2Id],
+            active: true,
+            isSaved: true,
+            savedByUsers: [user1Id, user2Id],
+        });
+    });
+
+    afterEach(async () => {
+        await ChatSession.deleteMany({});
+        await User.deleteMany({});
+        await Message.deleteMany({});
+    });
+
+    // US-9 AC1: Unmatch immediately ends chat
+    it('should immediately end the chat when user unmatches (US-9 AC1)', async () => {
+        const res = await request(app)
+            .post(`/api/chat/${activeChat._id.toHexString()}/unmatch`)
+            .set('Authorization', `Bearer ${token1}`);
+
+        expect(res.status).toBe(200);
+        expect(res.body.message).toBe('Successfully unmatched from chat');
+        expect(res.body.chatSessionId).toBe(activeChat._id.toHexString());
+
+        // Verify chat is now inactive
+        const updatedChat = await ChatSession.findById(activeChat._id);
+        expect(updatedChat.active).toBe(false);
+        expect(updatedChat.unmatchedBy.toString()).toBe(user1Id);
+        expect(updatedChat.endedAt).toBeTruthy();
+    });
+
+    it('should allow either participant to unmatch', async () => {
+        // User2 unmatches
+        const res = await request(app)
+            .post(`/api/chat/${activeChat._id.toHexString()}/unmatch`)
+            .set('Authorization', `Bearer ${token2}`);
+
+        expect(res.status).toBe(200);
+
+        const updatedChat = await ChatSession.findById(activeChat._id);
+        expect(updatedChat.active).toBe(false);
+        expect(updatedChat.unmatchedBy.toString()).toBe(user2Id);
+    });
+
+    it('should return 403 if user is not a participant', async () => {
+        const res = await request(app)
+            .post(`/api/chat/${activeChat._id.toHexString()}/unmatch`)
+            .set('Authorization', `Bearer ${token3}`);
+
+        expect(res.status).toBe(403);
+        expect(res.body.error).toBe('Not authorized to unmatch this chat');
+    });
+
+    it('should return 403 if chat does not exist', async () => {
+        const fakeId = new mongoose.Types.ObjectId().toHexString();
+        const res = await request(app)
+            .post(`/api/chat/${fakeId}/unmatch`)
+            .set('Authorization', `Bearer ${token1}`);
+
+        expect(res.status).toBe(403);
+    });
+
+    it('should allow unmatching even from a saved chat', async () => {
+        const res = await request(app)
+            .post(`/api/chat/${savedChat._id.toHexString()}/unmatch`)
+            .set('Authorization', `Bearer ${token1}`);
+
+        expect(res.status).toBe(200);
+
+        const updatedChat = await ChatSession.findById(savedChat._id);
+        expect(updatedChat.active).toBe(false);
+        // isSaved should remain true (the chat history is preserved)
+        expect(updatedChat.isSaved).toBe(true);
+    });
+
+    it('should return 401 if no token is provided', async () => {
+        const res = await request(app)
+            .post(`/api/chat/${activeChat._id.toHexString()}/unmatch`);
+
+        expect(res.status).toBe(401);
+    });
+
+    it('should set endedAt timestamp when unmatching', async () => {
+        const beforeUnmatch = new Date();
+        
+        const res = await request(app)
+            .post(`/api/chat/${activeChat._id.toHexString()}/unmatch`)
+            .set('Authorization', `Bearer ${token1}`);
+
+        expect(res.status).toBe(200);
+
+        const updatedChat = await ChatSession.findById(activeChat._id);
+        expect(updatedChat.endedAt).toBeTruthy();
+        expect(new Date(updatedChat.endedAt).getTime()).toBeGreaterThanOrEqual(beforeUnmatch.getTime());
+    });
+});
+
+// Tests for save status endpoint
+describe('GET /api/chat/:chatSessionId/save-status', () => {
+    let user1Id, user2Id, user3Id;
+    let token1, token2, token3;
+    let chatSession;
+
+    beforeEach(async () => {
+        user1Id = new mongoose.Types.ObjectId().toHexString();
+        user2Id = new mongoose.Types.ObjectId().toHexString();
+        user3Id = new mongoose.Types.ObjectId().toHexString();
+
+        await User.create([
+            { _id: user1Id, username: 'user1', email: 'user1@test.com' },
+            { _id: user2Id, username: 'user2', email: 'user2@test.com' },
+            { _id: user3Id, username: 'user3', email: 'user3@test.com' },
+        ]);
+
+        token1 = generateToken(user1Id, 'user1@test.com');
+        token2 = generateToken(user2Id, 'user2@test.com');
+        token3 = generateToken(user3Id, 'user3@test.com');
+
+        chatSession = await ChatSession.create({
+            participants: [user1Id, user2Id],
+            active: true,
+            isSaved: false,
+            savedByUsers: [],
+        });
+    });
+
+    afterEach(async () => {
+        await ChatSession.deleteMany({});
+        await User.deleteMany({});
+    });
+
+    it('should return save status for a participant', async () => {
+        const res = await request(app)
+            .get(`/api/chat/${chatSession._id.toHexString()}/save-status`)
+            .set('Authorization', `Bearer ${token1}`);
+
+        expect(res.status).toBe(200);
+        expect(res.body.currentUserSaved).toBe(false);
+        expect(res.body.savedByCount).toBe(0);
+        expect(res.body.isSaved).toBe(false);
+        expect(res.body.active).toBe(true);
+    });
+
+    it('should reflect when current user has saved', async () => {
+        // User1 saves the chat
+        chatSession.savedByUsers.push(user1Id);
+        await chatSession.save();
+
+        const res = await request(app)
+            .get(`/api/chat/${chatSession._id.toHexString()}/save-status`)
+            .set('Authorization', `Bearer ${token1}`);
+
+        expect(res.status).toBe(200);
+        expect(res.body.currentUserSaved).toBe(true);
+        expect(res.body.savedByCount).toBe(1);
+        expect(res.body.isSaved).toBe(false);
+    });
+
+    it('should show correct status when both users have saved', async () => {
+        // Both users save
+        chatSession.savedByUsers = [user1Id, user2Id];
+        chatSession.isSaved = true;
+        await chatSession.save();
+
+        const res = await request(app)
+            .get(`/api/chat/${chatSession._id.toHexString()}/save-status`)
+            .set('Authorization', `Bearer ${token1}`);
+
+        expect(res.status).toBe(200);
+        expect(res.body.currentUserSaved).toBe(true);
+        expect(res.body.savedByCount).toBe(2);
+        expect(res.body.isSaved).toBe(true);
+    });
+
+    it('should show partner has saved but current user has not', async () => {
+        // Only user2 (partner) saves
+        chatSession.savedByUsers.push(user2Id);
+        await chatSession.save();
+
+        const res = await request(app)
+            .get(`/api/chat/${chatSession._id.toHexString()}/save-status`)
+            .set('Authorization', `Bearer ${token1}`);
+
+        expect(res.status).toBe(200);
+        expect(res.body.currentUserSaved).toBe(false);
+        expect(res.body.savedByCount).toBe(1);
+        expect(res.body.isSaved).toBe(false);
+    });
+
+    it('should return 404 for non-participant', async () => {
+        const res = await request(app)
+            .get(`/api/chat/${chatSession._id.toHexString()}/save-status`)
+            .set('Authorization', `Bearer ${token3}`);
+
+        expect(res.status).toBe(404);
+    });
+
+    it('should return 404 for non-existent chat', async () => {
+        const fakeId = new mongoose.Types.ObjectId().toHexString();
+        const res = await request(app)
+            .get(`/api/chat/${fakeId}/save-status`)
+            .set('Authorization', `Bearer ${token1}`);
+
+        expect(res.status).toBe(404);
+    });
+
+    it('should return 401 if no token is provided', async () => {
+        const res = await request(app)
+            .get(`/api/chat/${chatSession._id.toHexString()}/save-status`);
+
+        expect(res.status).toBe(401);
     });
 });

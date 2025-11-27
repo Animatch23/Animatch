@@ -1,20 +1,5 @@
 import mongoose from "mongoose";
 
-const messageSchema = new mongoose.Schema({
-  sender: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User'
-  },
-  text: {
-    type: String,
-    required: true
-  },
-  timestamp: {
-    type: Date,
-    default: Date.now
-  }
-});
-
 const ChatSessionSchema = new mongoose.Schema({
   participants: [{
     type: mongoose.Schema.Types.ObjectId,
@@ -49,7 +34,15 @@ const ChatSessionSchema = new mongoose.Schema({
       return new Date(Date.now() + 24 * 60 * 60 * 1000);
     },
     index: true // Add index for expiry queries
-  }
+  },
+  unmatchedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  },
+  hiddenFor: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  }]
 });
 
 // Compound index for finding active chats by participant
@@ -95,4 +88,5 @@ ChatSessionSchema.post('findOneAndDelete', async function(doc) {
   }
 });
 
-export default mongoose.model("ChatSession", ChatSessionSchema);
+const ChatSession = mongoose.model('ChatSession', ChatSessionSchema);
+export default ChatSession;

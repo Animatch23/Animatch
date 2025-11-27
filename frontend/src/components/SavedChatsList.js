@@ -10,18 +10,31 @@ export default function SavedChatsList({ visible, onClose }) {
   const [chats, setChats] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [hasActiveChat, setHasActiveChat] = useState(false);
 
   useEffect(() => {
     if (!visible) return;
     const token = localStorage.getItem("sessionToken");
     if (!token) return;
     setLoading(true);
-    fetch(`${API_BASE}/api/chat/history`, {
+    
+    // Fetch saved chats
+    const fetchChats = fetch(`${API_BASE}/api/chat/history`, {
       headers: { Authorization: `Bearer ${token}` },
-    })
-      .then((res) => res.json())
-      .then((data) => {
-        setChats(data || []);
+    }).then((res) => res.json());
+    
+    // Check for active chat (Design consideration #2)
+    const checkActiveChat = fetch(`${API_BASE}/api/chat/active`, {
+      headers: { Authorization: `Bearer ${token}` },
+    }).then((res) => {
+      if (res.ok) return res.json();
+      return null;
+    }).catch(() => null);
+    
+    Promise.all([fetchChats, checkActiveChat])
+      .then(([chatData, activeData]) => {
+        setChats(chatData || []);
+        setHasActiveChat(!!activeData?.chatSessionId);
         setLoading(false);
       })
       .catch((err) => {
@@ -31,8 +44,8 @@ export default function SavedChatsList({ visible, onClose }) {
   }, [visible]);
 
   const handleOpen = (id) => {
-    sessionStorage.setItem("activeChatSessionId", id);
-    router.replace(`/match/chat?session=${id}`);
+    // Do NOT overwrite sessionStorage("activeChatSessionId") immediately
+    router.push(`/match/chat?session=${id}`);
     if (typeof onClose === "function") onClose();
   };
 
@@ -66,21 +79,39 @@ export default function SavedChatsList({ visible, onClose }) {
     return `${days}d`;
   };
 
+  const handleGoToActiveChat = () => {
+    router.push('/match/chat');
+    if (typeof onClose === "function") onClose();
+  };
+
   if (!visible) return null;
 
+  const isOverlay = typeof onClose === "function";
+
   return (
-    <div className="fixed right-0 top-16 bottom-0 w-80 bg-white border-l shadow-2xl z-[60] overflow-y-auto">
+    <div className={`${isOverlay ? 'fixed right-0 top-16 bottom-0 w-80 bg-white border-l shadow-2xl z-[60]' : 'h-full bg-white border-r'} overflow-y-auto`}>
       <div className="p-4 border-b bg-gray-50">
         <div className="flex items-center justify-between">
           <h3 className="text-lg font-semibold text-gray-900">Saved Chats</h3>
-          <button
-            aria-label="Close Saved Chats"
-            className="text-sm px-2 py-1 rounded-md text-gray-800 font-medium hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-green-200"
-            onClick={() => typeof onClose === "function" && onClose()}
-          >
-            Close
-          </button>
+          {isOverlay && (
+            <button
+              aria-label="Close Saved Chats"
+              className="text-sm px-2 py-1 rounded-md text-gray-800 font-medium hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-green-200"
+              onClick={() => typeof onClose === "function" && onClose()}
+            >
+              Close
+            </button>
+          )}
         </div>
+        {/* Return to Active Match button (Design consideration #2) */}
+        {hasActiveChat && (
+          <button
+            onClick={handleGoToActiveChat}
+            className="mt-3 w-full px-4 py-2 bg-[#286633] text-white text-sm font-medium rounded-md shadow hover:brightness-110 transition-all"
+          >
+            ← Return to Active Match
+          </button>
+        )}
       </div>
       <div className="p-2">
         {loading && <p className="text-sm text-gray-700 p-2">Loading...</p>}
