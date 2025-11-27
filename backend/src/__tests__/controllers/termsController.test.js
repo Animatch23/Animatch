@@ -110,7 +110,7 @@ describe('Terms Controller Tests', () => {
         }
       };
 
-      const res = {
+      const res = { //
         status: jest.fn().mockReturnThis(),
         json: jest.fn()
       };
