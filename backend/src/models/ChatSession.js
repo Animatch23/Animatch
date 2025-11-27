@@ -43,15 +43,15 @@ ChatSessionSchema.index({ participants: 1, active: 1 });
 // Compound index for finding unique active chats between two users
 ChatSessionSchema.index({ participants: 1, active: 1, expiresAt: 1 });
 
-// TTL index: Auto-delete unsaved expired sessions 
+// TTL index: Auto-delete unsaved expired sessions
 // Only applies to documents where isSaved=false AND active=false
 ChatSessionSchema.index(
-  { expiresAt: 1 }, 
-  { 
+  { expiresAt: 1 },
+  {
     expireAfterSeconds: 0,
-    partialFilterExpression: { 
+    partialFilterExpression: {
       isSaved: false,
-      active: false 
+      active: false
     }
   }
 );

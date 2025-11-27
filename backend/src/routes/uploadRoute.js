@@ -170,4 +170,116 @@ router.post('/', upload.single('profilePhoto'), async (req, res) => {
     }
 });
 
+/**
+ * POST /upload/update-profile
+ * Updates user profile with interests
+ * @route POST /update-profile
+ * @param {string} email - Required email to find user
+ * @param {Object} interests - Structured interests object { course, dorm, organizations }
+ */
+const updateProfileHandler = async (req, res) => {
+    try {
+        const { email, interests } = req.body;
+        
+        console.log('[POST /upload/update-profile] Request received:', { email, interests });
+        
+        if (!email) {
+            return res.status(400).json({ message: "Email is required" });
+        }
+        
+        // Find user by email
+        const user = await User.findOne({ email });
+        if (!user) {
+            console.log('[POST /upload/update-profile] User not found:', email);
+            return res.status(404).json({ message: "User not found" });
+        }
+
+        // Validate and structure profile data
+        const updateData = {};
+        
+        if (interests?.course) updateData.course = interests.course;
+        if (interests?.dorm || interests?.housing) updateData.housing = interests.dorm || interests.housing;
+        if (Array.isArray(interests?.organizations)) updateData.organizations = interests.organizations;
+        
+        // Update User model (Source of Truth)
+        const updatedUser = await User.findOneAndUpdate(
+            { email },
+            { 
+                $set: updateData
+            },
+            { 
+                new: true
+            }
+        );
+        
+        console.log('[POST /upload/update-profile] User updated successfully:', updatedUser._id);
+        console.log('Saved profile data:', { 
+            course: updatedUser.course, 
+            housing: updatedUser.housing, 
+            organizations: updatedUser.organizations 
+        });
+        
+        res.status(200).json({ 
+            message: "Profile updated successfully", 
+            user: {
+                course: updatedUser.course,
+                housing: updatedUser.housing,
+                organizations: updatedUser.organizations,
+                interests: updatedUser.interests
+            }
+        });
+    } catch (err) {
+        console.error('[POST /upload/update-profile] Error:', err);
+        res.status(500).json({ 
+            message: "Failed to update profile", 
+            error: err.message 
+        });
+    }
+};
+
+// Handler for updating interests array (hobby interests, not profile data)
+const updateInterestsHandler = async (req, res) => {
+    try {
+        const { email, interests } = req.body;
+        console.log('[POST /upload/update-interests] Email:', email, 'Interests:', interests);
+
+        if (!email) {
+            return res.status(400).json({ error: "Email is required" });
+        }
+
+        if (!Array.isArray(interests)) {
+            return res.status(400).json({ error: "Interests must be an array" });
+        }
+
+        const user = await User.findOne({ email });
+        if (!user) {
+            return res.status(404).json({ error: "User not found" });
+        }
+
+        // Update the interests array
+        user.interests = interests;
+        await user.save();
+
+        console.log('[POST /upload/update-interests] Interests updated successfully for user:', user._id);
+        console.log('New interests:', user.interests);
+
+        res.status(200).json({ 
+            message: "Interests updated successfully",
+            interests: user.interests
+        });
+    } catch (err) {
+        console.error('[POST /upload/update-interests] Error:', err);
+        res.status(500).json({ 
+            message: "Failed to update interests", 
+            error: err.message 
+        });
+    }
+};
+
+router.post('/update-profile', updateProfileHandler);
+router.post('/update-interests', updateInterestsHandler);
+
+// Legacy route support (redirects to update-profile logic if needed, or just handles interests)
+router.post('/interests', updateProfileHandler);
+
 export default router;

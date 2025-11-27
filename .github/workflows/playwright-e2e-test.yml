@@ -6,13 +6,14 @@ on:
       - main
       - "frontend/**"
       - "**frontend**"
+      - "sprint-2"
       - "us-6_NEW"
   pull_request:
     branches:
       - main
       - "frontend/**"
       - "**frontend**"
-      - "**sprint-2**"
+      - "**sprint**"
   workflow_dispatch:
 
 
