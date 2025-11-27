@@ -122,9 +122,9 @@ export default function ChatInterface({
               id: item._id || `${item.sentAt}-${Math.random()}`,
               content: item.content,
               sentAt: item.sentAt,
-              isOwn: currentUserIdRef.current
-                ? item.senderId === currentUserIdRef.current
-                : Boolean(item.isOwnMessage),
+              // Backend provides isOwnMessage which is authoritative
+              isOwn: Boolean(item.isOwnMessage),
+              senderId: item.senderId,
             }))
           : [];
 
@@ -171,8 +171,12 @@ export default function ChatInterface({
       setError(err?.message || "Unable to connect to chat service.");
     });
 
-    socket.on("chat:joined", () => {
+    socket.on("chat:joined", ({ userId }) => {
       setConnectionStatus("connected");
+      // Store the user ID from the socket server for message ownership detection
+      if (userId) {
+        currentUserIdRef.current = userId;
+      }
     });
 
     socket.on("chat:error", ({ message }) => {
@@ -214,6 +218,12 @@ export default function ChatInterface({
         setFeedback({ 
           type: "success", 
           message: "🎉 Match saved! Both of you have saved this chat." 
+        });
+      } else {
+        // Notify user B that user A wants to save the match
+        setFeedback({
+          type: "info",
+          message: `💝 ${partnerUsername || "Your partner"} wants to save this chat! Click "Save Chat" to keep the conversation.`
         });
       }
     });
@@ -513,14 +523,6 @@ export default function ChatInterface({
               Unmatch
             </button>
           )}
-          <button
-            type="button"
-            onClick={handleLeaveChat}
-            disabled={isEnding || partnerLeft}
-            className="h-9 px-4 rounded-md bg-rose-500 text-white text-sm font-medium shadow-sm hover:brightness-95 disabled:opacity-70"
-          >
-            {partnerLeft ? "Partner Left" : isEnding ? "Leaving..." : "End Chat"}
-          </button>
         </div>
       </header>
 

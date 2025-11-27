@@ -4,6 +4,23 @@ import { useState, useEffect, useMemo, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
+// Validate username format
+const validateUsername = (username) => {
+  if (!username || !username.trim()) {
+    return "Username is required";
+  }
+  if (username.length < 3) {
+    return "Username must be at least 3 characters";
+  }
+  if (username.length > 24) {
+    return "Username must be less than 24 characters";
+  }
+  if (!/^[a-zA-Z0-9_]+$/.test(username)) {
+    return "Username can only contain letters, numbers, and underscores";
+  }
+  return ""; // No error
+};
+
 export default function ProfileEditPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
@@ -300,9 +317,9 @@ export default function ProfileEditPage() {
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-4xl mx-auto p-6">
         <div className="mb-6">
-          <h1 className="text-3xl font-bold text-green-800">Edit Interests</h1>
+          <h1 className="text-3xl font-bold text-green-800">Edit Profile</h1>
           <p className="text-sm text-gray-600 mt-1">
-            Update your interests to find better matches
+            Update your personal profile information
           </p>
         </div>
 
@@ -483,7 +500,7 @@ export default function ProfileEditPage() {
                 onChange={(e) => setOrgInput(e.target.value)}
                 onKeyDown={handleOrgKeyDown}
                 placeholder="Type a club/organization and press Enter..."
-                className="w-full mb-3 px-4 py-2 bg-white border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500 text-sm"
+                className="w-full mb-3 px-4 py-2 bg-white border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500 text-sm text-gray-900 placeholder-gray-400"
               />
 
               {/* Selected organizations */}

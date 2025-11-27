@@ -248,6 +248,7 @@ io.on('connection', async (socket) => {
       
       socket.emit('chat:joined', { 
         chatSessionId,
+        userId: socket.userId,
         message: 'Successfully joined chat room'
       });
     } catch (error) {
