@@ -139,7 +139,19 @@ async function setupUser(page) {
   await mockSession(page);
   await login(page);
 
-  await page.goto("http://localhost:3000/terms");
+  // Add retry logic for initial navigation
+  let retries = 3;
+  while (retries > 0) {
+    try {
+      await page.goto("http://localhost:3000/terms", { timeout: 10000 });
+      break;
+    } catch (error) {
+      retries--;
+      if (retries === 0) throw error;
+      await page.waitForTimeout(2000);
+    }
+  }
+  
   await page.getByText("Accept & Continue").click();
 
   const username = faker.person.firstName() + Math.floor(Math.random() * 9000 + 1000);
