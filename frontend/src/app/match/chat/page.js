@@ -64,16 +64,44 @@ function ChatContent() {
           throw new Error(data.msg || data.message || "Failed to load saved chat");
         }
 
-        // Get partner info (filter out current user)
-        // Since we don't have userId here, just get first participant as partner
-        const partner = data.participants?.[0];
+        // Get current user's email to identify which participant is the partner
+        const currentUserEmail = localStorage.getItem("userEmail");
+        
+        // Try to get current user info to filter participants correctly
+        let currentUserId = "";
+        try {
+          const userResponse = await fetch(`${API_BASE}/api/exist`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ email: currentUserEmail }),
+          });
+          if (userResponse.ok) {
+            const userData = await userResponse.json();
+            currentUserId = userData.user?._id || "";
+          }
+        } catch (err) {
+          console.warn("Could not fetch current user info:", err);
+        }
+
+        // Get partner info (filter out current user from participants)
+        let partner = null;
+        if (currentUserId && data.participants?.length > 0) {
+          partner = data.participants.find(p => p._id !== currentUserId);
+        }
+        // Fallback: if we couldn't identify partner, try to use the second participant
+        // or the first one if there's only one (edge case)
+        if (!partner && data.participants?.length > 0) {
+          partner = data.participants.length > 1 ? data.participants[1] : data.participants[0];
+        }
 
         // Do NOT set activeChatSessionId in sessionStorage for history view
         if (!isCancelled) {
           setChatInfo({
             chatSessionId: sessionId,
             partnerUsername: partner?.username || "Match Partner",
-            currentUserId: "", // Will be determined from token/messages
+            currentUserId: currentUserId,
             isSavedSession: true
           });
           // Set active based on chat session status (Design consideration #6)
@@ -190,6 +218,18 @@ function ChatContent() {
 
   return (
     <div className="relative">
+      {/* Back to matchmaking (top-left) */}
+      <button
+        type="button"
+        onClick={() => router.replace('/match')}
+        className="fixed top-4 left-4 z-50 p-2 rounded-lg bg-white/10 hover:bg-white/20 transition-colors flex items-center gap-2 text-sm font-medium text-white"
+        aria-label="Back to matchmaking"
+      >
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+        </svg>
+        <span className="hidden sm:inline">Back</span>
+      </button>
       {showReturnToActive && (
         <button
           type="button"

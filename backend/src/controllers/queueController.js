@@ -62,6 +62,30 @@ const calculateSimilarity = (user1, user2) => {
 };
 
 /**
+ * Get users who have saved chats with the given user
+ * @param {string} userId - User ID to check
+ * @returns {Promise<string[]>} Array of user IDs who have saved chats with this user
+ */
+const getSavedChatPartners = async (userId) => {
+  // Only consider saved chats that are still 'active' in terms of being a saved relationship.
+  // If a saved chat was later unmatched (unmatchedBy exists), we allow rematching with that partner.
+  const savedChats = await ChatSession.find({
+    participants: userId,
+    isSaved: true,
+    unmatchedBy: { $exists: false } // exclude unmatched saved chats so rematching is allowed
+  });
+  
+  // Extract all partner IDs from saved chats
+  const partnerIds = savedChats.flatMap(chat => 
+    chat.participants
+      .filter(p => p.toString() !== userId.toString())
+      .map(p => p.toString())
+  );
+  
+  return [...new Set(partnerIds)]; // Remove duplicates
+};
+
+/**
  * Join the matchmaking queue
  * Ensures only 1 active chat session per user
  */
@@ -90,6 +114,12 @@ export const joinQueue = async (req, res) => {
         chatSessionId: existingChat._id.toString(),
         alreadyInChat: true
       });
+    }
+
+    // ⭐ Get users with saved chats to exclude from matching
+    const savedChatPartnerIds = await getSavedChatPartners(userId);
+    if (savedChatPartnerIds.length > 0) {
+      console.log(`[QUEUE JOIN] User ${user.email} has ${savedChatPartnerIds.length} saved chat partners - excluding from matching`);
     }
 
     // Check if user is already in queue
@@ -121,9 +151,13 @@ export const joinQueue = async (req, res) => {
     }
 
     // Try to find a match - look for waiting users and calculate similarity
+    // ⭐ Exclude users who have saved chats with current user
     const waitingUsers = await Queue.find({
       status: 'waiting',
-      userId: { $ne: userId }
+      userId: { 
+        $ne: userId,
+        $nin: savedChatPartnerIds // Exclude saved chat partners
+      }
     }).sort({ createdAt: 1 }).limit(50); // Get more candidates for better matching
 
     if (waitingUsers.length === 0) {
@@ -150,6 +184,13 @@ export const joinQueue = async (req, res) => {
       if (candidateActiveChat) {
         // Remove from queue if they have active chat
         await Queue.deleteOne({ userId: queueEntry.userId });
+        continue;
+      }
+
+      // ⭐ Double-check: skip if candidate has saved chat with current user
+      const candidateSavedPartners = await getSavedChatPartners(queueEntry.userId.toString());
+      if (candidateSavedPartners.includes(userId.toString())) {
+        console.log(`[QUEUE JOIN] Skipping ${candidateUser.email} - has saved chat with current user`);
         continue;
       }
 
@@ -285,6 +326,9 @@ export const getQueueStatus = async (req, res) => {
       });
     }
 
+    // ⭐ Get users with saved chats to exclude from matching
+    const savedChatPartnerIds = await getSavedChatPartners(userId);
+
     // Check queue position
     const queueEntry = await Queue.findOne({ userId });
     if (queueEntry) {
@@ -300,9 +344,13 @@ export const getQueueStatus = async (req, res) => {
       }
 
       // Try to find a match while checking status
+      // ⭐ Exclude users who have saved chats with current user
       const waitingUsers = await Queue.find({
         status: 'waiting',
-        userId: { $ne: userId }
+        userId: { 
+          $ne: userId,
+          $nin: savedChatPartnerIds // Exclude saved chat partners
+        }
       }).sort({ createdAt: 1 }).limit(50); // Get more candidates for better matching
 
       // Calculate similarity scores for all candidates
@@ -327,6 +375,13 @@ export const getQueueStatus = async (req, res) => {
           if (candidateActiveChat) {
             console.log(`[QUEUE STATUS] Candidate ${candidateUser.email} already in active chat, removing from queue`);
             await Queue.deleteOne({ userId: queueEntry.userId });
+            continue;
+          }
+
+          // ⭐ Double-check: skip if candidate has saved chat with current user
+          const candidateSavedPartners = await getSavedChatPartners(queueEntry.userId.toString());
+          if (candidateSavedPartners.includes(userId.toString())) {
+            console.log(`[QUEUE STATUS] Skipping ${candidateUser.email} - has saved chat with current user`);
             continue;
           }
 

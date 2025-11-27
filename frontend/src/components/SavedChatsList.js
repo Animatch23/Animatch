@@ -59,6 +59,14 @@ export default function SavedChatsList({ visible, onClose }) {
     });
     socketRef.current = socket;
 
+    // Join all saved chat rooms to receive real-time messages
+    socket.on("connect", () => {
+      // Join each saved chat room to receive their messages
+      chats.forEach(chat => {
+        socket.emit("chat:join", { chatSessionId: chat._id });
+      });
+    });
+
     // Listen for new messages to update the chat list
     socket.on("chat:message", () => {
       // Refetch to get updated lastMessage
@@ -74,7 +82,7 @@ export default function SavedChatsList({ visible, onClose }) {
       socket.disconnect();
       socketRef.current = null;
     };
-  }, [visible, fetchChatsData]);
+  }, [visible, fetchChatsData, chats]);
 
   const handleOpen = (id) => {
     router.push(`/match/chat?session=${id}`);

@@ -774,3 +774,88 @@ describe('GET /api/chat/:chatSessionId/save-status', () => {
         expect(res.status).toBe(401);
     });
 });
+
+// Tests for unmatched chats being hidden from saved list
+describe('GET /api/chat/history - Unmatch hiding behavior', () => {
+    let user1Id, user2Id;
+    let token1, token2;
+    let savedChat, unmatchedChat;
+
+    beforeEach(async () => {
+        user1Id = new mongoose.Types.ObjectId().toHexString();
+        user2Id = new mongoose.Types.ObjectId().toHexString();
+
+        await User.create([
+            { _id: user1Id, username: 'user1', email: 'user1@test.com' },
+            { _id: user2Id, username: 'user2', email: 'user2@test.com' },
+        ]);
+
+        token1 = generateToken(user1Id, 'user1@test.com');
+        token2 = generateToken(user2Id, 'user2@test.com');
+
+        // A normal saved chat (should appear in history)
+        savedChat = await ChatSession.create({
+            participants: [user1Id, user2Id],
+            isSaved: true,
+            savedByUsers: [user1Id, user2Id],
+            active: false,
+        });
+
+        // An unmatched saved chat (should NOT appear in history)
+        unmatchedChat = await ChatSession.create({
+            participants: [user1Id, user2Id],
+            isSaved: true,
+            savedByUsers: [user1Id, user2Id],
+            active: false,
+            unmatchedBy: user1Id, // User1 unmatched
+        });
+    });
+
+    afterEach(async () => {
+        await ChatSession.deleteMany({});
+        await User.deleteMany({});
+    });
+
+    it('should not include unmatched chats in saved history', async () => {
+        const res = await request(app)
+            .get('/api/chat/history')
+            .set('Authorization', `Bearer ${token1}`);
+
+        expect(res.status).toBe(200);
+        // Should only see savedChat, not unmatchedChat
+        expect(res.body).toHaveLength(1);
+        expect(res.body[0]._id).toBe(savedChat._id.toHexString());
+    });
+
+    it('should hide unmatched chat from both participants', async () => {
+        // Check from user2's perspective too
+        const res = await request(app)
+            .get('/api/chat/history')
+            .set('Authorization', `Bearer ${token2}`);
+
+        expect(res.status).toBe(200);
+        expect(res.body).toHaveLength(1);
+        expect(res.body[0]._id).toBe(savedChat._id.toHexString());
+        // Unmatched chat should not appear
+        const chatIds = res.body.map(c => c._id);
+        expect(chatIds).not.toContain(unmatchedChat._id.toHexString());
+    });
+
+    it('should block access to unmatched chat details', async () => {
+        const res = await request(app)
+            .get(`/api/chat/${unmatchedChat._id.toHexString()}`)
+            .set('Authorization', `Bearer ${token1}`);
+
+        expect(res.status).toBe(403);
+        expect(res.body.msg).toBe('This chat has been removed');
+    });
+
+    it('should block chat history access for unmatched chat', async () => {
+        const res = await request(app)
+            .get(`/api/chat/${unmatchedChat._id.toHexString()}/history`)
+            .set('Authorization', `Bearer ${token1}`);
+
+        expect(res.status).toBe(403);
+        expect(res.body.message).toBe('This chat has been removed');
+    });
+});

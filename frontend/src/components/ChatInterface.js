@@ -59,6 +59,7 @@ export default function ChatInterface({
   useEffect(() => {
     // Reset save status when chat session changes to prevent premature saves
     setSaveStatus({ currentUserSaved: false, partnerSaved: false, bothSaved: false });
+    setFeedback(null);
     
     // Fetch current save status from backend to handle reloads (Design consideration #1)
     if (API_BASE && chatSessionId && token) {
@@ -71,16 +72,39 @@ export default function ChatInterface({
         .then(res => res.json())
         .then(data => {
           if (data.currentUserSaved !== undefined) {
+            const partnerSavedButNotBoth = data.savedByCount === 1 && !data.currentUserSaved;
+            const currentUserSavedButNotBoth = data.currentUserSaved && !data.isSaved;
+            
             setSaveStatus({
               currentUserSaved: data.currentUserSaved,
-              partnerSaved: data.savedByCount === 2,
+              partnerSaved: data.savedByCount === 2 || partnerSavedButNotBoth,
               bothSaved: data.isSaved
             });
+            
+            // Show persistent feedback messages based on saved state
+            if (data.isSaved) {
+              setFeedback({ 
+                type: "success", 
+                message: "🎉 Match saved! Both of you have saved this chat." 
+              });
+            } else if (partnerSavedButNotBoth) {
+              // Partner saved but current user hasn't - show notification to prompt user to save
+              setFeedback({
+                type: "info",
+                message: `💝 ${partnerUsername || "Your partner"} wants to save this chat! Click "Save Chat" to keep the conversation alive!`
+              });
+            } else if (currentUserSavedButNotBoth) {
+              // Current user saved but partner hasn't
+              setFeedback({ 
+                type: "waiting", 
+                message: "✓ You saved the chat. Waiting for your partner to save..." 
+              });
+            }
           }
         })
         .catch(err => console.error("Failed to fetch save status:", err));
     }
-  }, [chatSessionId, token]);
+  }, [chatSessionId, token, partnerUsername]);
 
   useEffect(() => {
     const toggleSavedChatsListener = () => {
@@ -223,7 +247,7 @@ export default function ChatInterface({
         // Notify user B that user A wants to save the match
         setFeedback({
           type: "info",
-          message: `💝 ${partnerUsername || "Your partner"} wants to save this chat! Click "Save Chat" to keep the conversation.`
+          message: `💝 ${partnerUsername || "Your partner"} wants to save this chat! Click "Save Chat" to keep the conversation alive!`
         });
       }
     });
@@ -473,14 +497,16 @@ export default function ChatInterface({
     }
   };
 
+
   return (
     <div className="flex flex-col min-h-[calc(100vh-4rem)] bg-gray-50">
       <SavedChatsList visible={showSavedChats} onClose={() => setShowSavedChats(false)} />
       <header className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
-        <div>
-          <h1 className="text-lg font-semibold text-gray-900">
-            {partnerUsername || "Anonymous Match"}
-          </h1>
+        <div className="flex items-center gap-3">
+          <div>
+            <h1 className="text-lg font-semibold text-gray-900">
+              {partnerUsername || "Anonymous Match"}
+            </h1>
           <p className={`text-sm ${statusColor}`}>{statusLabel}</p>
           {partnerTyping && connectionStatus === "connected" && !partnerLeft && (
             <p className="text-xs text-gray-500 mt-1">{partnerUsername || "Partner"} is typing...</p>
@@ -488,6 +514,7 @@ export default function ChatInterface({
           {partnerLeft && (
             <p className="text-xs text-rose-600 mt-1 font-medium">⚠️ Partner has left the chat</p>
           )}
+          </div>
         </div>
         <div className="flex gap-2">
           <button
