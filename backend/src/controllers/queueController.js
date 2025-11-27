@@ -167,7 +167,14 @@ export const joinQueue = async (req, res) => {
 
     if (candidatesWithScores.length === 0) {
       console.log(`[QUEUE JOIN] No valid candidates for ${user.email}, staying in queue`);
-      return res.json({ matched: false, queued: true });
+      return res.json({ 
+        matched: false, 
+        queued: true,
+        matchingStatus: {
+          mode: useRandomMatching ? 'random' : 'similarity',
+          timeInQueue: timeInQueue
+        }
+      });
     }
 
     // Sort candidates based on matching strategy
@@ -232,7 +239,16 @@ export const joinQueue = async (req, res) => {
 
     // No successful match found
     console.log(`[QUEUE JOIN] No available partners for ${user.email}, staying in queue`);
-    return res.json({ matched: false, queued: true });
+    return res.json({ 
+      matched: false, 
+      queued: true,
+      matchingStatus: {
+        mode: useRandomMatching ? 'random' : 'similarity',
+        timeInQueue: timeInQueue,
+        bestScore: candidatesWithScores.length > 0 ? candidatesWithScores[0].score : 0,
+        belowThreshold: !useRandomMatching && candidatesWithScores.length > 0 && candidatesWithScores[0].score < MINIMUM_SIMILARITY_THRESHOLD
+      }
+    });
 
   } catch (error) {
     console.error('[QUEUE JOIN] Error:', error);
@@ -289,11 +305,11 @@ export const getQueueStatus = async (req, res) => {
         userId: { $ne: userId }
       }).sort({ createdAt: 1 }).limit(50); // Get more candidates for better matching
 
+      // Calculate similarity scores for all candidates
+      const candidatesWithScores = [];
+
       if (waitingUsers.length > 0) {
         console.log(`[QUEUE STATUS] Found potential matches for ${user.email}, calculating similarity scores`);
-
-        // Calculate similarity scores for all candidates
-        const candidatesWithScores = [];
         for (const queueEntry of waitingUsers) {
           const candidateUser = await User.findById(queueEntry.userId);
           
@@ -385,20 +401,19 @@ export const getQueueStatus = async (req, res) => {
             }
           }
         }
-
-        // No successful match, re-add user to queue
-        await Queue.updateOne(
-          { userId },
-          { $set: { userId, status: 'waiting', createdAt: new Date() } },
-          { upsert: true }
-        );
       }
 
-      const position = await Queue.countDocuments({
-        createdAt: { $lte: queueEntry.createdAt }
+      console.log(`[QUEUE STATUS] User ${user.email} in queue`);
+      return res.json({ 
+        queued: true, 
+        matched: false,
+        matchingStatus: {
+          mode: useRandomMatching ? 'random' : 'similarity',
+          timeInQueue: timeInQueue,
+          bestScore: candidatesWithScores.length > 0 ? candidatesWithScores[0].score : 0,
+          belowThreshold: !useRandomMatching && candidatesWithScores.length > 0 && candidatesWithScores[0].score < MINIMUM_SIMILARITY_THRESHOLD
+        }
       });
-      console.log(`[QUEUE STATUS] User ${user.email} in queue, position: ${position}`);
-      return res.json({ queued: true, matched: false, position });
     }
 
     return res.json({ queued: false, matched: false });
