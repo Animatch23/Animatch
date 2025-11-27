@@ -294,6 +294,17 @@ export default function ChatInterface({
       }]);
     });
 
+    // US #6: Partner clicked "Next Chat" - handle notification
+    socket.on("chat:partner-next", ({ message }) => {
+      // If chat is saved, show info message but don't mark as ended
+      if (saveStatus.bothSaved) {
+        setFeedback({
+          type: "info",
+          message: message || "Your partner is looking for a new match. This saved chat remains available."
+        });
+      }
+    });
+
     socket.on("chat:unmatched", () => {
       setIsUnmatched(true);
     });
@@ -640,22 +651,83 @@ export default function ChatInterface({
     }
   };
 
+  // US #6: Next Chat - Skip to another match
+  const [isNexting, setIsNexting] = useState(false);
+  
+  const handleNextChat = async () => {
+    if (!API_BASE || !token) {
+      router.push("/match/queue");
+      return;
+    }
+
+    try {
+      setIsNexting(true);
+      setError("");
+      stopTypingNotification();
+      
+      const response = await fetch(`${API_BASE}/api/chat/${chatSessionId}/next`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(data.message || "Failed to process next chat");
+      }
+
+      // Clear active chat session from storage
+      sessionStorage.removeItem("activeChatSessionId");
+      
+      // Redirect to queue to find new match (AC3)
+      router.push("/match/queue");
+    } catch (err) {
+      console.error("Failed to next chat", err);
+      setError(err instanceof Error ? err.message : "Failed to process next chat request");
+      setIsNexting(false);
+    }
+  };
+
   return (
     <div className="flex flex-col min-h-[calc(100vh-4rem)] bg-gray-50">
       <header className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
-        <div>
-          <h1 className="text-lg font-semibold text-gray-900">
-            {partnerUsername || "Anonymous Match"}
-          </h1>
-          <p className={`text-sm ${statusColor}`}>{statusLabel}</p>
-          {partnerTyping && connectionStatus === "connected" && !partnerLeft && (
-            <p className="text-xs text-gray-500 mt-1">{partnerUsername || "Partner"} is typing...</p>
-          )}
-          {partnerLeft && (
-            <p className="text-xs text-rose-600 mt-1 font-medium">⚠️ Partner has left the chat</p>
-          )}
+        <div className="flex items-center gap-3">
+          {/* Burger icon to open SavedChatsList */}
+          <button
+            type="button"
+            onClick={() => setShowSavedChats(true)}
+            className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
+            aria-label="Open saved chats"
+          >
+            <svg className="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+          </button>
+          <div>
+            <h1 className="text-lg font-semibold text-gray-900">
+              {partnerUsername || "Anonymous Match"}
+            </h1>
+            <p className={`text-sm ${statusColor}`}>{statusLabel}</p>
+            {partnerTyping && connectionStatus === "connected" && !partnerLeft && (
+              <p className="text-xs text-gray-500 mt-1">{partnerUsername || "Partner"} is typing...</p>
+            )}
+            {partnerLeft && (
+              <p className="text-xs text-rose-600 mt-1 font-medium">⚠️ Partner has left the chat</p>
+            )}
+          </div>
         </div>
         <div className="flex gap-2">
+          {/* US #6: Next Chat button - to the left of Save Chat (AC1) */}
+          <button
+            type="button"
+            onClick={handleNextChat}
+            disabled={isNexting || partnerLeft || isReadOnly}
+            className="h-9 px-4 rounded-md bg-blue-500 text-white text-sm font-medium shadow-sm hover:bg-blue-600 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+          >
+            {isNexting ? "Finding..." : "Next Chat"}
+          </button>
           <button
             type="button"
             onClick={handleSaveChat}
@@ -768,6 +840,12 @@ export default function ChatInterface({
           </button>
         </div>
       </form>
+
+      {/* SavedChatsList Overlay */}
+      <SavedChatsList
+        visible={showSavedChats}
+        onClose={() => setShowSavedChats(false)}
+      />
     </div>
   );
 }

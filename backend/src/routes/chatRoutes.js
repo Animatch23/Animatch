@@ -9,7 +9,8 @@ import {
   getSavedChats,
   getChatSession,
   unmatchUser,
-  getChatSaveStatus
+  getChatSaveStatus,
+  nextChat
 } from '../controllers/chatController.js';
 import {
   joinQueue,
@@ -31,6 +32,7 @@ router.get('/:chatSessionId/history', authenticate, getChatHistory);
 router.post('/:chatSessionId/end', authenticate, endChatSession);
 router.post('/:chatSessionId/leave', authenticate, leaveChatSession);
 router.post('/:chatSessionId/save', authenticate, saveChatSession);
+router.post('/:chatSessionId/next', authenticate, nextChat); // US #6: Next Chat
 
 // Additional routes from us-8 for chat history and session details
 router.get('/history', authenticate, getSavedChats);

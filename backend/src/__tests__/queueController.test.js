@@ -380,7 +380,7 @@ describe('Queue Controller Tests', () => {
     expect(chatSession.participants).toContainEqual(user2Id);
   });
 
-  test('joinQueue should not match users who have saved chats', async () => {
+  test('joinQueue should not match users who have ACTIVE saved chats', async () => {
     // Create two users
     await User.create({
       _id: mockUser1.id,
@@ -402,10 +402,10 @@ describe('Queue Controller Tests', () => {
       interests: ['Gaming']
     });
 
-    // Create a saved chat between them (ended but saved)
+    // Create an ACTIVE saved chat between them (only active saved chats block rematching)
     await ChatSession.create({
       participants: [mockUser1.id, mockUser2.id],
-      active: false,
+      active: true, // ACTIVE saved chat blocks rematching
       isSaved: true,
       savedByUsers: [mockUser1.id, mockUser2.id],
       expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000) // Far in the future
@@ -428,7 +428,7 @@ describe('Queue Controller Tests', () => {
     expect(queueEntries.length).toBe(2);
   });
 
-  test('checkQueueStatus should exclude saved chat partners from matching', async () => {
+  test('checkQueueStatus should exclude ACTIVE saved chat partners from matching', async () => {
     // Create two users
     await User.create({
       _id: mockUser1.id,
@@ -450,10 +450,10 @@ describe('Queue Controller Tests', () => {
       interests: []
     });
 
-    // Create a saved chat between them
+    // Create an ACTIVE saved chat between them (only active saved chats block)
     await ChatSession.create({
       participants: [mockUser1.id, mockUser2.id],
-      active: false,
+      active: true, // ACTIVE saved chat blocks rematching
       isSaved: true,
       savedByUsers: [mockUser1.id, mockUser2.id],
       expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000)

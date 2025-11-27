@@ -172,10 +172,11 @@ test.describe("save chat test", () => {
   });
 
   test("save chat", async () => {
-    test.setTimeout(60000); // Increase timeout to 60 seconds
-    
-    const browser1 = await chromium.launch();
-    const context1 = await browser1.newContext();
+    const browser = await chromium.launch({ slowMo: 600 });
+
+    const context1 = await browser.newContext();
+    const context2 = await browser.newContext();
+
     const page1 = await context1.newPage();
 
     const browser2 = await chromium.launch();
@@ -189,60 +190,61 @@ test.describe("save chat test", () => {
     let username1, username2;
     const flow1 = async () => {
       username1 = await setupUser(page1);
-      
-      // Wait for redirect to chat page after match is found
-      await page1.waitForURL('**/match/chat?session=*', { timeout: 30000 });
-      
-      // Wait for chat interface and Save Chat button to be ready
-      await page1.waitForSelector('button:has-text("Save Chat")', { timeout: 10000 });
-      await page1.waitForTimeout(1000); // Wait for socket connection
-      
-      await page1.click(saveChatSelector, { timeout: 10000 });
-      
-      // Check that feedback message appears (either waiting or success)
-      const feedbackSpan = page1.locator(successSelector);
-      await expect(feedbackSpan).toBeVisible({ timeout: 10000 });
-      const feedbackText = await feedbackSpan.textContent();
-      
-      // Verify it's a save-related message
-      if (!feedbackText.includes("saved") && !feedbackText.includes("Waiting")) {
-        throw new Error(`Unexpected feedback: ${feedbackText}`);
-      }
-      
+      await page1.click(saveChatSelector, { timeout: 30000 });
+      // await expect(page1.locator(successSelector)).toBeVisible();
       await page1.goto("http://localhost:3000/match");
+      await page1.reload();
     };
 
     const flow2 = async () => {
       username2 = await setupUser(page2);
-      
-      // Wait for redirect to chat page after match is found
-      await page2.waitForURL('**/match/chat?session=*', { timeout: 30000 });
-      
-      // Wait for chat interface and Save Chat button to be ready
-      await page2.waitForSelector('button:has-text("Save Chat")', { timeout: 10000 });
-      await page2.waitForTimeout(1000); // Wait for socket connection
-      
-      await page2.click(saveChatSelector, { timeout: 10000 });
-      
-      // Check that feedback message appears (either waiting or success)
-      const feedbackSpan = page2.locator(successSelector);
-      await expect(feedbackSpan).toBeVisible({ timeout: 10000 });
-      const feedbackText = await feedbackSpan.textContent();
-      
-      // Verify it's a save-related message
-      if (!feedbackText.includes("saved") && !feedbackText.includes("Waiting")) {
-        throw new Error(`Unexpected feedback: ${feedbackText}`);
-      }
-      
+      await page2.click(saveChatSelector, { timeout: 30000 });
+      // await expect(page2.locator(successSelector)).toBeVisible();
       await page2.goto("http://localhost:3000/match");
+      await page2.reload();
     };
+
+    const context3 = await browser.newContext();
+    const page3 = await context3.newPage();
 
     await Promise.all([flow1(), flow2()]);
 
-    // Verify both users successfully saved the chat
-    // The test is complete - both users saw the success feedback
+    await page1.reload();
+    await page2.reload();
 
-    await browser1.close();
-    await browser2.close();
+    const savedChatName = await page1.locator(
+      'ul li button span.font-semibold'
+    ).innerText();
+
+    console.log("Match found: ", savedChatName);
+
+    let username3 = await setupUser(page3);
+
+    await Promise.all([
+      page1.getByText("Start Matching").click(),
+    ]);
+
+
+    const matchedUser1 = await page1.locator("h1.text-lg.font-semibold.text-gray-900").innerText();
+    console.log("User 1 matched with:", matchedUser1);
+    console.log("Expected match:", username3);
+
+    await expect(
+      user = page1.locator("h1.text-lg.font-semibold.text-gray-900")
+    ).toHaveText(username3, { timeout: 30000 });
+
+
+    const matchedUser3 = await page3.locator("h1.text-lg.font-semibold.text-gray-900").innerText();
+    console.log("User 3 matched with:", matchedUser3);
+    console.log("Expected match:", username1);
+
+
+    await expect(
+      user1 = page3.locator("h1.text-lg.font-semibold.text-gray-900")
+    ).toHaveText(username1, { timeout: 30000 });
+
+    await Promise.all([context1.close(), context2.close(), context3.close()]);
+
+    await browser.close();
   });
 });

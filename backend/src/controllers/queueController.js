@@ -67,11 +67,12 @@ const calculateSimilarity = (user1, user2) => {
  * @returns {Promise<string[]>} Array of user IDs who have saved chats with this user
  */
 const getSavedChatPartners = async (userId) => {
-  // Only consider saved chats that are still 'active' in terms of being a saved relationship.
-  // If a saved chat was later unmatched (unmatchedBy exists), we allow rematching with that partner.
+  // Only exclude partners from ACTIVE saved chats.
+  // If a saved chat is inactive (active: false) or unmatched, allow rematching with that partner.
   const savedChats = await ChatSession.find({
     participants: userId,
     isSaved: true,
+    active: true, // Only block rematching for ACTIVE saved chats
     unmatchedBy: { $exists: false } // exclude unmatched saved chats so rematching is allowed
   });
   
@@ -100,18 +101,20 @@ export const joinQueue = async (req, res) => {
 
     console.log(`[QUEUE JOIN] User: ${user.email} (${user.username})`);
 
-    // ⭐ CRITICAL: Check if user already has an active chat (enforces 1 active session rule)
-    const existingChat = await ChatSession.findOne({
+    // ⭐ CRITICAL: Check if user has an active UNSAVED chat (only unsaved chats block queue)
+    // Saved chats (isSaved=true) don't block - users can have saved chats AND find new matches
+    const existingUnsavedChat = await ChatSession.findOne({
       participants: userId,
       active: true,
+      isSaved: { $ne: true }, // Only block on UNSAVED active chats
       expiresAt: { $gt: new Date() }
     });
 
-    if (existingChat) {
-      console.log(`[QUEUE JOIN] User ${user.email} already in active chat - cannot join queue`);
+    if (existingUnsavedChat) {
+      console.log(`[QUEUE JOIN] User ${user.email} has active UNSAVED chat - cannot join queue`);
       return res.json({
         matched: true,
-        chatSessionId: existingChat._id.toString(),
+        chatSessionId: existingUnsavedChat._id.toString(),
         alreadyInChat: true
       });
     }
@@ -306,23 +309,25 @@ export const getQueueStatus = async (req, res) => {
     const userId = req.user?.id;
     const user = await User.findById(userId);
 
-    // ⭐ Check active chat first (enforces 1 active session rule)
-    const activeChat = await ChatSession.findOne({
+    // ⭐ Check for active UNSAVED chat first (only unsaved chats block queue)
+    // Users with active saved chats CAN still be in queue looking for new matches
+    const activeUnsavedChat = await ChatSession.findOne({
       participants: userId,
       active: true,
+      isSaved: { $ne: true }, // Only block on UNSAVED active chats
       expiresAt: { $gt: new Date() }
     });
 
-    if (activeChat) {
+    if (activeUnsavedChat) {
       const partner = await User.findOne({
-        _id: { $in: activeChat.participants, $ne: userId }
+        _id: { $in: activeUnsavedChat.participants, $ne: userId }
       });
 
-      console.log(`[QUEUE STATUS] User ${user.email} matched with ${partner?.username}`);
+      console.log(`[QUEUE STATUS] User ${user.email} has active UNSAVED chat with ${partner?.username}`);
       return res.json({
         queued: false,
         matched: true,
-        chatSessionId: activeChat._id.toString()
+        chatSessionId: activeUnsavedChat._id.toString()
       });
     }
 

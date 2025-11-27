@@ -255,12 +255,14 @@ export const getSavedChats = async (req, res) => {
     try {
         const userId = req.user.id;
 
-        // Find only SAVED chat sessions where user is a participant (US-8 AC1, AC3)
-        // isSaved=true means both users have saved the chat
-        // Exclude unmatched chats - they should be hidden from the list (data remains in DB)
+        // Find only ACTIVE SAVED chat sessions where user is a participant
+        // - isSaved=true means both users have saved the chat
+        // - active=true means the chat is still ongoing (inactive chats are hidden)
+        // - Exclude unmatched chats - they should be hidden from the list
         const chats = await ChatSession.find({
           participants: { $in: [userId] },
           isSaved: true, // Only return saved chats
+          active: true, // Only return ACTIVE chats (inactive/ended are hidden)
           unmatchedBy: { $exists: false } // Exclude unmatched chats
         })
         .populate('participants', 'username')
@@ -422,6 +424,86 @@ export const getChatSaveStatus = async (req, res) => {
     } catch (err) {
         console.error('Error getting save status:', err);
         res.status(500).json({ message: 'Failed to get save status' });
+    }
+};
+
+/**
+ * US #6: Next Chat - Skip to another match
+ * 
+ * Behavior:
+ * - If chat is saved (isSaved=true): Chat stays ACTIVE, user can find new match while keeping saved chat
+ * - If chat is NOT saved: End chat immediately, notify partner, delete history, user goes to queue
+ */
+export const nextChat = async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const { chatSessionId } = req.params;
+
+        const chatSession = await ChatSession.findOne({
+            _id: chatSessionId,
+            participants: { $in: [userId] },
+            active: true
+        });
+
+        if (!chatSession) {
+            return res.status(404).json({ message: 'Active chat session not found' });
+        }
+
+        const io = req.app.get('io');
+
+        // If chat is saved by both users: Keep chat ACTIVE, user can find new match
+        // Saved chats don't block queue - only unsaved active chats do
+        if (chatSession.isSaved) {
+            // DO NOT set active=false - saved chats remain active so users can continue chatting
+            // Queue controller will only block on active UNSAVED chats
+
+            console.log(`[NEXT CHAT] User ${userId} finding new match while keeping saved chat ${chatSessionId} active`);
+            
+            // Notify partner that user is looking for new match (optional info)
+            if (io) {
+                io.to(chatSessionId.toString()).emit('chat:partner-next', {
+                    message: 'Your partner is looking for a new match. You can continue chatting here.'
+                });
+            }
+
+            return res.json({
+                message: 'You can now find a new match. Your saved chat remains active.',
+                chatPreserved: true,
+                isSaved: true,
+                redirectToQueue: true
+            });
+        }
+
+        // AC2-6: Chat is NOT saved - end it immediately
+        // AC4: Current chat is ended immediately
+        chatSession.active = false;
+        chatSession.endedAt = new Date();
+        await chatSession.save();
+
+        console.log(`[NEXT CHAT] User ${userId} ended unsaved chat ${chatSessionId} - partner will be notified`);
+
+        // AC5: Notify partner that chat has ended
+        if (io) {
+            io.to(chatSessionId.toString()).emit('chat:partner-left', {
+                message: 'Your partner has moved on to find a new match.'
+            });
+        }
+
+        // AC6: Delete chat history from skipped chat
+        await Message.deleteMany({ chatSessionId: chatSession._id });
+        console.log(`[NEXT CHAT] Deleted messages for chat ${chatSessionId}`);
+
+        // AC3: User will be redirected to queue by frontend
+        return res.json({
+            message: 'Chat ended. You can now find a new match.',
+            chatPreserved: false,
+            isSaved: false,
+            redirectToQueue: true
+        });
+
+    } catch (err) {
+        console.error('Error in nextChat:', err);
+        res.status(500).json({ message: 'Failed to process next chat request' });
     }
 };
 

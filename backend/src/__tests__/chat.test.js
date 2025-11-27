@@ -212,12 +212,12 @@ describe('GET /api/chat/history', () => {
             endedAt: new Date(),
         });
 
-        // 4. A saved but INACTIVE chat (should still show up per US #8)
+        // 4. Another saved ACTIVE chat (only active saved chats appear in history)
         inactiveSavedChat = await ChatSession.create({
             participants: [user1Id, user2Id],
             isSaved: true,
             savedByUsers: [user1Id, user2Id],
-            active: false,
+            active: true,
             endedAt: new Date(Date.now() - 86400000), // 1 day ago
         });
     });
@@ -260,15 +260,24 @@ describe('GET /api/chat/history', () => {
         expect(chatIds).not.toContain(unsavedChat._id.toHexString());
     });
 
-    it('should return saved chats regardless of active status', async () => {
+    it('should return only active saved chats (inactive saved chats are hidden)', async () => {
+        // Create an inactive saved chat to ensure it's NOT returned
+        const inactiveChat = await ChatSession.create({
+            participants: [user1Id, user2Id],
+            isSaved: true,
+            savedByUsers: [user1Id, user2Id],
+            active: false, // Inactive
+            endedAt: new Date(),
+        });
+
         const res = await request(app)
             .get('/api/chat/history')
             .set('Authorization', `Bearer ${token1}`);
 
         expect(res.status).toBe(200);
-        // Should include inactive saved chat
+        // Should NOT include inactive saved chat
         const chatIds = res.body.map(c => c._id);
-        expect(chatIds).toContain(inactiveSavedChat._id.toHexString());
+        expect(chatIds).not.toContain(inactiveChat._id.toHexString());
     });
 
     it('should return all saved chats for a user with multiple', async () => {
@@ -307,7 +316,7 @@ describe('GET /api/chat/history', () => {
 
     // US-8 AC2: Must support scrolling through multiple chats
     it('should support multiple saved chats for scrolling (US-8 AC2)', async () => {
-        // Create 5 more saved chats for user1
+        // Create 5 more ACTIVE saved chats for user1 (only active saved chats appear)
         for (let i = 0; i < 5; i++) {
             const newUserId = new mongoose.Types.ObjectId().toHexString();
             await User.create({ _id: newUserId, username: `extra_user_${i}`, email: `extra${i}@test.com` });
@@ -315,7 +324,7 @@ describe('GET /api/chat/history', () => {
                 participants: [user1Id, newUserId],
                 isSaved: true,
                 savedByUsers: [user1Id, newUserId],
-                active: false,
+                active: true, // Must be active to appear in history
             });
         }
 
@@ -324,7 +333,7 @@ describe('GET /api/chat/history', () => {
             .set('Authorization', `Bearer ${token1}`);
 
         expect(res.status).toBe(200);
-        // User1 should now have 7 saved chats (2 original + 5 new)
+        // User1 should now have 7 active saved chats (2 original + 5 new)
         expect(res.body.length).toBe(7);
     });
 
@@ -797,12 +806,12 @@ describe('GET /api/chat/history - Unmatch hiding behavior', () => {
         token1 = generateToken(user1Id, 'user1@test.com');
         token2 = generateToken(user2Id, 'user2@test.com');
 
-        // A normal saved chat (should appear in history)
+        // A normal saved chat (should appear in history - must be active)
         savedChat = await ChatSession.create({
             participants: [user1Id, user2Id],
             isSaved: true,
             savedByUsers: [user1Id, user2Id],
-            active: false,
+            active: true, // Must be active to appear in history
         });
 
         // An unmatched saved chat (should NOT appear in history)
@@ -810,7 +819,7 @@ describe('GET /api/chat/history - Unmatch hiding behavior', () => {
             participants: [user1Id, user2Id],
             isSaved: true,
             savedByUsers: [user1Id, user2Id],
-            active: false,
+            active: false, // Also inactive from unmatch
             unmatchedBy: user1Id, // User1 unmatched
         });
     });
@@ -861,5 +870,208 @@ describe('GET /api/chat/history - Unmatch hiding behavior', () => {
 
         expect(res.status).toBe(403);
         expect(res.body.message).toBe('This chat has been removed');
+    });
+});
+
+// US #6: Next Chat Tests
+describe('POST /api/chat/:chatSessionId/next', () => {
+    let user1Id, user2Id, user3Id;
+    let token1, token2, token3;
+    let unsavedChat, savedChat;
+
+    beforeEach(async () => {
+        user1Id = new mongoose.Types.ObjectId().toHexString();
+        user2Id = new mongoose.Types.ObjectId().toHexString();
+        user3Id = new mongoose.Types.ObjectId().toHexString();
+
+        await User.create([
+            { _id: user1Id, username: 'user1', email: 'user1@test.com' },
+            { _id: user2Id, username: 'user2', email: 'user2@test.com' },
+            { _id: user3Id, username: 'user3', email: 'user3@test.com' },
+        ]);
+
+        token1 = generateToken(user1Id, 'user1@test.com');
+        token2 = generateToken(user2Id, 'user2@test.com');
+        token3 = generateToken(user3Id, 'user3@test.com');
+
+        // Active unsaved chat between user1 and user2
+        unsavedChat = await ChatSession.create({
+            participants: [user1Id, user2Id],
+            active: true,
+            isSaved: false,
+            savedByUsers: [],
+            expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+        });
+
+        // Active saved chat between user1 and user2
+        savedChat = await ChatSession.create({
+            participants: [user1Id, user2Id],
+            active: true,
+            isSaved: true,
+            savedByUsers: [user1Id, user2Id],
+            expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+        });
+
+        // Add some messages to the unsaved chat for deletion test
+        await Message.create([
+            { chatSessionId: unsavedChat._id, senderId: user1Id, content: 'Hello', sentAt: new Date() },
+            { chatSessionId: unsavedChat._id, senderId: user2Id, content: 'Hi there', sentAt: new Date() },
+        ]);
+    });
+
+    afterEach(async () => {
+        await ChatSession.deleteMany({});
+        await User.deleteMany({});
+        await Message.deleteMany({});
+    });
+
+    // AC1: Chat has a visible "Next Chat" button (frontend test, but backend should work)
+    // AC2: Next Chat button ends active chat session (for unsaved chats)
+    it('should end the chat session when clicking next on unsaved chat (AC2)', async () => {
+        const res = await request(app)
+            .post(`/api/chat/${unsavedChat._id.toHexString()}/next`)
+            .set('Authorization', `Bearer ${token1}`);
+
+        expect(res.status).toBe(200);
+        expect(res.body.redirectToQueue).toBe(true);
+        expect(res.body.chatPreserved).toBe(false);
+        expect(res.body.isSaved).toBe(false);
+
+        // Verify chat is now inactive
+        const updatedChat = await ChatSession.findById(unsavedChat._id);
+        expect(updatedChat.active).toBe(false);
+        expect(updatedChat.endedAt).toBeTruthy();
+    });
+
+    // AC3: User can click "Next Chat" anytime
+    it('should allow user to click next chat anytime (AC3)', async () => {
+        const res = await request(app)
+            .post(`/api/chat/${unsavedChat._id.toHexString()}/next`)
+            .set('Authorization', `Bearer ${token1}`);
+
+        expect(res.status).toBe(200);
+        expect(res.body.redirectToQueue).toBe(true);
+    });
+
+    // AC4: Current chat is ended immediately
+    it('should end current chat immediately for unsaved chats (AC4)', async () => {
+        const beforeNext = new Date();
+        
+        const res = await request(app)
+            .post(`/api/chat/${unsavedChat._id.toHexString()}/next`)
+            .set('Authorization', `Bearer ${token1}`);
+
+        expect(res.status).toBe(200);
+
+        const updatedChat = await ChatSession.findById(unsavedChat._id);
+        expect(updatedChat.active).toBe(false);
+        expect(new Date(updatedChat.endedAt).getTime()).toBeGreaterThanOrEqual(beforeNext.getTime());
+    });
+
+    // AC6: Chat history from skipped chat is erased
+    it('should delete chat history when skipping unsaved chat (AC6)', async () => {
+        // Verify messages exist before
+        const messagesBefore = await Message.find({ chatSessionId: unsavedChat._id });
+        expect(messagesBefore.length).toBe(2);
+
+        const res = await request(app)
+            .post(`/api/chat/${unsavedChat._id.toHexString()}/next`)
+            .set('Authorization', `Bearer ${token1}`);
+
+        expect(res.status).toBe(200);
+
+        // Verify messages are deleted
+        const messagesAfter = await Message.find({ chatSessionId: unsavedChat._id });
+        expect(messagesAfter.length).toBe(0);
+    });
+
+    // Saved chats stay ACTIVE - users can continue chatting while finding new matches
+    it('should keep saved chat ACTIVE when clicking next (allows continued chatting)', async () => {
+        const res = await request(app)
+            .post(`/api/chat/${savedChat._id.toHexString()}/next`)
+            .set('Authorization', `Bearer ${token1}`);
+
+        expect(res.status).toBe(200);
+        expect(res.body.redirectToQueue).toBe(true);
+        expect(res.body.chatPreserved).toBe(true);
+        expect(res.body.isSaved).toBe(true);
+
+        // Verify chat REMAINS ACTIVE - users can continue chatting in saved chats
+        const updatedChat = await ChatSession.findById(savedChat._id);
+        expect(updatedChat.active).toBe(true); // Saved chats stay active
+        expect(updatedChat.isSaved).toBe(true); // Still saved
+        // No endedAt for active chats
+    });
+
+    it('should return 404 if chat session not found', async () => {
+        const fakeId = new mongoose.Types.ObjectId().toHexString();
+        const res = await request(app)
+            .post(`/api/chat/${fakeId}/next`)
+            .set('Authorization', `Bearer ${token1}`);
+
+        expect(res.status).toBe(404);
+        expect(res.body.message).toBe('Active chat session not found');
+    });
+
+    it('should return 404 if user is not a participant', async () => {
+        const res = await request(app)
+            .post(`/api/chat/${unsavedChat._id.toHexString()}/next`)
+            .set('Authorization', `Bearer ${token3}`);
+
+        expect(res.status).toBe(404);
+        expect(res.body.message).toBe('Active chat session not found');
+    });
+
+    it('should return 404 for inactive chat', async () => {
+        // Make chat inactive
+        unsavedChat.active = false;
+        await unsavedChat.save();
+
+        const res = await request(app)
+            .post(`/api/chat/${unsavedChat._id.toHexString()}/next`)
+            .set('Authorization', `Bearer ${token1}`);
+
+        expect(res.status).toBe(404);
+        expect(res.body.message).toBe('Active chat session not found');
+    });
+
+    it('should return 401 if no token provided', async () => {
+        const res = await request(app)
+            .post(`/api/chat/${unsavedChat._id.toHexString()}/next`);
+
+        expect(res.status).toBe(401);
+    });
+
+    it('should allow either participant to use next chat', async () => {
+        // User2 clicks next chat
+        const res = await request(app)
+            .post(`/api/chat/${unsavedChat._id.toHexString()}/next`)
+            .set('Authorization', `Bearer ${token2}`);
+
+        expect(res.status).toBe(200);
+        expect(res.body.redirectToQueue).toBe(true);
+
+        const updatedChat = await ChatSession.findById(unsavedChat._id);
+        expect(updatedChat.active).toBe(false);
+    });
+
+    // Test that saved chat messages are preserved when using next
+    it('should preserve messages for saved chats when using next (AC7)', async () => {
+        // Add messages to saved chat
+        await Message.create([
+            { chatSessionId: savedChat._id, senderId: user1Id, content: 'Saved message 1', sentAt: new Date() },
+            { chatSessionId: savedChat._id, senderId: user2Id, content: 'Saved message 2', sentAt: new Date() },
+        ]);
+
+        const res = await request(app)
+            .post(`/api/chat/${savedChat._id.toHexString()}/next`)
+            .set('Authorization', `Bearer ${token1}`);
+
+        expect(res.status).toBe(200);
+        expect(res.body.chatPreserved).toBe(true);
+
+        // Verify messages still exist
+        const messages = await Message.find({ chatSessionId: savedChat._id });
+        expect(messages.length).toBe(2);
     });
 });
