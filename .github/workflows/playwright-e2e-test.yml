@@ -6,7 +6,8 @@ on:
       - main
       - "frontend/**"
       - "**frontend**"
-      - "us-12"
+      - "sprint-2"
+      - "us-6_NEW"
   pull_request:
     branches:
       - main
@@ -67,8 +68,10 @@ jobs:
       - name: Start dev server (frontend)
         working-directory: ./frontend
         run: |
-          nohup npm run dev > /dev/null 2>&1 &
-          npx wait-on http://localhost:3000
+          nohup npm run dev > frontend.log 2>&1 &
+          npx wait-on http://localhost:3000 --timeout 60000
+          sleep 5
+          echo "Frontend server started successfully"
         env:
           NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL }}
           GOOGLE_REFRESH_TOKEN: ${{ secrets.GOOGLE_REFRESH_TOKEN }}
@@ -78,6 +81,12 @@ jobs:
           GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
           GOOGLE_REDIRECT_URI: ${{ secrets.GOOGLE_REDIRECT_URI }}
 
+      - name: Verify servers are running
+        run: |
+          curl -f http://localhost:5000/ping || (echo "Backend not responding" && exit 1)
+          curl -f http://localhost:3000/ || (echo "Frontend not responding" && exit 1)
+          echo "Both servers verified running"
+
       - name: Install Playwright
         working-directory: ./frontend
         run: npx playwright install
@@ -85,6 +94,13 @@ jobs:
       - name: Run Playwright tests
         working-directory: ./frontend
         run: npm run playwright
+        
+      - name: Upload frontend logs (on failure)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-logs
+          path: frontend/frontend.log
 
       - name: Upload Playwright screenshots (on failure)
         if: failure()

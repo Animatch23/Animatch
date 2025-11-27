@@ -43,6 +43,10 @@ describe('POST /api/chat/:sessionId/save', () => {
         chatSession = await ChatSession.create({
             participants: [user1Id, user2Id],
             active: true,
+            startedAt: new Date(),
+            expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours from now
+            isSaved: false,
+            savedByUsers: []
         });
     });
 

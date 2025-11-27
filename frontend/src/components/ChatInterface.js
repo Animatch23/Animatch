@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import SavedChatsList from "./SavedChatsList";
 import { io } from "socket.io-client";
+import Image from "next/image";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL;
 const SOCKET_BASE = process.env.NEXT_PUBLIC_SOCKET_URL || API_BASE;
@@ -19,6 +20,13 @@ const formatTimestamp = (value) => {
   return date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 };
 
+const formatBytes = (bytes) => {
+  if (!bytes && bytes !== 0) return "";
+  const sizes = ["B", "KB", "MB", "GB"]; 
+  const i = bytes === 0 ? 0 : Math.floor(Math.log(bytes) / Math.log(1024));
+  return `${(bytes / Math.pow(1024, i)).toFixed(1)} ${sizes[i]}`;
+};
+
 export default function ChatInterface({
   chatSessionId,
   partnerUsername,
@@ -27,7 +35,6 @@ export default function ChatInterface({
   onChatEnded,
   isReadOnly = false,
 }) {
-  const router = useRouter();
   const [messages, setMessages] = useState([]);
   const [inputValue, setInputValue] = useState("");
   const [connectionStatus, setConnectionStatus] = useState("connecting");
@@ -40,14 +47,23 @@ export default function ChatInterface({
   const [partnerLeft, setPartnerLeft] = useState(false);
   const [showSavedChats, setShowSavedChats] = useState(false);
   const [isUnmatched, setIsUnmatched] = useState(false);
+  const [showSidebar, setShowSidebar] = useState(false);
+  const [savedChats, setSavedChats] = useState([]);
+  const [showActionMenu, setShowActionMenu] = useState(false);
+  const [confirmBlockOpen, setConfirmBlockOpen] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
+  const [reportReason, setReportReason] = useState("");
+  const [statusLog, setStatusLog] = useState([]);
 
-  const effectiveReadOnly = isReadOnly || isUnmatched;
+  const router = useRouter();
 
   const socketRef = useRef(null);
   const messagesEndRef = useRef(null);
   const typingTimeoutRef = useRef(null);
   const hasSentTypingRef = useRef(false);
   const currentUserIdRef = useRef(currentUserId ?? "");
+  const fileInputRef = useRef(null);
+  const menuCloseTimeoutRef = useRef(null);
 
   const socketUrl = useMemo(() => {
     if (!SOCKET_BASE) {
@@ -295,11 +311,86 @@ export default function ChatInterface({
       socket.disconnect();
       socketRef.current = null;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chatSessionId, socketUrl, token]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  // --- UI Helpers from us-5-11 ---
+  
+  // Listen for global toggle from TopBar (menu icon)
+  useEffect(() => {
+    const handler = () => setShowSidebar((v) => !v);
+    try {
+      window.addEventListener("animatch:toggleSavedChats", handler);
+    } catch (_) {}
+    return () => {
+      try { window.removeEventListener("animatch:toggleSavedChats", handler); } catch (_) {}
+    };
+  }, []);
+
+  // Load saved chats from localStorage (seed with a demo item if empty)
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("animatch:savedChats");
+      if (raw) {
+        setSavedChats(JSON.parse(raw));
+      } else {
+        // Seed with a demo chat to mirror the mockup
+        const demoChat = {
+          id: Date.now(),
+          name: partnerUsername || "Juan Dela Cruz",
+          messages: [
+            { id: 1, content: "Hello!", isOwn: true, sentAt: new Date() },
+            { id: 2, content: "Hi there!", isOwn: false, sentAt: new Date() }
+          ],
+        };
+        setSavedChats([demoChat]);
+      }
+    } catch (_) {
+      // ignore
+    }
+  }, [partnerUsername]);
+
+  // Persist saved chats
+  useEffect(() => {
+    try {
+      localStorage.setItem("animatch:savedChats", JSON.stringify(savedChats));
+    } catch (_) {}
+  }, [savedChats]);
+
+  const chatDisplayName = (chat) => {
+    if (!chat) return "Juan Dela Cruz";
+    return chat.name && !chat.name.startsWith("Saved chat") ? chat.name : "Juan Dela Cruz";
+  };
+
+  const lastPreview = (chat) => {
+    const last = [...(chat?.messages || [])].reverse().find((m) => m.content || m.type === "file");
+    if (!last) return "";
+    if (last.type === "file") {
+      const who = last.isOwn ? "You" : chatDisplayName(chat);
+      return `${who}: Attachment${last.fileName ? ` (${last.fileName})` : ""}`;
+    }
+    const who = last.isOwn ? "You" : chatDisplayName(chat);
+    return `${who}: ${last.content}`;
+  };
+
+  const saveCurrentChat = () => {
+    const id = Date.now();
+    const name = partnerUsername || "Juan Dela Cruz";
+    const snapshot = messages.map((m) => ({ ...m }));
+    setSavedChats((prev) => [{ id, name, messages: snapshot }, ...prev]);
+    setStatusLog((prev) => [...prev, "Chat saved to history (local)."]);
+  };
+
+  const loadChat = (chat) => {
+    if (!chat) return;
+    setMessages(chat.messages || []);
+    setShowSidebar(false);
+    setStatusLog((prev) => [...prev, `Loaded chat: ${chat.name}`]);
+  };
 
   const statusLabel = useMemo(() => {
     switch (connectionStatus) {
@@ -389,6 +480,84 @@ export default function ChatInterface({
     setError("");
   };
 
+  // --- US-5-11 UI Action Handlers ---
+  
+  const openFilePicker = () => fileInputRef.current?.click();
+  
+  const handleFileChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 10 * 1024 * 1024) {
+      setStatusLog((prev) => [...prev, `File too large: ${file.name}. Max 10MB.`]);
+      e.target.value = "";
+      return;
+    }
+
+    const objectUrl = URL.createObjectURL(file);
+    const isImage = file.type.startsWith("image/");
+
+    const attachmentMessage = {
+      id: `local-${Date.now()}`,
+      type: "file",
+      isOwn: true,
+      sentAt: new Date(),
+      fileName: file.name,
+      fileType: file.type,
+      fileSize: file.size,
+      fileUrl: objectUrl,
+      isLocalPreview: true,
+      isImage,
+    };
+
+    setMessages((prev) => [...prev, attachmentMessage]);
+    setStatusLog((prev) => [...prev, `Attached ${file.name} (preview only).`]);
+    e.target.value = "";
+  };
+
+  const openMenu = () => {
+    if (menuCloseTimeoutRef.current) {
+      clearTimeout(menuCloseTimeoutRef.current);
+      menuCloseTimeoutRef.current = null;
+    }
+    setShowActionMenu(true);
+  };
+
+  const scheduleCloseMenu = () => {
+    if (menuCloseTimeoutRef.current) {
+      clearTimeout(menuCloseTimeoutRef.current);
+    }
+    menuCloseTimeoutRef.current = setTimeout(() => {
+      setShowActionMenu(false);
+      menuCloseTimeoutRef.current = null;
+    }, 200);
+  };
+
+  const blockUser = () => {
+    setShowActionMenu(false);
+    setConfirmBlockOpen(true);
+  };
+  
+  const reportUser = () => {
+    setShowActionMenu(false);
+    setReportOpen(true);
+  };
+  
+  const handleConfirmBlock = () => {
+    setConfirmBlockOpen(false);
+    setStatusLog((prev) => [...prev, "User blocked (UI-only)."]);
+  };
+
+  const handleSubmitReport = () => {
+    const reason = reportReason.trim();
+    setReportOpen(false);
+    setReportReason("");
+    setStatusLog((prev) => [
+      ...prev,
+      reason ? `Report submitted: ${reason}` : "Report submitted.",
+    ]);
+  };
+
   const handleLeaveChat = async () => {
     if (!API_BASE || !token) {
       if (typeof onChatEnded === "function") {
@@ -419,6 +588,8 @@ export default function ChatInterface({
 
   const handleSaveChat = async () => {
     if (!API_BASE || !token) {
+      // Fallback to local save if no API
+      saveCurrentChat();
       return;
     }
 
@@ -445,6 +616,9 @@ export default function ChatInterface({
         bothSaved: data.isSaved
       });
 
+      // Also save locally (us-5-11 style)
+      saveCurrentChat();
+
       if (data.isSaved) {
         setFeedback({ 
           type: "success", 
@@ -466,47 +640,13 @@ export default function ChatInterface({
     }
   };
 
-  const handleUnmatch = async () => {
-    if (!window.confirm("Are you sure you want to unmatch? This will permanently end the conversation and remove it from your active list.")) {
-      return;
-    }
-
-    if (!API_BASE || !token) {
-      return;
-    }
-
-    try {
-      const response = await fetch(`${API_BASE}/api/chat/${chatSessionId}/unmatch`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      if (!response.ok) {
-        const data = await response.json().catch(() => ({}));
-        throw new Error(data.message || "Failed to unmatch");
-      }
-
-      // Clear active chat session and redirect
-      sessionStorage.removeItem("activeChatSessionId");
-      router.replace("/match");
-      // Note: Toast/alert would be handled by a global toast system, but for now we'll rely on the redirect
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to unmatch");
-    }
-  };
-
-
   return (
     <div className="flex flex-col min-h-[calc(100vh-4rem)] bg-gray-50">
-      <SavedChatsList visible={showSavedChats} onClose={() => setShowSavedChats(false)} />
       <header className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div>
-            <h1 className="text-lg font-semibold text-gray-900">
-              {partnerUsername || "Anonymous Match"}
-            </h1>
+        <div>
+          <h1 className="text-lg font-semibold text-gray-900">
+            {partnerUsername || "Anonymous Match"}
+          </h1>
           <p className={`text-sm ${statusColor}`}>{statusLabel}</p>
           {partnerTyping && connectionStatus === "connected" && !partnerLeft && (
             <p className="text-xs text-gray-500 mt-1">{partnerUsername || "Partner"} is typing...</p>
@@ -514,7 +654,6 @@ export default function ChatInterface({
           {partnerLeft && (
             <p className="text-xs text-rose-600 mt-1 font-medium">⚠️ Partner has left the chat</p>
           )}
-          </div>
         </div>
         <div className="flex gap-2">
           <button
@@ -532,34 +671,29 @@ export default function ChatInterface({
             } disabled:opacity-60`}
           >
             {partnerLeft
-              ? "⚠️ Partner Left"
+              ? "Partner Left"
               : saveStatus.bothSaved 
-              ? "✓ Saved by Both" 
+              ? "Saved by Both" 
               : saveStatus.currentUserSaved 
-              ? "⏳ Waiting for Partner..." 
+              ? "Waiting..." 
               : isSaving 
               ? "Saving..." 
               : "Save Chat"}
           </button>
-          {!effectiveReadOnly && (
-            <button
-              type="button"
-              onClick={handleUnmatch}
-              className="h-9 px-4 rounded-md bg-gray-200 text-red-600 text-sm font-medium shadow-sm hover:bg-gray-300"
-            >
-              Unmatch
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={handleLeaveChat}
+            disabled={isEnding || partnerLeft}
+            className="h-9 px-4 rounded-md bg-rose-500 text-white text-sm font-medium shadow-sm hover:brightness-95 disabled:opacity-70"
+          >
+            {partnerLeft ? "Partner Left" : isEnding ? "Leaving..." : "End Chat"}
+          </button>
         </div>
       </header>
 
-      {(error || feedback || isUnmatched) && (
+      {/* Feedback / Error Messages */}
+      {(error || feedback) && (
         <div className="px-6 pt-4 space-y-3">
-          {isUnmatched && (
-            <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-              Your partner has unmatched. This conversation is now closed.
-            </div>
-          )}
           {error && (
             <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
               {error}
@@ -590,21 +724,21 @@ export default function ChatInterface({
       )}
 
       <main className="flex-1 overflow-y-auto px-6 py-6">
-        <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-3">
           {messages.map((message) => (
             <div
               key={message.id}
-              className={`max-w-xl rounded-2xl px-4 py-3 text-base leading-relaxed shadow-sm ${
+              className={`max-w-xl rounded-2xl px-4 py-3 text-sm shadow-sm ${
                 message.isSystem
-                  ? "self-center bg-gray-100 text-gray-700 text-center italic"
+                  ? "self-center bg-gray-200 text-gray-700 text-center italic"
                   : message.isOwn
-                  ? "self-end bg-[#1e6a3f] text-white border border-[#14492b] shadow-md"
-                  : "self-start bg-gray-100 text-gray-900 border border-gray-200"
+                  ? "self-end bg-[#286633] text-white"
+                  : "self-start bg-white text-gray-900"
               }`}
             >
-              <p className="whitespace-pre-wrap break-words text-base tracking-tight">{message.content}</p>
+              <p className="whitespace-pre-wrap break-words">{message.content}</p>
               {!message.isSystem && (
-                <time className={`block text-xs mt-1 ${message.isOwn ? "text-white/90" : "text-gray-600"}`}>
+                <time className={`block text-xs mt-1 ${message.isOwn ? "text-white/70" : "text-gray-500"}`}>
                   {formatTimestamp(message.sentAt)}
                 </time>
               )}
@@ -615,26 +749,19 @@ export default function ChatInterface({
       </main>
 
       <form onSubmit={handleSubmit} className="bg-white border-t border-gray-200 px-6 py-4">
-        {effectiveReadOnly && (
-          <div className="mb-3 text-center text-sm text-gray-600">
-            {isUnmatched 
-              ? "This conversation is now closed." 
-              : "This is a saved chat history. You cannot send new messages."}
-          </div>
-        )}
         <div className="flex items-end gap-3">
           <textarea
             value={inputValue}
             onChange={handleInputChange}
             onBlur={handleInputBlur}
             rows={2}
-            placeholder={effectiveReadOnly ? "Chat is read-only" : (connectionStatus === "connected" ? "Say hello..." : "Waiting for connection")}
-            disabled={effectiveReadOnly || connectionStatus !== "connected"}
+            placeholder={connectionStatus === "connected" ? "Say hello..." : "Waiting for connection"}
+            disabled={connectionStatus !== "connected"}
             className="flex-1 resize-none rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#286633]/60 disabled:opacity-60"
           />
           <button
             type="submit"
-            disabled={!inputValue.trim() || effectiveReadOnly || connectionStatus !== "connected"}
+            disabled={!inputValue.trim() || connectionStatus !== "connected"}
             className="h-11 px-6 rounded-2xl bg-[#286633] text-white text-sm font-semibold shadow-sm hover:brightness-110 disabled:opacity-60"
           >
             Send

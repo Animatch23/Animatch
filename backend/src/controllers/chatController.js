@@ -1,6 +1,5 @@
 import ChatSession from '../models/ChatSession.js';
 import Message from '../models/Message.js';
-import User from '../models/User.js';
 
 /**
  * Get active chat session for current user
@@ -222,7 +221,6 @@ export const saveChatSession = async (req, res) => {
     }
 
     // If both users saved, mark as permanently saved
-    const wasSavedBefore = chatSession.isSaved;
     if (chatSession.savedByUsers.length === 2) {
       chatSession.isSaved = true;
     }
