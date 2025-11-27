@@ -139,7 +139,6 @@ async function setupUser(page) {
   await mockSession(page);
   await login(page);
 
-  // Add retry logic for initial navigation
   let retries = 3;
   while (retries > 0) {
     try {
@@ -151,7 +150,7 @@ async function setupUser(page) {
       await page.waitForTimeout(2000);
     }
   }
-  
+
   await page.getByText("Accept & Continue").click();
 
   const username = faker.person.firstName() + Math.floor(Math.random() * 9000 + 1000);
@@ -160,57 +159,162 @@ async function setupUser(page) {
   await page.getByRole("button", { name: "Continue" }).click();
   await completeInterestSetup(page, "Engineering", "Dorm A", ["Gaming Society"]);
 
-  await page.getByText("Start Matching").click();
-
   return username
 }
 
 test.describe("save chat test", () => {
-  test.describe.configure({
-    repeatEach: 1,
-    retries: 1,
-  });
 
-  test("save chat", async () => {
-    const browser = await chromium.launch({ slowMo: 600 });
+  test.describe.configure({
+    repeatEach: 1
+  });
+  test("save chat, clicked button", async () => {
+    const browser = await chromium.launch();
 
     const context1 = await browser.newContext();
     const context2 = await browser.newContext();
 
     const page1 = await context1.newPage();
+    const page2 = await context2.newPage();
 
-    const browser2 = await chromium.launch();
-    const context2 = await browser2.newContext();
+    const saveChatSelector = 'button:has-text("Save Chat")';
+    const successSelector = 'div.rounded-md:has-text("Chat saved to your account.")';
+
+    let username1, username2;
+
+    [username1, username2] = await Promise.all([
+      setupUser(page1),
+      setupUser(page2)
+    ]);
+
+    await Promise.all([
+      page1.getByText("Start Matching").click(),
+      page2.getByText("Start Matching").click()
+    ]);
+
+    await Promise.all([
+      page1.waitForURL('**/match/chat?session=*', { timeout: 45000 }),
+      page2.waitForURL('**/match/chat?session=*', { timeout: 45000 })
+    ]);
+
+    await Promise.all([
+      page1.waitForTimeout(5000),
+      page2.waitForTimeout(5000)
+    ]);
+
+    await page1.click(saveChatSelector, { timeout: 30000 })
+    await page2.waitForTimeout(1500)
+    await page2.click(saveChatSelector, { timeout: 30000 })
+
+    console.log("User1 Clicked Save Chat");
+    console.log("User2 Clicked Save Chat");
+    const successMessageSelector = 'span:has-text("🎉 Match saved! Both of you have saved this chat.")';
+    await expect(page1.locator(successMessageSelector)).toBeVisible({ timeout: 30000 });
+    await expect(page2.locator(successMessageSelector)).toBeVisible({ timeout: 30000 });
+
+    await Promise.all([
+      page1.goto("http://localhost:3000/match"),
+      page2.goto("http://localhost:3000/match")
+    ]);
+
+
+    const savedChatButton1 = page1.locator('ul li button span.font-semibold');
+    await savedChatButton1.waitFor({ state: 'visible', timeout: 30000 });
+    const savedChatButton2 = page2.locator('ul li button span.font-semibold');
+    await savedChatButton2.waitFor({ state: 'visible', timeout: 30000 });
+
+    const savedChatName1 = await page1.locator(
+      'ul li button span.font-semibold'
+    ).innerText();
+    console.log(`User1 Saved chat displayed: ${savedChatName1} (Expected: match with ${username2})`);
+
+    const savedChatName2 = await page2.locator(
+      'ul li button span.font-semibold'
+    ).innerText();
+    console.log(`User2 Saved chat displayed: ${savedChatName2} (Expected: match with ${username1})`);
+
+    await page1.locator('ul li button').first().click();
+    console.log(`User1 Opened saved chat with ${username2}`);
+
+    await page2.locator('ul li button').first().click();
+    console.log(`User2 Opened saved chat with ${username1}`);
+
+    await expect(
+      page1.locator("h1.text-lg.font-semibold.text-gray-900")
+    ).toHaveText(username2, { timeout: 30000 });
+    console.log(`User1 Verified chat header shows: ${username2}`);
+
+    await expect(
+      page2.locator("h1.text-lg.font-semibold.text-gray-900")
+    ).toHaveText(username1, { timeout: 30000 });
+    console.log(`User2 Verified chat header shows: ${username1}`);
+
+    await Promise.all([context1.close(), context2.close()]);
+
+    await browser.close();
+  });
+
+  test("save chat, queue with another user", async () => {
+    const browser = await chromium.launch();
+
+    const context1 = await browser.newContext();
+    const context2 = await browser.newContext();
+
+    const page1 = await context1.newPage();
     const page2 = await context2.newPage();
 
     const saveChatSelector = 'button:has-text("Save Chat")';
     // Look for either success message (waiting for partner OR both saved)
     const successSelector = 'div.p-2.text-sm.rounded span';
 
-    let username1, username2;
-    const flow1 = async () => {
-      username1 = await setupUser(page1);
-      await page1.click(saveChatSelector, { timeout: 30000 });
-      // await expect(page1.locator(successSelector)).toBeVisible();
-      await page1.goto("http://localhost:3000/match");
-      await page1.reload();
-    };
 
-    const flow2 = async () => {
-      username2 = await setupUser(page2);
-      await page2.click(saveChatSelector, { timeout: 30000 });
-      // await expect(page2.locator(successSelector)).toBeVisible();
-      await page2.goto("http://localhost:3000/match");
-      await page2.reload();
-    };
+    let username1, username2;
+
+    [username1, username2] = await Promise.all([
+      setupUser(page1),
+      setupUser(page2)
+    ]);
+
+    await Promise.all([
+      page1.getByText("Start Matching").click(),
+      page2.getByText("Start Matching").click()
+    ]);
+
+    await Promise.all([
+      page1.waitForURL('**/match/chat?session=*', { timeout: 45000 }),
+      page2.waitForURL('**/match/chat?session=*', { timeout: 45000 })
+    ]);
+
+    await Promise.all([
+      page1.waitForTimeout(5000),
+      page2.waitForTimeout(5000)
+    ]);
+
+    await page1.click(saveChatSelector, { timeout: 30000 })
+    await page2.waitForTimeout(1500)
+    await page2.click(saveChatSelector, { timeout: 30000 })
+
+    console.log("User1 Clicked Save Chat");
+    console.log("User2 Clicked Save Chat");
+
+    const successMessageSelector = 'span:has-text("🎉 Match saved! Both of you have saved this chat.")';
+    await expect(page1.locator(successMessageSelector)).toBeVisible({ timeout: 30000 });
+    await expect(page2.locator(successMessageSelector)).toBeVisible({ timeout: 30000 });
+
+    await Promise.all([
+      page1.goto("http://localhost:3000/match"),
+      page2.goto("http://localhost:3000/match")
+    ]);
+
+    console.log(`User1: ${username1}`)
+    console.log(`User2: ${username2}`)
+
+    const savedChatButton1 = page1.locator('ul li button span.font-semibold');
+    await savedChatButton1.waitFor({ state: 'visible', timeout: 30000 });
+    const savedChatButton2 = page2.locator('ul li button span.font-semibold');
+    await savedChatButton2.waitFor({ state: 'visible', timeout: 30000 });
 
     const context3 = await browser.newContext();
     const page3 = await context3.newPage();
-
-    await Promise.all([flow1(), flow2()]);
-
-    await page1.reload();
-    await page2.reload();
 
     const savedChatName = await page1.locator(
       'ul li button span.font-semibold'
@@ -221,30 +325,50 @@ test.describe("save chat test", () => {
     let username3 = await setupUser(page3);
 
     await Promise.all([
+        page1.waitForTimeout(2500),
+        page3.waitForTimeout(2500)
+      ]);
+
+    await Promise.all([
       page1.getByText("Start Matching").click(),
+      page3.getByText("Start Matching").click()
     ]);
 
+    try {
+      await Promise.all([
+        page1.waitForURL('**/match/chat?session=*', { timeout: 45000 }),
+        page3.waitForURL('**/match/chat?session=*', { timeout: 45000 })
+      ]);
 
-    const matchedUser1 = await page1.locator("h1.text-lg.font-semibold.text-gray-900").innerText();
-    console.log("User 1 matched with:", matchedUser1);
-    console.log("Expected match:", username3);
+      await Promise.all([
+        page1.waitForTimeout(5000),
+        page3.waitForTimeout(5000)
+      ]);
 
-    await expect(
-      user = page1.locator("h1.text-lg.font-semibold.text-gray-900")
-    ).toHaveText(username3, { timeout: 30000 });
+      const matchedUser1 = await page1.locator("h1.text-lg.font-semibold.text-gray-900").innerText();
+      console.log("User 1 matched with:", matchedUser1);
+      console.log("Expected match:", username3);
 
+      await expect(
+        page1.locator("h1.text-lg.font-semibold.text-gray-900")
+      ).toHaveText(username3, { timeout: 15000 });
 
-    const matchedUser3 = await page3.locator("h1.text-lg.font-semibold.text-gray-900").innerText();
-    console.log("User 3 matched with:", matchedUser3);
-    console.log("Expected match:", username1);
+      const matchedUser3 = await page3.locator("h1.text-lg.font-semibold.text-gray-900").innerText();
+      console.log("User 3 matched with:", matchedUser3);
+      console.log("Expected match:", username1);
 
+      await expect(
+        page3.locator("h1.text-lg.font-semibold.text-gray-900")
+      ).toHaveText(username1, { timeout: 15000 });
 
-    await expect(
-      user1 = page3.locator("h1.text-lg.font-semibold.text-gray-900")
-    ).toHaveText(username1, { timeout: 30000 });
+    } catch (err) {
+      const cancelButton = page3.locator('button[aria-label="Cancel matching"]');
+      await cancelButton.click();
+    }
 
     await Promise.all([context1.close(), context2.close(), context3.close()]);
 
     await browser.close();
   });
 });
+

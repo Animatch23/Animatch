@@ -3,11 +3,7 @@ name: Playwright E2E Tests
 on:
   push:
     branches:
-      - main
-      - "frontend/**"
-      - "**frontend**"
-      - "sprint-2"
-      - "us-6_NEW"
+      - "**"
   pull_request:
     branches:
       - main
