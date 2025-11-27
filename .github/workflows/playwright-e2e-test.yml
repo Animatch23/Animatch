@@ -6,7 +6,7 @@ on:
       - main
       - "frontend/**"
       - "**frontend**"
-      - "sprint-2"
+      - "us-12"
   pull_request:
     branches:
       - main
