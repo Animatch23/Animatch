@@ -34,7 +34,7 @@ test.describe("save chat test", () => {
     const page2 = await context2.newPage();
 
     const saveChatSelector = 'button:has-text("Save Chat")';
-    const successSelector = 'div.rounded-md:has-text("Chat saved to your account.")';
+    const successSelector = 'div.rounded-md:has-text("Match saved! Both of you have saved this chat.")';
 
     let username1, username2;
     const flow1 = async () => {
