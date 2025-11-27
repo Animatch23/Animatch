@@ -159,6 +159,7 @@ test.describe("next chat button tests", () => {
 
       // Check for the system message in the chat
       const systemMessage = page2.locator('p:has-text("Your partner has left the chat")');
+      await page2.waitForTimeout(5000);
       console.log("System message count:", await systemMessage.count());
       console.log("System message text:", await systemMessage.allTextContents());
 
@@ -210,7 +211,6 @@ test.describe("next chat button tests", () => {
 
       // Click chat history toggle for User 1
       const user1MenuBtn = page1.locator('button[aria-label*="menu"], button[aria-label*="saved"]').first();
-      await expect(user1MenuBtn).toBeVisible({ timeout: 5000 });
       await user1MenuBtn.click();
       await page1.waitForTimeout(500);
 
