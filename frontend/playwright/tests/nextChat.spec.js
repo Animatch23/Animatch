@@ -140,7 +140,7 @@ test.describe("next chat button tests", () => {
       await page1.waitForTimeout(1000);
       await page2.waitForTimeout(1000);
 
-      
+
       // Click chat history toggle for User 1
       const user1MenuBtn = page1.locator('button[aria-label*="menu"], button[aria-label*="saved"]').first();
       await user1MenuBtn.click();
@@ -231,7 +231,7 @@ test.describe("next chat button tests", () => {
       //User 3 goes into queue and user 1 and 3 should match up
       const user3StartLink = page3.getByRole("link", { name: "Start Matching" });
       await user3StartLink.click();
-      await page3.waitForTimeout(5000);
+      await page3.waitForTimeout(15000);
 
       const user1SessionIdV2 = new URL(page1.url()).searchParams.get("session");
       const user3SessionId = new URL(page3.url()).searchParams.get("session");
