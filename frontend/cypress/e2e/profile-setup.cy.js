@@ -1,12 +1,18 @@
 describe('Profile-Setup', () => {
   beforeEach(() => {
-    cy.visit('/profile-setup');
+    cy.visit('/profile-setup', {
+      onBeforeLoad(win) {
+        win.sessionStorage.setItem('pendingEmail', 'test@example.com');
+        win.sessionStorage.setItem('pendingToken', 'mock-token');
+        win.sessionStorage.setItem('termsAccepted', 'true');
+      },
+    });
   });
 
   it('Correct name information', () => {
     cy.get('input[placeholder="Username *"]').type('Karl Matthew Dela Cruz');
     cy.uploadFile('input[type="file"]', 'TEST.png', 'image/png');
-    cy.get('button').contains('Continue').click();
+    cy.get('button').contains('Complete Setup').click();
   });
 
   it('should display profile setup page', () => {
@@ -17,17 +23,17 @@ describe('Profile-Setup', () => {
   it('should upload photo and enter username', () => {
     cy.uploadFile('input[type="file"]', 'TEST.png', 'image/png');
     cy.get('input[placeholder="Username *"]').type('Karl Matthew Dela Cruz');
-    cy.get('button').contains('Continue').click();
+    cy.get('button').contains('Complete Setup').click();
   });
 
   it('should show error for username less than 3 characters', () => {
     cy.get('input[placeholder="Username *"]').type('ab');
-    cy.get('button').contains('Continue').click();
+    cy.get('button').contains('Complete Setup').click();
     cy.contains('Username must be at least 3 characters').should('be.visible');
   });
 
   it('should disable continue button when username is empty', () => {
-    cy.get('button').contains('Continue').should('be.disabled');
+    cy.get('button').contains('Complete Setup').should('be.disabled');
   });
 
   it('should reject invalid file types', () => {

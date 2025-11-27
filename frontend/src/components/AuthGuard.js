@@ -21,7 +21,7 @@ export default function AuthGuard({ children }) {
       router.replace("/login");
     } else {
       // Token exists, allow access
-      setAllowed(true);
+      setIsAllowed(true);
     }
 
     setIsAllowed(true);
