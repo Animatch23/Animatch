@@ -259,11 +259,10 @@ export const getSavedChats = async (req, res) => {
 
         // Find only SAVED chat sessions where user is a participant (US-8 AC1, AC3)
         // isSaved=true means both users have saved the chat
-        // Exclude chats where unmatchedBy is set (hidden from both users after unmatch)
+        // Include chats even if unmatched (we want saved chat history visible but marked inactive)
         const chats = await ChatSession.find({
-            participants: { $in: [userId] },
-            isSaved: true, // Only return saved chats
-            unmatchedBy: { $exists: false } // Hide unmatched chats from SavedChatsList
+          participants: { $in: [userId] },
+          isSaved: true // Only return saved chats
         })
         .populate('participants', 'username')
         .sort({ startedAt: -1 });
