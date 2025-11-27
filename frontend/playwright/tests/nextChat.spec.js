@@ -239,6 +239,7 @@ test.describe("next chat button tests", () => {
     } finally {
       await context1.close();
       await context2.close();
+      await context3.close();
     }
 
     
