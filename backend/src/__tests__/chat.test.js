@@ -19,18 +19,18 @@ describe('POST /api/chat/:sessionId/save', () => {
     let chatSession;
 
     beforeEach(async () => {
-        // Create actual users in database
+        // Create actual users in database with unique emails to avoid test conflicts
         user1 = await User.create({
-            email: 'user1@test.com',
-            username: 'user1'
+            email: 'savechat_user1@test.com',
+            username: 'savechat_user1'
         });
         user2 = await User.create({
-            email: 'user2@test.com',
-            username: 'user2'
+            email: 'savechat_user2@test.com',
+            username: 'savechat_user2'
         });
         user3 = await User.create({
-            email: 'user3@test.com',
-            username: 'user3'
+            email: 'savechat_user3@test.com',
+            username: 'savechat_user3'
         });
 
         // Generate JWT tokens for each user
@@ -53,6 +53,10 @@ describe('POST /api/chat/:sessionId/save', () => {
         chatSession = await ChatSession.create({
             participants: [user1._id, user2._id],
             active: true,
+            startedAt: new Date(),
+            expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours from now
+            isSaved: false,
+            savedByUsers: []
         });
     });
 
