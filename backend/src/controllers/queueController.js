@@ -385,13 +385,6 @@ export const getQueueStatus = async (req, res) => {
             }
           }
         }
-
-        // No successful match, re-add user to queue
-        await Queue.updateOne(
-          { userId },
-          { $set: { userId, status: 'waiting', createdAt: new Date() } },
-          { upsert: true }
-        );
       }
 
       const position = await Queue.countDocuments({
