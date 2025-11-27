@@ -316,9 +316,10 @@ export const getChatSession = async (req, res) => {
             return res.status(403).json({ msg: 'User not authorized for this chat' });
         }
 
-        // Acceptance Criteria Check
-        if (!chatSession.isSaved) {
-            return res.status(403).json({ msg: 'This chat has not been saved' });
+        // Allow access to both active chats AND saved chats
+        // Only block access if the chat has ended AND is not saved
+        if (!chatSession.active && !chatSession.isSaved) {
+            return res.status(403).json({ msg: 'This chat has ended and was not saved' });
         }
 
         res.json(chatSession);

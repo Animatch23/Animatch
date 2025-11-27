@@ -39,7 +39,8 @@ export default function MatchQueuePage() {
         return;
       }
       sessionStorage.setItem("activeChatSessionId", chatSessionId);
-      router.replace(`/match/chat?session=${chatSessionId}`);
+      // Redirect without session parameter - let it use active chat endpoint
+      router.replace(`/match/chat`);
     };
 
     const pollStatus = async () => {

@@ -56,11 +56,7 @@ export default function ChatInterface({
 
   useEffect(() => {
     const toggleSavedChatsListener = () => {
-      console.log('[ChatInterface] Toggle saved chats event received');
-      setShowSavedChats((v) => {
-        console.log('[ChatInterface] Toggling showSavedChats from', v, 'to', !v);
-        return !v;
-      });
+      setShowSavedChats((v) => !v);
     };
     window.addEventListener("animatch:toggleSavedChats", toggleSavedChatsListener);
     return () => window.removeEventListener("animatch:toggleSavedChats", toggleSavedChatsListener);

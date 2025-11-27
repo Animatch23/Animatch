@@ -66,8 +66,6 @@ export default function SavedChatsList({ visible, onClose }) {
     return `${days}d`;
   };
 
-  console.log('[SavedChatsList] Render with visible:', visible);
-  
   if (!visible) return null;
 
   return (
