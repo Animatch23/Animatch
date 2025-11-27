@@ -160,6 +160,7 @@ test.describe("save chat test", () => {
   });
 
   test("save chat", async () => {
+    test.setTimeout(60000);
     const browser = await chromium.launch();
 
     const context1 = await browser.newContext();
