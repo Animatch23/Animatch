@@ -137,7 +137,10 @@ test.describe("next chat button tests", () => {
       // Wait for chat to load
       await page1.waitForLoadState("networkidle");
       await page2.waitForLoadState("networkidle");
+      await page1.waitForTimeout(1000);
+      await page2.waitForTimeout(1000);
 
+      
       // Click chat history toggle for User 1
       const user1MenuBtn = page1.locator('button[aria-label*="menu"], button[aria-label*="saved"]').first();
       await user1MenuBtn.click();
