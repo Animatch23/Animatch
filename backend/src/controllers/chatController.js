@@ -63,6 +63,11 @@ export const getChatHistory = async (req, res) => {
       return res.status(403).json({ message: 'Access denied to this chat session' });
     }
 
+    // Block access if chat was unmatched (hidden from both users)
+    if (chatSession.unmatchedBy) {
+      return res.status(403).json({ message: 'This chat has been removed' });
+    }
+
     // Fetch messages
     const messages = await Message.find({ chatSessionId })
       .sort({ sentAt: 1 })
@@ -254,9 +259,11 @@ export const getSavedChats = async (req, res) => {
 
         // Find only SAVED chat sessions where user is a participant (US-8 AC1, AC3)
         // isSaved=true means both users have saved the chat
+        // Exclude chats where unmatchedBy is set (hidden from both users after unmatch)
         const chats = await ChatSession.find({
             participants: { $in: [userId] },
-            isSaved: true // Only return saved chats
+            isSaved: true, // Only return saved chats
+            unmatchedBy: { $exists: false } // Hide unmatched chats from SavedChatsList
         })
         .populate('participants', 'username')
         .sort({ startedAt: -1 });
@@ -316,6 +323,11 @@ export const getChatSession = async (req, res) => {
         // Security Check
         if (!chatSession.participants.some(p => p._id.equals(userId))) {
             return res.status(403).json({ msg: 'User not authorized for this chat' });
+        }
+
+        // Block access if chat was unmatched (hidden from both users)
+        if (chatSession.unmatchedBy) {
+            return res.status(403).json({ msg: 'This chat has been removed' });
         }
 
         // Allow access to both active chats AND saved chats
