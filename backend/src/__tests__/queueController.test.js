@@ -327,10 +327,13 @@ describe('Queue Controller Tests', () => {
     const res = mockResponse();
     await checkQueueStatus(req, res);
 
-    // User should be in queue at position 1 (only user)
+    // User should be in queue (no match possible when alone)
     expect(res._jsonData.queued).toBe(true);
     expect(res._jsonData.matched).toBe(false);
-    expect(res._jsonData.position).toBe(1);
+    // Verify new matchingStatus structure instead of position
+    expect(res._jsonData.matchingStatus).toBeDefined();
+    expect(res._jsonData.matchingStatus.mode).toBe('similarity'); // Should be in similarity mode (< 30s)
+    expect(res._jsonData.matchingStatus.timeInQueue).toBeLessThan(30); // Less than 30 seconds
   });
 
   test('checkQueueStatus should match users even with 0 similarity (fallback)', async () => {
