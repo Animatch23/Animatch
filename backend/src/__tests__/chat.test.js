@@ -467,13 +467,15 @@ describe('GET /api/chat/:sessionId', () => {
         expect(res.body.msg).toBe('User not authorized for this chat');
     });
 
-    it('should return 403 if the chat is not saved', async () => {
+    it('should return session data for active unsaved chats (200 OK)', async () => {
         const res = await request(app)
             .get(`/api/chat/${unsavedChat._id.toHexString()}`)
             .set('Authorization', `Bearer ${token1}`);
 
-        expect(res.status).toBe(403);
-        expect(res.body.msg).toBe('This chat has not been saved');
+        expect(res.status).toBe(200);
+        expect(res.body._id).toBe(unsavedChat._id.toHexString());
+        expect(res.body.isSaved).toBe(false);
+        expect(res.body.participants).toBeDefined();
     });
 
     it('should return 404 if the chat ID does not exist', async () => {
