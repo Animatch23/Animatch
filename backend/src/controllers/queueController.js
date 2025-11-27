@@ -293,6 +293,19 @@ export const getQueueStatus = async (req, res) => {
     // Check queue position
     const queueEntry = await Queue.findOne({ userId });
     if (queueEntry) {
+      // Calculate time in queue
+      const now = new Date();
+      const timeInQueue = (now - queueEntry.createdAt) / 1000; // Time in seconds
+      
+      // Determine matching strategy
+      const SIMILARITY_TIMEOUT_SECONDS = 30;
+      const MINIMUM_SIMILARITY_THRESHOLD = 20;
+      const useRandomMatching = timeInQueue >= SIMILARITY_TIMEOUT_SECONDS;
+
+      if (useRandomMatching) {
+        console.log(`[QUEUE STATUS] ⏰ User ${user.email} has been waiting ${timeInQueue.toFixed(1)}s (>= ${SIMILARITY_TIMEOUT_SECONDS}s), switching to random matching`);
+      }
+
       // Get blocked users lists
       const blockedUsers = user.blockedUsers || [];
       const usersWhoBlockedMe = await User.find({ blockedUsers: userId }).distinct('_id');
@@ -303,6 +316,8 @@ export const getQueueStatus = async (req, res) => {
         status: 'waiting',
         userId: { $nin: excludedUserIds }
       }).sort({ createdAt: 1 }).limit(10);
+
+      const candidatesWithScores = [];
 
       if (waitingUsers.length > 0) {
         console.log(`[QUEUE STATUS] Found potential matches for ${user.email}, calculating similarity scores`);

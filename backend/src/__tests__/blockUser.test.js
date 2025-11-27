@@ -23,15 +23,18 @@ describe('Block User Feature', () => {
         // Create actual users in database
         user1 = await User.create({
             email: 'user1@test.com',
-            username: 'user1'
+            username: 'user1',
+            course: 'Computer Science' // Add course for matching score
         });
         user2 = await User.create({
             email: 'user2@test.com',
-            username: 'user2'
+            username: 'user2',
+            course: 'Computer Science' // Add course for matching score
         });
         user3 = await User.create({
             email: 'user3@test.com',
-            username: 'user3'
+            username: 'user3',
+            course: 'Computer Science' // Add course for matching score
         });
 
         // Generate JWT tokens for each user
