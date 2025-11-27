@@ -8,7 +8,7 @@ export default function MatchIntroPage() {
     <div className="min-h-[calc(100vh-4rem)] bg-[#286633] text-white relative overflow-hidden">
 
       {/* Content */}
-  <div className="flex flex-col items-center justify-center min-h-[calc(100vh-4rem)] px-6">
+  <div className="flex flex-col items-center justify-center min-h-[calc(100vh-4rem)] px-6">    
         {/* Center icon (simple bow/arrow style) */}
         <svg
           viewBox="0 0 64 64"
@@ -34,7 +34,7 @@ export default function MatchIntroPage() {
             Start Matching
           </Link>
           <Link
-            href="/profile-setup"
+            href="/profile/interests?from=match"
             className="text-center bg-white text-green-800 font-semibold rounded-lg py-3 shadow hover:bg-white/90 transition-colors"
           >
             Select Interests

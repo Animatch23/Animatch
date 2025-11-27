@@ -10,7 +10,7 @@ export default function MatchQueuePage() {
   const router = useRouter();
   const [status, setStatus] = useState("joining");
   const [error, setError] = useState("");
-  const [position, setPosition] = useState(null);
+  const [matchingStatus, setMatchingStatus] = useState(null);
   const [isCancelling, setIsCancelling] = useState(false);
   const authTokenRef = useRef("");
   const pollTimerRef = useRef(null);
@@ -72,7 +72,7 @@ export default function MatchQueuePage() {
         }
 
         setStatus("waiting");
-        setPosition(typeof data.position === "number" ? data.position : null);
+        setMatchingStatus(data.matchingStatus || null);
       } catch (err) {
         if (isUnmountedRef.current) {
           return;
@@ -126,7 +126,7 @@ export default function MatchQueuePage() {
         }
 
         setStatus("waiting");
-        setPosition(typeof data.position === "number" ? data.position : null);
+        setMatchingStatus(data.matchingStatus || null);
         pollTimerRef.current = window.setInterval(pollStatus, POLL_INTERVAL_MS);
       } catch (err) {
         if (isUnmountedRef.current) {
@@ -188,9 +188,11 @@ export default function MatchQueuePage() {
       case "joining":
         return "Joining the queue...";
       case "waiting":
-        return position && position > 1
-          ? `You are in the queue (position ${position}).`
-          : "Looking for a great match...";
+        // If in similarity mode and best match is below threshold
+        if (matchingStatus?.mode === 'similarity' && matchingStatus?.belowThreshold) {
+          return "Finding a Better Match...";
+        }
+        return "Looking for a great match...";
       case "matched":
         return "Match found! Connecting you now...";
       case "error":
@@ -259,11 +261,6 @@ export default function MatchQueuePage() {
           {error && (
             <div className="rounded-md border border-red-100 bg-red-50/80 px-4 py-3 text-sm text-red-900">
               {error}
-            </div>
-          )}
-          {status === "waiting" && position && position > 1 && (
-            <div className="text-sm text-white/80">
-              Hang tight! There {position === 2 ? "is" : "are"} {position - 1} {position - 1 === 1 ? "person" : "people"} ahead of you.
             </div>
           )}
         </div>
