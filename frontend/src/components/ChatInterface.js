@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { io } from "socket.io-client";
+import ReportModal from "./ReportModal";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL;
 const SOCKET_BASE = process.env.NEXT_PUBLIC_SOCKET_URL || API_BASE;
@@ -34,6 +35,8 @@ export default function ChatInterface({
   const [feedback, setFeedback] = useState(null);
   const [saveStatus, setSaveStatus] = useState({ currentUserSaved: false, partnerSaved: false, bothSaved: false });
   const [partnerLeft, setPartnerLeft] = useState(false);
+  const [isReportModalOpen, setIsReportModalOpen] = useState(false);
+  const [isReporting, setIsReporting] = useState(false);
 
   const socketRef = useRef(null);
   const messagesEndRef = useRef(null);
@@ -390,8 +393,51 @@ export default function ChatInterface({
     }
   };
 
+  const handleReportUser = async ({ reason, description }) => {
+    if (!API_BASE || !token) return;
+
+    try {
+      setIsReporting(true);
+      const response = await fetch(`${API_BASE}/api/reports`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          chatSessionId,
+          reason,
+          description,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to submit report");
+      }
+
+      setFeedback({
+        type: "success",
+        message: "Report submitted successfully. Admins will review it shortly.",
+      });
+      setIsReportModalOpen(false);
+    } catch (err) {
+      setFeedback({
+        type: "error",
+        message: "Failed to submit report. Please try again.",
+      });
+    } finally {
+      setIsReporting(false);
+    }
+  };
+
   return (
     <div className="flex flex-col min-h-[calc(100vh-4rem)] bg-gray-50">
+      <ReportModal
+        isOpen={isReportModalOpen}
+        onClose={() => setIsReportModalOpen(false)}
+        onSubmit={handleReportUser}
+        isSubmitting={isReporting}
+      />
       <header className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
         <div>
           <h1 className="text-lg font-semibold text-gray-900">
@@ -406,6 +452,13 @@ export default function ChatInterface({
           )}
         </div>
         <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={() => setIsReportModalOpen(true)}
+            className="h-9 px-4 rounded-md text-sm font-medium shadow-sm bg-gray-100 text-gray-700 hover:bg-gray-200"
+          >
+            Report User
+          </button>
           <button
             type="button"
             onClick={handleSaveChat}

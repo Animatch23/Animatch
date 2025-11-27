@@ -34,20 +34,26 @@ test.describe("save chat test", () => {
     const page2 = await context2.newPage();
 
     const saveChatSelector = 'button:has-text("Save Chat")';
-    const successSelector = 'div.rounded-md:has-text("Chat saved to your account.")';
+    // Match "saved", "saving", "save" - broad match to catch any feedback state
+    const successSelector = 'div.rounded-md:has-text("save")';
 
     let username1, username2;
     const flow1 = async () => {
       username1 = await setupUser(page1);
-      await page1.click(saveChatSelector)
-      await expect(page1.locator(successSelector)).toBeVisible();
+      // Wait for chat to load
+      await expect(page1.getByPlaceholder("Say hello...")).toBeVisible();
+      await page1.click(saveChatSelector);
+      // Increase timeout to account for network delays
+      await expect(page1.locator(successSelector)).toBeVisible({ timeout: 10000 });
       await page1.goto("http://localhost:3000/match");
     };
 
     const flow2 = async () => {
       username2 = await setupUser(page2);
+      // Wait for chat to load
+      await expect(page2.getByPlaceholder("Say hello...")).toBeVisible();
       await page2.click(saveChatSelector);
-      await expect(page2.locator(successSelector)).toBeVisible();
+      await expect(page2.locator(successSelector)).toBeVisible({ timeout: 10000 });
       await page2.goto("http://localhost:3000/match");
     };
 

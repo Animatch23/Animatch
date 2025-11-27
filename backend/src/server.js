@@ -16,6 +16,7 @@ import uploadRoutes from "./routes/uploadRoute.js";
 import termRoutes from "./routes/termsRoutes.js";
 import matchRoutes from "./routes/matchRoutes.js";
 import chatRoutes from "./routes/chatRoutes.js";
+import reportRoutes from "./routes/reportRoutes.js";
 import ChatSession from "./models/ChatSession.js";
 import Message from "./models/Message.js";
 import User from "./models/User.js";
@@ -171,6 +172,7 @@ app.use('/api/test-uploads', express.static('test-uploads'));
 app.use("/api/terms", termRoutes);
 app.use("/api", matchRoutes);
 app.use("/api/chat", chatRoutes);
+app.use("/api/reports", reportRoutes);
 
 // API ping route
 app.get("/api/ping", (req, res) => res.json({ pong: true, api: true, timestamp: new Date().toISOString() }));
@@ -384,7 +386,7 @@ const start = async () => {
   } catch (err) {
     console.error('\n╔═══════════════════════════════════════════════════════════════════╗');
     console.error('║  ❌ FATAL ERROR - SERVER FAILED TO START                          ║');
-    console.error('╚═══════════════════════════════════════════════════════════════════╝');
+    console.error('╚═══════════════════════════════════════════════════════════════════');
     console.error('Error Message:', err.message);
     console.error('Stack Trace:', err.stack);
     process.exit(1);

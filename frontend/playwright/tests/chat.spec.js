@@ -38,7 +38,7 @@ test.describe("chat test", () => {
       await page1.getByRole("button", { name: "Send" }).click();
 
       await expect(
-        page1.locator("div.bg-white").filter({ hasText: "Hello" })
+        page1.locator("div.rounded-2xl").filter({ hasText: "Hello" })
       ).toBeVisible();
     };
 
@@ -50,7 +50,7 @@ test.describe("chat test", () => {
       await page2.getByRole("button", { name: "Send" }).click();
 
       await expect(
-        page2.locator("div.bg-white").filter({ hasText: "Hello" })
+        page2.locator("div.rounded-2xl").filter({ hasText: "Hello" })
       ).toBeVisible();
     };
 

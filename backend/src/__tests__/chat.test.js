@@ -6,6 +6,7 @@ import ChatSession from '../models/ChatSession.js';
 import User from '../models/User.js';
 
 beforeAll(async () => {
+    process.env.USE_REAL_DB = 'true';
     await mongoose.connect(process.env.MONGO_URL);
 });
 
