@@ -572,3 +572,40 @@ export const blockUser = async (req, res) => {
     res.status(500).json({ message: 'Failed to block user' });
   }
 };
+
+/**
+ * Notify active chat partner that user is logging out
+ * This allows the partner to see "Partner offline" status
+ */
+export const notifyLogout = async (req, res) => {
+  try {
+    const userId = req.user?.id;
+
+    if (!userId) {
+      return res.status(401).json({ message: 'User not authenticated' });
+    }
+
+    // Find any active chat sessions for this user
+    const activeChats = await ChatSession.find({
+      participants: userId,
+      active: true,
+      expiresAt: { $gt: new Date() }
+    });
+
+    const io = req.app.get('io');
+    
+    if (io && activeChats.length > 0) {
+      for (const chat of activeChats) {
+        io.to(chat._id.toString()).emit('chat:partner-offline', {
+          message: 'Your partner has logged out'
+        });
+        console.log(`[LOGOUT] Notified chat ${chat._id} that user ${userId} logged out`);
+      }
+    }
+
+    res.json({ message: 'Logout notification sent', chatsNotified: activeChats.length });
+  } catch (error) {
+    console.error('Error notifying logout:', error);
+    res.status(500).json({ message: 'Failed to notify logout' });
+  }
+};

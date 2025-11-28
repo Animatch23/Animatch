@@ -248,6 +248,11 @@ io.on('connection', async (socket) => {
       socket.chatSessionId = chatSessionId;
       console.log(`[SOCKET] User ${socket.userId} successfully joined room ${chatSessionId}`);
       
+      // Notify partner that this user has joined/rejoined the chat
+      socket.to(chatSessionId).emit('chat:partner-joined', {
+        message: 'Your partner has joined the chat'
+      });
+      
       socket.emit('chat:joined', { 
         chatSessionId,
         userId: socket.userId,
@@ -318,16 +323,28 @@ io.on('connection', async (socket) => {
     }
   });
 
+  // Handle explicit logout notification
+  socket.on('chat:logout', () => {
+    console.log(`[SOCKET] User ${socket.userId} is logging out`);
+    
+    if (socket.chatSessionId) {
+      socket.to(socket.chatSessionId).emit('chat:partner-offline', {
+        message: 'Your partner has logged out'
+      });
+      console.log(`[SOCKET] Notified room ${socket.chatSessionId} that user ${socket.userId} logged out`);
+    }
+  });
+
   // Handle disconnection
   socket.on('disconnect', () => {
     console.log(`[SOCKET] User disconnected: ${socket.userId}`);
     
-    // Notify partner that user has disconnected from the chat room
+    // Notify partner that user has left the chat room (navigated away, not necessarily logged out)
     if (socket.chatSessionId) {
-      socket.to(socket.chatSessionId).emit('chat:partner-disconnected', {
-        message: 'Your partner has disconnected'
+      socket.to(socket.chatSessionId).emit('chat:partner-away', {
+        message: 'Your partner has navigated away from the chat'
       });
-      console.log(`[SOCKET] Notified room ${socket.chatSessionId} that user ${socket.userId} disconnected`);
+      console.log(`[SOCKET] Notified room ${socket.chatSessionId} that user ${socket.userId} navigated away`);
     }
   });
 });

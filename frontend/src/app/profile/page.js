@@ -54,7 +54,22 @@ export default function ProfilePage() {
     loadProfile();
   }, []);
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try {
+      // Notify any active chat partners that we're logging out
+      const token = localStorage.getItem("sessionToken");
+      if (token && process.env.NEXT_PUBLIC_API_URL) {
+        await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/chat/notify-logout`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }).catch(() => {}); // Ignore errors - logout should proceed regardless
+      }
+    } catch (err) {
+      // Ignore errors - logout should proceed regardless
+    }
+    
     // Clear all auth-related localStorage items
     localStorage.removeItem("sessionToken");
     localStorage.removeItem("userEmail");

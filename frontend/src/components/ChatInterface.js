@@ -48,7 +48,7 @@ export default function ChatInterface({
   const [feedback, setFeedback] = useState(null);
   const [saveStatus, setSaveStatus] = useState({ currentUserSaved: false, partnerSaved: false, bothSaved: false });
   const [partnerLeft, setPartnerLeft] = useState(false);
-  const [partnerOnline, setPartnerOnline] = useState(true); // Track partner's connection status
+  const [partnerOffline, setPartnerOffline] = useState(false); // Track if partner explicitly logged out
   const [showSavedChats, setShowSavedChats] = useState(false);
   const [isUnmatched, setIsUnmatched] = useState(false);
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
@@ -82,8 +82,8 @@ export default function ChatInterface({
     // Reset state when chat session changes
     setSaveStatus({ currentUserSaved: false, partnerSaved: false, bothSaved: false });
     setFeedback(null);
-    setPartnerOnline(true); // Assume partner is online when switching chats
     setPartnerLeft(false);
+    setPartnerOffline(false);
     
     // Fetch current save status from backend to handle reloads (Design consideration #1)
     if (API_BASE && chatSessionId && token) {
@@ -198,7 +198,6 @@ export default function ChatInterface({
 
     setConnectionStatus("connecting");
     setPartnerTyping(false);
-    setPartnerOnline(true); // Assume partner is online when connecting to new chat
 
     const socket = io(socketUrl, {
       transports: ["websocket"],
@@ -239,11 +238,6 @@ export default function ChatInterface({
         ? payload.senderId === currentUserIdRef.current
         : false;
       
-      // If message is from partner, they're online
-      if (!isOwnMessage) {
-        setPartnerOnline(true);
-      }
-      
       const message = {
         id: messageId,
         content: payload.content,
@@ -261,10 +255,6 @@ export default function ChatInterface({
 
     socket.on("chat:typing", ({ isTyping }) => {
       setPartnerTyping(Boolean(isTyping));
-      // If partner is typing, they're online
-      if (isTyping) {
-        setPartnerOnline(true);
-      }
     });
 
     socket.on("chat:partner-saved", ({ savedByCount, isSaved }) => {
@@ -329,10 +319,22 @@ export default function ChatInterface({
       setIsUnmatched(true);
     });
 
-    // Handle partner disconnection (e.g., logout, closed browser, network issue)
-    socket.on("chat:partner-disconnected", () => {
-      setPartnerOnline(false);
-      setPartnerTyping(false); // Clear typing indicator when partner disconnects
+    // Handle partner navigating away from chat (e.g., went to profile page)
+    // We just clear typing indicator but don't change connection status display
+    socket.on("chat:partner-away", () => {
+      setPartnerTyping(false); // Clear typing indicator when partner navigates away
+    });
+
+    // Handle partner explicitly logging out
+    socket.on("chat:partner-offline", () => {
+      setPartnerOffline(true);
+      setPartnerTyping(false);
+    });
+
+    // Handle partner joining/rejoining the chat room
+    socket.on("chat:partner-joined", () => {
+      // Partner is back - clear offline status
+      setPartnerOffline(false);
     });
 
     socket.on("disconnect", () => {
@@ -433,11 +435,11 @@ export default function ChatInterface({
     // First check our own connection status
     switch (connectionStatus) {
       case "connected":
-        // Our connection is good - now show partner status
+        // Our connection is good - check partner status
         if (partnerLeft) {
           return "Partner left";
         }
-        if (!partnerOnline) {
+        if (partnerOffline) {
           return "Partner offline";
         }
         return "Connected";
@@ -449,7 +451,7 @@ export default function ChatInterface({
       default:
         return "Connecting";
     }
-  }, [connectionStatus, partnerOnline, partnerLeft]);
+  }, [connectionStatus, partnerLeft, partnerOffline]);
 
   const statusColor = useMemo(() => {
     switch (connectionStatus) {
@@ -457,7 +459,7 @@ export default function ChatInterface({
         if (partnerLeft) {
           return "text-rose-600";
         }
-        if (!partnerOnline) {
+        if (partnerOffline) {
           return "text-yellow-600";
         }
         return "text-green-600";
@@ -468,7 +470,7 @@ export default function ChatInterface({
       default:
         return "text-gray-500";
     }
-  }, [connectionStatus, partnerOnline, partnerLeft]);
+  }, [connectionStatus, partnerLeft, partnerOffline]);
 
   function stopTypingNotification() {
     if (socketRef.current && hasSentTypingRef.current) {
