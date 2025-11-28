@@ -3,16 +3,21 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import GamificationStats from "../../components/GamificationStats";
 
 export default function ProfilePage() {
   const router = useRouter();
   const [profile, setProfile] = useState({ username: "", hasPhoto: false, profilePicture: null });
   const [isLoading, setIsLoading] = useState(true);
+  const [token, setToken] = useState(null);
 
   useEffect(() => {
     const loadProfile = async () => {
       try {
         const email = localStorage.getItem("userEmail");
+        const storedToken = localStorage.getItem("sessionToken");
+        setToken(storedToken);
+        
         if (!email) {
           setIsLoading(false);
           return;
@@ -122,6 +127,13 @@ export default function ProfilePage() {
             </div>
           </div>
         </div>
+        )}
+        
+        {/* US-15: Gamification Stats Section */}
+        {!isLoading && token && (
+          <div className="mt-6">
+            <GamificationStats token={token} />
+          </div>
         )}
       </div>
     </div>

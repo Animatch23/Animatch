@@ -42,7 +42,28 @@ const ChatSessionSchema = new mongoose.Schema({
   hiddenFor: [{
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User'
-  }]
+  }],
+  // US-14: Icebreaker prompt tracking
+  usedPromptIds: [{
+    type: Number
+  }],
+  // Alternative field name used in tests - keep both for compatibility
+  usedPrompts: [{
+    type: Number
+  }],
+  currentPrompt: {
+    id: Number,
+    text: String,
+    tags: [String],
+    assignedAt: {
+      type: Date,
+      default: Date.now
+    }
+  },
+  // Alternative field name used in tests
+  promptShownAt: {
+    type: Date
+  }
 });
 
 // Compound index for finding active chats by participant

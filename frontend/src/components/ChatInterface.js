@@ -60,6 +60,12 @@ export default function ChatInterface({
   const [reportOpen, setReportOpen] = useState(false);
   const [reportReason, setReportReason] = useState("");
   const [statusLog, setStatusLog] = useState([]);
+  // US-14: Icebreaker prompt state
+  const [icebreakerPrompt, setIcebreakerPrompt] = useState(null);
+  const [isLoadingPrompt, setIsLoadingPrompt] = useState(false);
+  // US-15: Gamification notifications
+  const [newBadges, setNewBadges] = useState([]);
+  const [showBadgeNotification, setShowBadgeNotification] = useState(false);
 
   const router = useRouter();
 
@@ -129,6 +135,62 @@ export default function ChatInterface({
         .catch(err => console.error("Failed to fetch save status:", err));
     }
   }, [chatSessionId, token, partnerUsername]);
+
+  // US-14: Fetch icebreaker prompt when chat session loads
+  useEffect(() => {
+    if (!API_BASE || !chatSessionId || !token) return;
+    
+    const fetchIcebreakerPrompt = async () => {
+      try {
+        setIsLoadingPrompt(true);
+        const response = await fetch(`${API_BASE}/api/prompts/session/${chatSessionId}`, {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success && data.prompt) {
+            setIcebreakerPrompt(data.prompt);
+          }
+        }
+      } catch (err) {
+        console.error("Failed to fetch icebreaker prompt:", err);
+      } finally {
+        setIsLoadingPrompt(false);
+      }
+    };
+
+    fetchIcebreakerPrompt();
+  }, [chatSessionId, token]);
+
+  // US-14: Refresh icebreaker prompt
+  const refreshIcebreakerPrompt = async () => {
+    if (!API_BASE || !chatSessionId || !token) return;
+    
+    try {
+      setIsLoadingPrompt(true);
+      const response = await fetch(`${API_BASE}/api/prompts/session/${chatSessionId}/refresh`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.prompt) {
+          setIcebreakerPrompt(data.prompt);
+        }
+      }
+    } catch (err) {
+      console.error("Failed to refresh icebreaker prompt:", err);
+    } finally {
+      setIsLoadingPrompt(false);
+    }
+  };
 
   useEffect(() => {
     const toggleSavedChatsListener = () => {
@@ -335,6 +397,16 @@ export default function ChatInterface({
     socket.on("chat:partner-joined", () => {
       // Partner is back - clear offline status
       setPartnerOffline(false);
+    });
+
+    // US-15: Listen for badge notifications
+    socket.on("gamification:badges-earned", (data) => {
+      if (data.badges && data.badges.length > 0) {
+        setNewBadges(data.badges);
+        setShowBadgeNotification(true);
+        // Auto-hide after 5 seconds
+        setTimeout(() => setShowBadgeNotification(false), 5000);
+      }
     });
 
     socket.on("disconnect", () => {
@@ -927,6 +999,57 @@ export default function ChatInterface({
 
       <main className="flex-1 overflow-y-auto px-6 py-6">
         <div className="flex flex-col gap-3">
+          {/* US-14: Icebreaker Prompt Card */}
+          {icebreakerPrompt && (
+            <div className="self-center max-w-md w-full mb-4">
+              <div className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-2xl p-4 shadow-sm">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg">💡</span>
+                    <span className="text-sm font-medium text-green-700">Icebreaker</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={refreshIcebreakerPrompt}
+                    disabled={isLoadingPrompt}
+                    className="text-xs text-green-600 hover:text-green-800 disabled:opacity-50 flex items-center gap-1"
+                  >
+                    <svg className={`w-3 h-3 ${isLoadingPrompt ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                    New prompt
+                  </button>
+                </div>
+                <p className="text-gray-800 text-center font-medium">
+                  &quot;{icebreakerPrompt.text}&quot;
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* US-15: Badge Notification Toast */}
+          {showBadgeNotification && newBadges.length > 0 && (
+            <div className="fixed top-4 right-4 z-50 animate-in slide-in-from-right">
+              <div className="bg-gradient-to-r from-yellow-400 to-amber-500 text-white rounded-xl p-4 shadow-lg max-w-sm">
+                <div className="flex items-center gap-3">
+                  <span className="text-3xl">{newBadges[0].icon || '🏆'}</span>
+                  <div>
+                    <p className="font-bold">Badge Earned!</p>
+                    <p className="text-sm opacity-90">{newBadges[0].name}</p>
+                    <p className="text-xs opacity-75">{newBadges[0].description}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowBadgeNotification(false)}
+                    className="ml-auto text-white/70 hover:text-white"
+                  >
+                    ✕
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
           {messages.map((message) => (
             <div
               key={message.id}
