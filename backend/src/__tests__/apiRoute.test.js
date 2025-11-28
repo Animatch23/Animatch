@@ -38,20 +38,23 @@ describe('Auth Middleware Unit Tests', () => {
     expect(mockNext).not.toHaveBeenCalled();
   });
 
-  test('should return 403 if token is invalid', () => {
+  test('should return 403 if token is invalid', async () => {
+    const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
     mockReq.headers.authorization = 'Bearer invalid-token';
     jwt.verify = jest.fn().mockImplementation(() => {
       throw new Error('Invalid token');
     });
 
-    authMiddleware(mockReq, mockRes, mockNext);
+    await authMiddleware(mockReq, mockRes, mockNext);
 
     expect(mockRes.status).toHaveBeenCalledWith(403);
     expect(mockRes.json).toHaveBeenCalledWith({ message: 'Invalid token' });
     expect(mockNext).not.toHaveBeenCalled();
+    
+    consoleSpy.mockRestore();
   });
 
-  test('should call next() if token is valid', () => {
+  test('should call next() if token is valid', async () => {
     const mockDecoded = { email: 'test@dlsu.edu.ph', name: 'Test User' };
     mockReq.headers.authorization = 'Bearer valid-token';
     jwt.verify = jest.fn().mockReturnValue(mockDecoded);

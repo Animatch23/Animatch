@@ -1,5 +1,11 @@
 describe('Profile-Setup', () => {
   beforeEach(() => {
+    // Mock session storage to bypass auth check
+    cy.window().then((win) => {
+      win.sessionStorage.setItem('pendingEmail', 'test@example.com');
+      win.sessionStorage.setItem('pendingToken', 'mock-token-123');
+      win.sessionStorage.setItem('termsAccepted', 'true');
+    });
     cy.visit('/profile-setup');
   });
 

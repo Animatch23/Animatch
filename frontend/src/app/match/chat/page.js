@@ -75,6 +75,7 @@ function ChatContent() {
               setChatInfo({
                 chatSessionId: data.chatSessionId,
                 partnerUsername: data.partnerUsername || "Match Partner",
+                partnerId: data.partnerId,
                 currentUserId: data.currentUserId || "",
               });
             }
@@ -137,6 +138,7 @@ function ChatContent() {
     <ChatInterface
       chatSessionId={chatInfo.chatSessionId}
       partnerUsername={chatInfo.partnerUsername}
+      partnerId={chatInfo.partnerId}
       currentUserId={chatInfo.currentUserId}
       token={token}
       onChatEnded={handleChatEnded}

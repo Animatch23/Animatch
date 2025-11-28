@@ -29,6 +29,7 @@ const formatBytes = (bytes) => {
 export default function ChatInterface({
   chatSessionId,
   partnerUsername,
+  partnerId,
   token,
   currentUserId,
   onChatEnded,
@@ -42,6 +43,7 @@ export default function ChatInterface({
   const [error, setError] = useState("");
   const [partnerTyping, setPartnerTyping] = useState(false);
   const [isEnding, setIsEnding] = useState(false);
+  const [isBlocking, setIsBlocking] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [feedback, setFeedback] = useState(null);
   const [saveStatus, setSaveStatus] = useState({ currentUserSaved: false, partnerSaved: false, bothSaved: false });
@@ -473,11 +475,6 @@ export default function ChatInterface({
     setShowActionMenu(false);
     setReportOpen(true);
   };
-  
-  const handleConfirmBlock = () => {
-    setConfirmBlockOpen(false);
-    setStatusLog((prev) => [...prev, "User blocked (UI-only)."]);
-  };
 
   const handleSubmitReport = () => {
     const reason = reportReason.trim();
@@ -487,6 +484,10 @@ export default function ChatInterface({
       ...prev,
       reason ? `Report submitted: ${reason}` : "Report submitted.",
     ]);
+  };
+
+  const handleNextChat = () => {
+    router.push("/match");
   };
 
   const handleLeaveChat = async () => {
@@ -571,24 +572,36 @@ export default function ChatInterface({
     }
   };
 
-  // US #6: Next Chat - Navigate to queue to find new match
-  const handleNextChat = async () => {
+  const handleBlockUser = async () => {
+    if (!API_BASE || !token || !partnerId) return;
+
     try {
-      setStatusLog((prev) => [...prev, "Starting new match..."]);
-      
-      // End current chat via API
-      if (API_BASE && token && chatSessionId) {
-        await fetch(`${API_BASE}/api/chat/${chatSessionId}/end`, {
-          method: "POST",
-          headers: { Authorization: `Bearer ${token}` },
-        });
+      setIsBlocking(true);
+      const response = await fetch(`${API_BASE}/api/chat/block`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ userIdToBlock: partnerId }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.message || "Failed to block user");
       }
-      
-      // Navigate to queue page for new match
-      router.push("/match/queue");
-    } catch (error) {
-      console.error("Error starting next chat:", error);
-      setStatusLog((prev) => [...prev, "Error. Please try again."]);
+
+      setConfirmBlockOpen(false);
+
+      // Blocking also ends the chat
+      if (typeof onChatEnded === "function") {
+        onChatEnded();
+      }
+    } catch (err) {
+      console.error("Failed to block user", err);
+      alert(err instanceof Error ? err.message : "Failed to block user");
+    } finally {
+      setIsBlocking(false);
     }
   };
 
@@ -902,10 +915,11 @@ export default function ChatInterface({
               </button>
               <button
                 type="button"
-                onClick={handleConfirmBlock}
-                className="flex-1 bg-rose-600 hover:bg-rose-700 text-white py-3 rounded-2xl"
+                onClick={handleBlockUser} // <--- NEW (Correct)
+                disabled={isBlocking}     // <--- Add disabled state so they can't spam click
+                className="flex-1 bg-rose-600 hover:bg-rose-700 text-white py-3 rounded-2xl disabled:opacity-70"
               >
-                Block
+                {isBlocking ? "Blocking..." : "Block"}
               </button>
             </div>
           </div>

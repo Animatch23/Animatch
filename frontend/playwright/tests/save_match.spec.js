@@ -172,10 +172,14 @@ test.describe("save chat test", () => {
   });
 
   test("save chat", async () => {
-    test.setTimeout(60000); // Increase timeout to 60 seconds
-    
-    const browser1 = await chromium.launch();
-    const context1 = await browser1.newContext();
+    test.setTimeout(60000);
+    const browser = await chromium.launch();
+
+    const context1 = await browser.newContext();
+    const context2 = await browser.newContext();
+    const context3 = await browser.newContext();
+    const context4 = await browser.newContext();
+
     const page1 = await context1.newPage();
 
     const browser2 = await chromium.launch();
@@ -183,8 +187,7 @@ test.describe("save chat test", () => {
     const page2 = await context2.newPage();
 
     const saveChatSelector = 'button:has-text("Save Chat")';
-    // Look for either success message (waiting for partner OR both saved)
-    const successSelector = 'div.p-2.text-sm.rounded span';
+    const successSelector = 'div.rounded-md:has-text("Match saved! Both of you have saved this chat.")';
 
     let username1, username2;
     const flow1 = async () => {

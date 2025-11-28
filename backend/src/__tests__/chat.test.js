@@ -4,13 +4,14 @@ import jwt from 'jsonwebtoken';
 import app from '../server.js';
 import ChatSession from '../models/ChatSession.js';
 import User from '../models/User.js';
+import { connectTestDB, disconnectTestDB } from '../utils/testDb.js';
 
 beforeAll(async () => {
-    await mongoose.connect(process.env.MONGO_URL);
+    await connectTestDB();
 });
 
 afterAll(async () => {
-    await mongoose.disconnect();
+    await disconnectTestDB();
 });
 
 describe('POST /api/chat/:sessionId/save', () => {

@@ -1,5 +1,6 @@
 import ChatSession from '../models/ChatSession.js';
 import Message from '../models/Message.js';
+import User from '../models/User.js';
 
 /**
  * Get active chat session for current user
@@ -29,6 +30,7 @@ export const getActiveChat = async (req, res) => {
     res.json({
       chatSessionId: chatSession._id,
       partnerUsername: partner?.username || 'Anonymous',
+      partnerId: partner?._id,
       startedAt: chatSession.startedAt,
       expiresAt: chatSession.expiresAt,
       active: chatSession.active,
@@ -243,5 +245,57 @@ export const saveChatSession = async (req, res) => {
   } catch (error) {
     console.error('Error saving chat session:', error);
     res.status(500).json({ message: 'Failed to save chat session' });
+  }
+};
+
+/**
+ * Block a user
+ */
+export const blockUser = async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    const { userIdToBlock } = req.body;
+
+    if (!userId) {
+      return res.status(401).json({ message: 'User not authenticated' });
+    }
+
+    if (!userIdToBlock) {
+      return res.status(400).json({ message: 'User ID to block is required' });
+    }
+
+    if (userId.toString() === userIdToBlock.toString()) {
+        return res.status(400).json({ message: 'Cannot block yourself' });
+    }
+
+    // Add to blocked list
+    await User.findByIdAndUpdate(userId, {
+      $addToSet: { blockedUsers: userIdToBlock }
+    });
+
+    // End any active chat with this user
+    const chatSession = await ChatSession.findOne({
+      participants: { $all: [userId, userIdToBlock] },
+      active: true
+    });
+
+    if (chatSession) {
+      chatSession.active = false;
+      chatSession.endedAt = new Date();
+      await chatSession.save();
+      
+      // Notify partner they were blocked/chat ended
+      const io = req.app.get('io');
+      if (io) {
+        io.to(chatSession._id.toString()).emit('chat:partner-left', {
+          message: 'User has left the chat'
+        });
+      }
+    }
+
+    res.json({ message: 'User blocked successfully' });
+  } catch (error) {
+    console.error('Error blocking user:', error);
+    res.status(500).json({ message: 'Failed to block user' });
   }
 };

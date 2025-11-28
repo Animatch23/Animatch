@@ -120,11 +120,16 @@ export const joinQueue = async (req, res) => {
       console.log(`[QUEUE JOIN] ⏰ User ${user.email} has been waiting ${timeInQueue.toFixed(1)}s (>= ${SIMILARITY_TIMEOUT_SECONDS}s), switching to random matching`);
     }
 
-    // Try to find a match - look for waiting users and calculate similarity
+    // Get blocked users lists
+    const blockedUsers = user.blockedUsers || [];
+    const usersWhoBlockedMe = await User.find({ blockedUsers: userId }).distinct('_id');
+    const excludedUserIds = [userId, ...blockedUsers, ...usersWhoBlockedMe];
+
+    // Try to find a match - look for ANY waiting user except excluded ones
     const waitingUsers = await Queue.find({
       status: 'waiting',
-      userId: { $ne: userId }
-    }).sort({ createdAt: 1 }).limit(50); // Get more candidates for better matching
+      userId: { $nin: excludedUserIds }
+    }).sort({ createdAt: 1 }).limit(10); // Get multiple candidates
 
     if (waitingUsers.length === 0) {
       console.log(`[QUEUE JOIN] No match found for ${user.email}, staying in queue`);
@@ -288,24 +293,30 @@ export const getQueueStatus = async (req, res) => {
     // Check queue position
     const queueEntry = await Queue.findOne({ userId });
     if (queueEntry) {
-      // Calculate time in queue for timeout logic
+      // Calculate time in queue
       const now = new Date();
       const timeInQueue = (now - queueEntry.createdAt) / 1000; // Time in seconds
+      
+      // Determine matching strategy
       const SIMILARITY_TIMEOUT_SECONDS = 30;
-      const MINIMUM_SIMILARITY_THRESHOLD = 20; // Don't match below this score unless timeout
+      const MINIMUM_SIMILARITY_THRESHOLD = 20;
       const useRandomMatching = timeInQueue >= SIMILARITY_TIMEOUT_SECONDS;
 
       if (useRandomMatching) {
         console.log(`[QUEUE STATUS] ⏰ User ${user.email} has been waiting ${timeInQueue.toFixed(1)}s (>= ${SIMILARITY_TIMEOUT_SECONDS}s), switching to random matching`);
       }
 
+      // Get blocked users lists
+      const blockedUsers = user.blockedUsers || [];
+      const usersWhoBlockedMe = await User.find({ blockedUsers: userId }).distinct('_id');
+      const excludedUserIds = [userId, ...blockedUsers, ...usersWhoBlockedMe];
+
       // Try to find a match while checking status
       const waitingUsers = await Queue.find({
         status: 'waiting',
-        userId: { $ne: userId }
-      }).sort({ createdAt: 1 }).limit(50); // Get more candidates for better matching
+        userId: { $nin: excludedUserIds }
+      }).sort({ createdAt: 1 }).limit(10);
 
-      // Calculate similarity scores for all candidates
       const candidatesWithScores = [];
 
       if (waitingUsers.length > 0) {

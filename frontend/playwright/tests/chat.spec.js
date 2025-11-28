@@ -158,10 +158,11 @@ test.describe("chat test", () => {
   });
 
   test("chat", async () => {
-    test.setTimeout(120000); // Increase timeout to 120 seconds
-    
-    const browser1 = await chromium.launch();
-    const context1 = await browser1.newContext();
+    const browser = await chromium.launch();
+
+    const context1 = await browser.newContext();
+    const context2 = await browser.newContext();
+
     const page1 = await context1.newPage();
 
     const browser2 = await chromium.launch();

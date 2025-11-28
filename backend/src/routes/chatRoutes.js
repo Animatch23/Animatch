@@ -5,7 +5,8 @@ import {
   getChatHistory,
   endChatSession,
   leaveChatSession,
-  saveChatSession
+  saveChatSession,
+  blockUser
 } from '../controllers/chatController.js';
 import {
   joinQueue,
@@ -27,5 +28,6 @@ router.get('/:chatSessionId/history', authenticate, getChatHistory);
 router.post('/:chatSessionId/end', authenticate, endChatSession);
 router.post('/:chatSessionId/leave', authenticate, leaveChatSession);
 router.post('/:chatSessionId/save', authenticate, saveChatSession);
+router.post('/block', authenticate, blockUser);
 
 export default router;
