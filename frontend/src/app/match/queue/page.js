@@ -54,23 +54,14 @@ export default function MatchQueuePage() {
             </g>
           </svg>
 
-          {/* Center icon */}
+          {/* Center logo */}
           <div className="absolute inset-0 flex items-center justify-center">
-            <svg
-              viewBox="0 0 64 64"
-              className="w-16 h-16 text-white"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="3"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
-            >
-              <path d="M10 40 C24 22, 42 22, 54 40" />
-              <path d="M10 40 L32 32" />
-              <path d="M54 40 L32 32" />
-              <path d="M50 28 l8 -2 l-2 8" />
-            </svg>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/animatch-logo-2.png"
+              alt="AniMatch Logo"
+              className="w-16 h-16 object-contain"
+            />
           </div>
         </div>
         {/* Helper text under spinner */}

@@ -34,6 +34,41 @@ export default function ChatInterface({ onDisconnect }) {
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+  // Icebreaker prompt state
+  const [icePrompt, setIcePrompt] = useState(null); // {id, text}
+  const [iceExcluded, setIceExcluded] = useState([]);
+  const [iceVisible, setIceVisible] = useState(false);
+
+  const fetchIcebreaker = async (excludeIds = []) => {
+    try {
+      const sessionId = "demo-session"; // replace with real session id when available
+      const res = await fetch("/api/prompts/next", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionId, excludeIds })
+      });
+      if (!res.ok) throw new Error("Failed to fetch prompt");
+      const data = await res.json();
+      setIcePrompt(data);
+      setIceExcluded((prev) => [data.id, ...prev]);
+      setIceVisible(true);
+    } catch (e) {
+      // Dev fallback: show a sample prompt so UI can be previewed
+      const sample = { id: 0, text: "What’s your favorite spot on campus?" };
+      setIcePrompt(sample);
+      setIceVisible(true);
+      setStatusLog((prev) => [...prev, "Icebreaker shown using fallback sample (backend unavailable)."]);
+    }
+  };
+
+  // When chat connects, show icebreaker
+  useEffect(() => {
+    if (connectionStatus === "connected") {
+      fetchIcebreaker(iceExcluded);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [connectionStatus]);
+
 
   // Load saved chats from localStorage (seed with a demo item if empty)
   useEffect(() => {
@@ -50,6 +85,7 @@ export default function ChatInterface({ onDisconnect }) {
             { id: 1, text: "Hello!", sender: "me", timestamp: new Date() },
             { id: 2, text: "Hi there!", sender: "other", timestamp: new Date() }
           ],
+          streakDays: 3,
         };
         setSavedChats([demoChat]);
       }
@@ -112,6 +148,30 @@ export default function ChatInterface({ onDisconnect }) {
   const chatDisplayName = (chat) => {
     if (!chat) return "Juan Dela Cruz";
     return chat.name && !chat.name.startsWith("Saved chat") ? chat.name : "Juan Dela Cruz";
+  };
+
+  // Compute consecutive day streak ending on most recent message day.
+  const computeStreakDays = (messages = []) => {
+    if (!messages.length) return 0;
+    const daySet = new Set();
+    for (const m of messages) {
+      const d = new Date(m.timestamp);
+      // Normalize to YYYY-MM-DD
+      const key = d.getFullYear() + "-" + (String(d.getMonth() + 1).padStart(2, "0")) + "-" + String(d.getDate()).padStart(2, "0");
+      daySet.add(key);
+    }
+    // Find latest message date
+    const latest = new Date(Math.max(...messages.map(m => new Date(m.timestamp).getTime())));
+    let streak = 0;
+    let cursor = new Date(latest);
+    // Walk backward day by day while a day exists in set
+    while (true) {
+      const key = cursor.getFullYear() + "-" + (String(cursor.getMonth() + 1).padStart(2, "0")) + "-" + String(cursor.getDate()).padStart(2, "0");
+      if (!daySet.has(key)) break;
+      streak += 1;
+      cursor.setDate(cursor.getDate() - 1);
+    }
+    return streak;
   };
 
   const lastPreview = (chat) => {
@@ -413,14 +473,14 @@ export default function ChatInterface({ onDisconnect }) {
             {savedChats.length > 0 && visibleChats.length === 0 && (
               <p className="text-sm text-gray-500">No chats match your filter.</p>
             )}
-            {visibleChats.map((chat) => (
+            {savedChats.map((chat) => (
               <button
                 key={chat.id}
                 onClick={() => { loadChat(chat); setShowSidebar(false); }}
                 className="w-full text-left bg-white hover:bg-gray-50 rounded-xl shadow-sm border border-gray-200 p-3"
               >
                 <div className="flex items-center gap-4">
-                  {/* Avatar placeholder */}
+                  {/* Avatar placeholder (left) */}
                   <span className="flex items-center justify-center w-12 h-12 rounded-full bg-gray-200 text-gray-600 ring-2 ring-gray-300 shrink-0">
                     <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                       <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0z" />
@@ -431,6 +491,14 @@ export default function ChatInterface({ onDisconnect }) {
                     <div className="text-lg font-semibold text-gray-800">{chatDisplayName(chat)}</div>
                     <div className="text-sm text-gray-500 italic text-pretty break-words leading-snug max-h-12 overflow-hidden">{lastPreview(chat)}</div>
                   </div>
+                  {/* Streak badge (right) */}
+                  <span className="relative w-12 h-12 ml-auto">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src="/streak.png" alt="Streak" className="absolute inset-0 w-12 h-12 object-contain" />
+                    <span className="absolute inset-0 flex items-center justify-center text-sm font-bold text-white drop-shadow">
+                      {computeStreakDays(chat.messages)}
+                    </span>
+                  </span>
                 </div>
               </button>
             ))}
@@ -441,6 +509,46 @@ export default function ChatInterface({ onDisconnect }) {
         <div className="flex-1 flex flex-col overflow-hidden">
           {/* Messages Area */}
           <div className="flex-1 overflow-y-auto p-4 space-y-4">
+            {/* Icebreaker Card */}
+            {iceVisible && icePrompt && (
+              <div className="max-w-xl mx-auto border-2 border-brand-700/20 rounded-2xl p-4 bg-brand-50/40">
+                <p className="text-gray-800 text-base mb-2 font-semibold">Icebreaker prompt:</p>
+                <p className="text-gray-800 text-base mb-4">{icePrompt.text}</p>
+                <div className="flex gap-3 justify-center">
+                  <button
+                    type="button"
+                    className="px-4 py-2 rounded-full bg-brand-700 hover:bg-brand-600 text-white"
+                    onClick={() => {
+                      // Send prompt as a message
+                      const message = {
+                        id: messages.length + 1,
+                        text: icePrompt.text,
+                        sender: "me",
+                        timestamp: new Date()
+                      };
+                      setMessages((prev) => [...prev, message]);
+                      setIceVisible(false);
+                    }}
+                  >
+                    Send
+                  </button>
+                  <button
+                    type="button"
+                    className="px-4 py-2 rounded-full bg-danger-600/90 hover:bg-danger-600 text-white"
+                    onClick={() => fetchIcebreaker(iceExcluded)}
+                  >
+                    Generate Another
+                  </button>
+                  <button
+                    type="button"
+                    className="px-4 py-2 rounded-full bg-gray-300 text-white"
+                    onClick={() => setIceVisible(false)}
+                  >
+                    Dismiss
+                  </button>
+                </div>
+              </div>
+            )}
             {messages.map((message) => {
               const isMe = message.sender === "me";
               const bubbleBase = isMe ? "bg-green-600 text-white" : "bg-gray-300 text-gray-800";
