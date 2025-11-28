@@ -17,6 +17,15 @@ export default function ChatInterface({ onDisconnect }) {
   const [confirmBlockOpen, setConfirmBlockOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
   const [reportReason, setReportReason] = useState("");
+  const [statusLog, setStatusLog] = useState([]);
+  
+  // US #14: Icebreaker Prompts
+  const [icebreaker, setIcebreaker] = useState(null);
+  const [icebreakerLoading, setIcebreakerLoading] = useState(false);
+
+  const router = useRouter();
+
+  const socketRef = useRef(null);
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
   const menuCloseTimeoutRef = useRef(null);
@@ -34,6 +43,7 @@ export default function ChatInterface({ onDisconnect }) {
     setFeedback(null);
     setPartnerLeft(false);
     setPartnerOffline(false);
+    setIcebreaker(null); // Reset icebreaker when chat changes
     
     // Fetch current save status from backend to handle reloads (Design consideration #1)
     if (API_BASE && chatSessionId && token) {
@@ -56,12 +66,8 @@ export default function ChatInterface({ onDisconnect }) {
             });
             
             // Show persistent feedback messages based on saved state
-            if (data.isSaved) {
-              setFeedback({ 
-                type: "success", 
-                message: "🎉 Match saved! Both of you have saved this chat." 
-              });
-            } else if (partnerSavedButNotBoth) {
+            // Note: Don't show success message on reload - it should only appear once when saving
+            if (partnerSavedButNotBoth) {
               // Partner saved but current user hasn't - show notification to prompt user to save
               setFeedback({
                 type: "info",
@@ -74,6 +80,7 @@ export default function ChatInterface({ onDisconnect }) {
                 message: "✓ You saved the chat. Waiting for your partner to save..." 
               });
             }
+            // If bothSaved (data.isSaved), don't show any message on reload
           }
         })
         .catch(err => console.error("Failed to fetch save status:", err));
@@ -169,6 +176,36 @@ export default function ChatInterface({ onDisconnect }) {
       cancelled = true;
     };
   }, [chatSessionId, token]);
+
+  // US #14: Fetch icebreaker prompt for new chats
+  useEffect(() => {
+    if (!API_BASE || !chatSessionId || !token || isReadOnly) {
+      return;
+    }
+
+    const fetchIcebreaker = async () => {
+      try {
+        const response = await fetch(`${API_BASE}/api/icebreaker/${chatSessionId}`, {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        const data = await response.json().catch(() => ({}));
+
+        if (response.ok && data.prompt && !data.dismissed) {
+          setIcebreaker(data.prompt);
+        } else if (data.dismissed) {
+          setIcebreaker(null);
+        }
+      } catch (err) {
+        console.error("Failed to fetch icebreaker:", err);
+      }
+    };
+
+    fetchIcebreaker();
+  }, [chatSessionId, token, isReadOnly]);
 
   useEffect(() => {
     if (!socketUrl || !chatSessionId || !token) {
@@ -314,6 +351,15 @@ export default function ChatInterface({ onDisconnect }) {
     socket.on("chat:partner-joined", () => {
       // Partner is back - clear offline status
       setPartnerOffline(false);
+    });
+
+    // US #14: Handle icebreaker updates from partner
+    socket.on("icebreaker:updated", ({ prompt, dismissed }) => {
+      if (dismissed) {
+        setIcebreaker(null);
+      } else if (prompt) {
+        setIcebreaker(prompt);
+      }
     });
 
     socket.on("disconnect", () => {
@@ -736,6 +782,10 @@ export default function ChatInterface({ onDisconnect }) {
           type: "success", 
           message: "🎉 Match saved! Both of you have saved this chat." 
         });
+        // Auto-dismiss success message after 3 seconds
+        setTimeout(() => {
+          setFeedback(null);
+        }, 3000);
       } else {
         setFeedback({ 
           type: "waiting", 
@@ -749,6 +799,79 @@ export default function ChatInterface({ onDisconnect }) {
       });
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  // US #14: Refresh icebreaker prompt
+  const handleRefreshIcebreaker = async () => {
+    if (!API_BASE || !chatSessionId || !token || icebreakerLoading) return;
+
+    try {
+      setIcebreakerLoading(true);
+      const response = await fetch(`${API_BASE}/api/icebreaker/${chatSessionId}/refresh`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      const data = await response.json().catch(() => ({}));
+
+      if (response.ok && data.prompt) {
+        setIcebreaker(data.prompt);
+      } else if (data.message?.includes("used all available")) {
+        // All prompts used - dismiss the icebreaker
+        setIcebreaker(null);
+      }
+    } catch (err) {
+      console.error("Failed to refresh icebreaker:", err);
+    } finally {
+      setIcebreakerLoading(false);
+    }
+  };
+
+  // US #14: Dismiss icebreaker prompt
+  const handleDismissIcebreaker = async () => {
+    if (!API_BASE || !chatSessionId || !token) return;
+
+    try {
+      await fetch(`${API_BASE}/api/icebreaker/${chatSessionId}/dismiss`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      setIcebreaker(null);
+    } catch (err) {
+      console.error("Failed to dismiss icebreaker:", err);
+      // Still dismiss locally even if API fails
+      setIcebreaker(null);
+    }
+  };
+
+  // US #14: Show/restore icebreaker prompt
+  const handleShowIcebreaker = async () => {
+    if (!API_BASE || !chatSessionId || !token || icebreakerLoading) return;
+
+    try {
+      setIcebreakerLoading(true);
+      const response = await fetch(`${API_BASE}/api/icebreaker/${chatSessionId}/refresh`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      const data = await response.json().catch(() => ({}));
+
+      if (response.ok && data.prompt) {
+        setIcebreaker(data.prompt);
+      }
+    } catch (err) {
+      console.error("Failed to show icebreaker:", err);
+    } finally {
+      setIcebreakerLoading(false);
     }
   };
 
@@ -949,31 +1072,42 @@ export default function ChatInterface({ onDisconnect }) {
 
   return (
     <div className="flex flex-col min-h-[calc(100vh-4rem)] bg-gray-50">
-      {/* Chat actions below TopBar */}
-      <div className="bg-white border-b border-gray-200 px-4 py-2 flex items-center justify-end gap-2">
-        {/* Save Chat (UI only) */}
-        <button
-          type="button"
-          onClick={saveCurrentChat}
-          title="Save Chat (UI only)"
-          className="h-9 px-3 rounded-md bg-yellow-300 text-[#286633] flex items-center justify-center hover:brightness-95"
-        >
-          <span className="inline-flex items-center gap-2 text-sm font-medium">
-            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0z" />
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 14a7 7 0 00-7 7h7" />
-              <path strokeLinecap="round" strokeLinejoin="round" d="M19 7v6m3-3h-6" />
-            </svg>
-            Save chat
-          </span>
-        </button>
-
-        {/* Report/Block with hover menu (UI only) */}
-        <div
-          className="relative"
-          onMouseEnter={openMenu}
-          onMouseLeave={scheduleCloseMenu}
-        >
+      <ReportModal
+        isOpen={isReportModalOpen}
+        onClose={() => setIsReportModalOpen(false)}
+        onSubmit={handleReportUser}
+        isSubmitting={isReporting}
+      />
+      <header className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div>
+            <h1 className="text-lg font-semibold text-gray-900">
+              {partnerUsername || "Anonymous Match"}
+            </h1>
+            <p className={`text-sm ${statusColor}`}>{statusLabel}</p>
+            {partnerTyping && connectionStatus === "connected" && !partnerLeft && (
+              <p className="text-xs text-gray-500 mt-1">{partnerUsername || "Partner"} is typing...</p>
+            )}
+            {partnerLeft && (
+              <p className="text-xs text-rose-600 mt-1 font-medium">⚠️ Partner has left the chat</p>
+            )}
+          </div>
+        </div>
+        <div className="flex gap-2">
+          {/* US #14: Show Icebreaker button */}
+          {!icebreaker && !isReadOnly && (
+            <button
+              type="button"
+              onClick={handleShowIcebreaker}
+              disabled={icebreakerLoading || partnerLeft}
+              className="h-9 px-3 rounded-md bg-purple-500 text-white text-sm font-medium shadow-sm hover:bg-purple-600 disabled:opacity-60 disabled:cursor-not-allowed transition-colors flex items-center gap-1"
+              title="Show icebreaker prompt"
+            >
+              <span>💡</span>
+              {icebreakerLoading ? "..." : "Icebreaker"}
+            </button>
+          )}
+          {/* US #6: Next Chat button - to the left of Save Chat (AC1) */}
           <button
             type="button"
             aria-haspopup="true"
@@ -989,8 +1123,68 @@ export default function ChatInterface({ onDisconnect }) {
               Report / Block
             </span>
           </button>
+          <button
+            type="button"
+            onClick={handleSaveChat}
+            disabled={isSaving || saveStatus.bothSaved || partnerLeft}
+            className={`h-9 px-4 rounded-md text-sm font-medium shadow-sm transition-all ${
+              partnerLeft
+                ? "bg-gray-200 text-gray-600 cursor-not-allowed"
+                : saveStatus.bothSaved
+                ? "bg-green-100 text-green-700 cursor-not-allowed"
+                : saveStatus.currentUserSaved
+                ? "bg-blue-100 text-blue-700 cursor-wait"
+                : "bg-yellow-300 text-[#286633] hover:brightness-95"
+            } disabled:opacity-60`}
+          >
+            {partnerLeft
+              ? "Partner Left"
+              : saveStatus.bothSaved 
+              ? "Saved by Both" 
+              : saveStatus.currentUserSaved 
+              ? "Waiting..." 
+              : isSaving 
+              ? "Saving..." 
+              : "Save Chat"}
+          </button>
+          {/* US #11: Report User button */}
+          <button
+            type="button"
+            onClick={() => setIsReportModalOpen(true)}
+            disabled={isReadOnly}
+            className="h-9 px-4 rounded-md text-sm font-medium shadow-sm bg-rose-600 text-white hover:bg-rose-700 focus-visible:ring-2 focus-visible:ring-rose-400 disabled:opacity-60 disabled:cursor-not-allowed"
+          >
+            Report User
+          </button>
+          {/* US #10: Block button */}
+          <button
+            type="button"
+            onClick={() => setConfirmBlockOpen(true)}
+            disabled={isBlocking || partnerLeft || isReadOnly || !partnerId}
+            className="h-9 px-4 rounded-md bg-orange-500 text-white text-sm font-medium shadow-sm hover:bg-orange-600 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+          >
+            {isBlocking ? "Blocking..." : "Block"}
+          </button>
+          <button
+            type="button"
+            onClick={handleLeaveChat}
+            disabled={isEnding || partnerLeft || isReadOnly}
+            className="h-9 px-4 rounded-md bg-rose-500 text-white text-sm font-medium shadow-sm hover:brightness-95 disabled:opacity-70 disabled:cursor-not-allowed"
+          >
+            {partnerLeft ? "Partner Left" : isEnding ? "Leaving..." : "End Chat"}
+          </button>
+        </div>
+      </header>
 
-          {showActionMenu && (
+      {/* Feedback / Error Messages */}
+      {(error || feedback) && (
+        <div className="px-6 pt-4 space-y-3">
+          {error && (
+            <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              {error}
+            </div>
+          )}
+          {feedback && (
             <div
               className="absolute right-0 mt-2 w-44 bg-white text-black rounded-md shadow-lg z-20 ring-1 ring-black/5"
               onMouseEnter={openMenu}
@@ -1013,20 +1207,58 @@ export default function ChatInterface({ onDisconnect }) {
             </div>
           )}
         </div>
-      </div>
+      )}
 
-      {/* Content area: sidebar + chat, split-screen (no overlay) */}
-  <div className="flex-1 flex overflow-hidden">
-        {/* Left sidebar (saved chats) */}
-        <aside
-          aria-label="Saved chats"
-          className={`relative flex-shrink-0 bg-gray-100 border-r border-gray-200 overflow-hidden transition-[width,opacity] duration-200 ${showSidebar ? "w-80 sm:w-96 opacity-100" : "w-0 opacity-0"}`}
-        >
-          <div className="h-full overflow-y-auto p-4 space-y-4">
-            <button
-              type="button"
-              onClick={() => { setShowSidebar(false); simulateRequeue(); }}
-              className="w-full text-left rounded-md bg-green-600 hover:bg-green-700 text-white px-4 py-3 shadow-sm flex items-center gap-2"
+      <main className="flex-1 overflow-y-auto px-6 py-6">
+        {/* US #14: Icebreaker Prompt */}
+        {icebreaker && !isReadOnly && (
+          <div className="mb-6 p-4 bg-gradient-to-r from-purple-100 to-pink-100 rounded-2xl border border-purple-200 shadow-sm">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex-1">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-lg">💡</span>
+                  <span className="text-xs font-semibold uppercase tracking-wide text-purple-600">Icebreaker</span>
+                </div>
+                <p className="text-sm text-gray-800 font-medium">{icebreaker}</p>
+              </div>
+              <div className="flex gap-2 flex-shrink-0">
+                <button
+                  type="button"
+                  onClick={handleRefreshIcebreaker}
+                  disabled={icebreakerLoading}
+                  className="p-2 rounded-lg bg-white/80 hover:bg-white text-purple-600 hover:text-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  title="Get new prompt"
+                >
+                  <svg className={`w-4 h-4 ${icebreakerLoading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDismissIcebreaker}
+                  className="p-2 rounded-lg bg-white/80 hover:bg-white text-gray-500 hover:text-gray-700 transition-colors"
+                  title="Dismiss"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div className="flex flex-col gap-3">
+          {messages.map((message) => (
+            <div
+              key={message.id}
+              className={`max-w-xl rounded-2xl px-4 py-3 text-sm shadow-sm ${
+                message.isSystem
+                  ? "self-center bg-gray-200 text-gray-700 text-center italic"
+                  : message.isOwn
+                  ? "self-end bg-[#286633] text-white"
+                  : "self-start bg-white text-gray-900"
+              }`}
             >
               <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />

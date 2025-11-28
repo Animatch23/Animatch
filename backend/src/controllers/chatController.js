@@ -12,11 +12,15 @@ export const getActiveChat = async (req, res) => {
       return res.status(401).json({ message: 'User not authenticated' });
     }
 
+    // Prioritize UNSAVED active chats over saved ones
+    // This ensures "Return to Active Match" goes to the unsaved chat first
     const chatSession = await ChatSession.findOne({
       participants: userId,
       active: true,
       expiresAt: { $gt: new Date() }
-    }).populate('participants', 'username');
+    })
+    .sort({ isSaved: 1 }) // unsaved (false/undefined) comes before saved (true)
+    .populate('participants', 'username');
 
     if (!chatSession) {
       return res.status(404).json({ message: 'No active chat session found' });
@@ -64,8 +68,9 @@ export const getChatHistory = async (req, res) => {
       return res.status(403).json({ message: 'Access denied to this chat session' });
     }
 
-    // Block access if chat was unmatched (hidden from both users)
-    if (chatSession.unmatchedBy) {
+    // Block access if chat was unmatched, UNLESS it was saved by both users
+    // If both users saved the chat (isSaved: true), they can still view history
+    if (chatSession.unmatchedBy && !chatSession.isSaved) {
       return res.status(403).json({ message: 'This chat has been removed' });
     }
 
@@ -271,13 +276,14 @@ export const getSavedChats = async (req, res) => {
       return res.status(401).json({ message: 'User not authenticated' });
     }
 
-    // Find all ACTIVE saved chats for this user (inactive saved chats are hidden)
-    // Exclude unmatched chats (they should not appear in saved list)
+    // Find all saved chats for this user where both users saved (isSaved: true)
+    // Saved chats remain visible even if unmatched or inactive
+    // This preserves chat history for mutually saved matches
     const savedChats = await ChatSession.find({
       participants: userId,
-      isSaved: true,
-      active: true, // Only show ACTIVE saved chats
-      unmatchedBy: { $exists: false } // Exclude unmatched chats
+      isSaved: true
+      // Note: We show saved chats regardless of active status or unmatchedBy
+      // because both users agreed to save this connection
     })
     .populate('participants', 'username email')
     .sort({ endedAt: -1, startedAt: -1 })
@@ -352,8 +358,9 @@ export const getChatSession = async (req, res) => {
       return res.status(403).json({ msg: 'User not authorized for this chat' });
     }
 
-    // Block access if chat was unmatched
-    if (chatSession.unmatchedBy) {
+    // Block access if chat was unmatched, UNLESS it was saved by both users
+    // If both users saved the chat (isSaved: true), they can still view it
+    if (chatSession.unmatchedBy && !chatSession.isSaved) {
       return res.status(403).json({ msg: 'This chat has been removed' });
     }
 
@@ -451,7 +458,7 @@ export const unmatchUser = async (req, res) => {
 
 /**
  * US #6: Next Chat - Skip to another match
- * If chat is saved, keep it active (users can continue chatting in saved chats)
+ * If chat is saved, unmatch it (set unmatchedBy, deactivate) but preserve messages
  * If chat is unsaved, end it and delete messages
  */
 export const nextChat = async (req, res) => {
@@ -475,38 +482,40 @@ export const nextChat = async (req, res) => {
 
     const wasSaved = chatSession.isSaved;
 
-    // If chat is NOT saved, end it and delete messages (AC6)
+    // For BOTH saved and unsaved chats, end the session
+    chatSession.active = false;
+    chatSession.endedAt = new Date();
+
     if (!wasSaved) {
-      chatSession.active = false;
-      chatSession.endedAt = new Date();
-      await chatSession.save();
-
-      // Delete all messages from this chat
+      // If chat is NOT saved, delete messages (AC6)
       await Message.deleteMany({ chatSessionId: chatSession._id });
-
       console.log(`[NEXT CHAT] User ${userId} skipped unsaved chat ${chatSessionId} - messages deleted`);
     } else {
-      // For saved chats, keep them ACTIVE so users can continue chatting
-      // Just notify the partner that this user is looking for a new match
-      console.log(`[NEXT CHAT] User ${userId} looking for new match, saved chat ${chatSessionId} remains ACTIVE`);
+      // For saved chats, mark as unmatched so it behaves like unmatch
+      // This allows both users to rematch with others while preserving the chat history
+      chatSession.unmatchedBy = userId;
+      console.log(`[NEXT CHAT] User ${userId} unmatched from saved chat ${chatSessionId} - chat preserved for history`);
     }
+
+    await chatSession.save();
 
     // Notify partner
     const io = req.app.get('io');
     if (io) {
-      if (!wasSaved) {
-        io.to(chatSessionId.toString()).emit('chat:partner-left', {
-          message: 'Your partner is looking for a new match'
+      if (wasSaved) {
+        // For saved chats, emit unmatched event
+        io.to(chatSessionId.toString()).emit('chat:unmatched', {
+          message: 'Your partner has moved on to find a new match. This saved chat is preserved in your history.'
         });
       } else {
-        io.to(chatSessionId.toString()).emit('chat:partner-next', {
-          message: 'Your partner is looking for a new match. This saved chat remains available.'
+        io.to(chatSessionId.toString()).emit('chat:partner-left', {
+          message: 'Your partner is looking for a new match'
         });
       }
     }
 
     res.json({
-      message: wasSaved ? 'Looking for new match (saved chat preserved)' : 'Chat ended, looking for new match',
+      message: wasSaved ? 'Unmatched from saved chat, looking for new match' : 'Chat ended, looking for new match',
       redirectToQueue: true,
       chatPreserved: wasSaved,
       isSaved: wasSaved
