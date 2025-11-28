@@ -186,28 +186,28 @@ test("User A blocks User B, and blocked users cannot match again", async () => {
 
 // Test Case #2
 test("Block canceled flow: Users can continue chat if block is canceled", async () => {
-const browser = await chromium.launch();
+  const browser = await chromium.launch();
 
-const contextA = await browser.newContext();
-const contextB = await browser.newContext();
+  const contextA = await browser.newContext();
+  const contextB = await browser.newContext();
 
-const pageA = await contextA.newPage();
-const pageB = await contextB.newPage();
+  const pageA = await contextA.newPage();
+  const pageB = await contextB.newPage();
 
-// Use page.evaluate to fetch since Node fetch may not be available
-await fetch("http://localhost:3000/test/clearQueue");
-await fetch("http://localhost:3000/test/resetActiveUsers");
+  // Use page.evaluate to fetch since Node fetch may not be available
+  await fetch("http://localhost:3000/test/clearQueue");
+  await fetch("http://localhost:3000/test/resetActiveUsers");
 
-await Promise.all([
-setupUser(pageA, "Law", "Commuter", ["Music Club"]),
-setupUser(pageB, "Law", "Commuter", ["Anime Club"]),
-]);
+  await Promise.all([
+    setupUser(pageA, "Law", "Commuter", ["Music Club"]),
+    setupUser(pageB, "Law", "Commuter", ["Anime Club"]),
+  ]);
 
-try {
+  try {
     // Start matching
     await Promise.all([
-    pageA.getByText("Start Matching").click(),
-    pageB.getByText("Start Matching").click()
+      pageA.getByText("Start Matching").click(),
+      pageB.getByText("Start Matching").click()
     ]);
 
     await Promise.all([
@@ -240,9 +240,9 @@ try {
     await pageA.getByRole("button", { name: "Send" }).click();
     await expect(pageB.getByText("still here")).toBeVisible({ timeout: 5000 });
 
-    } finally {
+  } finally {
     await contextA.close();
     await contextB.close();
     await browser.close();
-    }
+  }
 });
