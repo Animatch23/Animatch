@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { io } from "socket.io-client";
+import Image from "next/image";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL;
 const POLL_INTERVAL_MS = 3000;
@@ -337,21 +338,14 @@ export default function MatchQueuePage() {
           </svg>
 
           <div className="absolute inset-0 flex items-center justify-center">
-            <svg
-              viewBox="0 0 64 64"
-              className="w-16 h-16 text-white"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="3"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
-            >
-              <path d="M10 40 C24 22, 42 22, 54 40" />
-              <path d="M10 40 L32 32" />
-              <path d="M54 40 L32 32" />
-              <path d="M50 28 l8 -2 l-2 8" />
-            </svg>
+            <Image
+              src="/animatch-logo-with-bg.png"
+              alt="Animatch logo"
+              width={64}
+              height={64}
+              className="w-16 h-16"
+              priority
+            />
           </div>
         </div>
 

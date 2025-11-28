@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import Image from "next/image";
 
 // App-wide top bar; left-side menu toggles chat history on chat pages, profile on right
 export default function TopBar() {
@@ -38,21 +39,14 @@ export default function TopBar() {
         {/* Center: brand */}
         <div className="flex items-center justify-center">
           <Link href="/match" className="flex items-center gap-2 select-none">
-            <svg
-              viewBox="0 0 64 64"
-              className="w-6 h-6 text-white"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="3"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
-            >
-              <path d="M10 40 C24 22, 42 22, 54 40" />
-              <path d="M10 40 L32 32" />
-              <path d="M54 40 L32 32" />
-              <path d="M50 28 l8 -2 l-2 8" />
-            </svg>
+            <Image
+              src="/animatch-logo-with-bg.png"
+              alt="Animatch logo"
+              width={24}
+              height={24}
+              className="w-6 h-6"
+              priority
+            />
             <span className="text-lg font-semibold tracking-wide">Animatch</span>
           </Link>
         </div>

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import SavedChatsList from "../../components/SavedChatsList";
 
 // Intro/landing for matching flow (UI-only)
@@ -27,22 +28,17 @@ export default function MatchIntroPage() {
         {/* Main Content - Centered */}
         {/* Center column */}
         <div className="lg:col-start-2 flex flex-col items-center justify-center px-6">
-          {/* Center icon (simple bow/arrow style) */}
-          <svg
-            viewBox="0 0 64 64"
-            className="w-20 h-20 text-white mb-10"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="3"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            aria-hidden="true"
-          >
-            <path d="M10 40 C24 22, 42 22, 54 40" />
-            <path d="M10 40 L32 32" />
-            <path d="M54 40 L32 32" />
-            <path d="M50 28 l8 -2 l-2 8" />
-          </svg>
+          {/* Center logo */}
+          <div className="mb-10">
+            <Image
+              src="/animatch-logo-with-bg.png"
+              alt="Animatch logo"
+              width={80}
+              height={80}
+              className="w-20 h-20"
+              priority
+            />
+          </div>
 
           <div className="flex flex-col gap-4 w-full max-w-xs">
             <Link
