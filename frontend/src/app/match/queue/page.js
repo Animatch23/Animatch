@@ -15,7 +15,7 @@ export default function MatchQueuePage() {
 
 
   return (
-    <div className="min-h-[calc(100vh-4rem)] bg-[#286633] text-white relative overflow-hidden">
+    <div className="min-h-[calc(100vh-4rem)] bg-brand-700 text-white relative overflow-hidden">
       {/* Close button */}
       <div className="absolute top-4 left-4">
         <button

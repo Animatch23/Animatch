@@ -17,6 +17,12 @@ export default function ChatInterface({ onDisconnect }) {
   const [confirmBlockOpen, setConfirmBlockOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
   const [reportReason, setReportReason] = useState("");
+  // Feedback modal state
+  const [showFeedback, setShowFeedback] = useState(false);
+  const [feedbackText, setFeedbackText] = useState("");
+  const [rating, setRating] = useState(0); // 0..5
+  const [hoverRating, setHoverRating] = useState(0);
+  const [filterQuery, setFilterQuery] = useState("");
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
   const menuCloseTimeoutRef = useRef(null);
@@ -224,11 +230,8 @@ export default function ChatInterface({ onDisconnect }) {
   };
 
   const handleLeaveChat = () => {
-    // Prefer in-chat logs flow; still call optional prop for hooks
-    simulateRequeue();
-    if (typeof onDisconnect === "function") {
-      try { onDisconnect(); } catch (_) {}
-    }
+    // Open feedback modal instead of leaving immediately
+    setShowFeedback(true);
   };
 
   const blockUser = () => {
@@ -292,6 +295,10 @@ export default function ChatInterface({ onDisconnect }) {
     setStatusLog((prev) => [...prev, `Loaded chat: ${chat.name}`]);
   };
 
+  const visibleChats = savedChats.filter((chat) =>
+    chatDisplayName(chat).toLowerCase().includes(filterQuery.trim().toLowerCase())
+  );
+
   return (
     <div className="flex flex-col min-h-[calc(100vh-4rem)] bg-gray-50">
       {/* Chat actions below TopBar */}
@@ -301,7 +308,7 @@ export default function ChatInterface({ onDisconnect }) {
           type="button"
           onClick={saveCurrentChat}
           title="Save Chat (UI only)"
-          className="h-9 px-3 rounded-md bg-yellow-300 text-[#286633] flex items-center justify-center hover:brightness-95"
+          className="h-9 px-3 rounded-md bg-yellow-300 text-brand-600 flex items-center justify-center hover:brightness-95"
         >
           <span className="inline-flex items-center gap-2 text-sm font-medium">
             <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -368,6 +375,8 @@ export default function ChatInterface({ onDisconnect }) {
           className={`relative flex-shrink-0 bg-gray-100 border-r border-gray-200 overflow-hidden transition-[width,opacity] duration-200 ${showSidebar ? "w-80 sm:w-96 opacity-100" : "w-0 opacity-0"}`}
         >
           <div className="h-full overflow-y-auto p-4 space-y-4">
+            {/* Temporarily hide new match action in sidebar */}
+            {/**
             <button
               type="button"
               onClick={() => { setShowSidebar(false); simulateRequeue(); }}
@@ -378,11 +387,33 @@ export default function ChatInterface({ onDisconnect }) {
               </svg>
               Start a New Match
             </button>
+            */}
+
+            {/* Filter search bar */}
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                value={filterQuery}
+                onChange={(e) => setFilterQuery(e.target.value)}
+                placeholder="Search chats..."
+                className="flex-1 h-9 px-3 rounded-md bg-white border border-gray-300 text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-600/40"
+              />
+              <button
+                type="button"
+                title="Apply filter"
+                className="h-9 px-3 rounded-md bg-brand-50 text-brand-700 border border-brand-700/20"
+              >
+                Filter
+              </button>
+            </div>
 
             {savedChats.length === 0 && (
               <p className="text-sm text-gray-500">No saved chats yet. Use the yellow button to save one.</p>
             )}
-            {savedChats.map((chat) => (
+            {savedChats.length > 0 && visibleChats.length === 0 && (
+              <p className="text-sm text-gray-500">No chats match your filter.</p>
+            )}
+            {visibleChats.map((chat) => (
               <button
                 key={chat.id}
                 onClick={() => { loadChat(chat); setShowSidebar(false); }}
@@ -540,7 +571,7 @@ export default function ChatInterface({ onDisconnect }) {
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           <div className="absolute inset-0 bg-black/40" onClick={() => setConfirmBlockOpen(false)} />
           <div className="relative bg-white w-[90%] max-w-md rounded-2xl p-6 shadow-xl">
-            <h2 className="text-2xl font-bold text-[#286633] text-center mb-2">Block user?</h2>
+            <h2 className="text-2xl font-bold text-brand-600 text-center mb-2">Block user?</h2>
             <p className="text-center text-gray-600 mb-6">You won't be matched with this user again.</p>
             <div className="flex gap-4">
               <button
@@ -567,7 +598,7 @@ export default function ChatInterface({ onDisconnect }) {
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           <div className="absolute inset-0 bg-black/40" onClick={() => setReportOpen(false)} />
           <div className="relative bg-white w-[92%] max-w-xl rounded-2xl p-6 shadow-xl">
-            <h2 className="text-3xl font-bold text-[#286633] text-center mb-4">Report Issue</h2>
+            <h2 className="text-3xl font-bold text-brand-600 text-center mb-4">Report Issue</h2>
             <label className="block mb-6">
               <span className="sr-only">Describe the issue</span>
               <textarea
@@ -591,6 +622,78 @@ export default function ChatInterface({ onDisconnect }) {
                 className="flex-1 bg-green-600 hover:bg-green-700 text-white py-3 rounded-2xl"
               >
                 Report
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Feedback Modal (on exit) */}
+      {showFeedback && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setShowFeedback(false)} />
+          <div className="relative bg-white w-[92%] max-w-xl rounded-3xl p-6 shadow-2xl">
+            <h2 className="text-3xl font-extrabold text-brand-700 text-center mb-4">Enjoying the App?</h2>
+            <div className="mb-6">
+              <textarea
+                value={feedbackText}
+                onChange={(e) => setFeedbackText(e.target.value)}
+                placeholder="Tell us what you think..."
+                className="w-full min-h-[180px] rounded-2xl bg-brand-50/80 border border-brand-700/10 outline-none p-4 text-gray-800 placeholder:text-gray-500 focus:ring-2 focus:ring-brand-600/30"
+              />
+            </div>
+            {/* Stars */}
+            <div className="flex items-center justify-between max-w-sm mx-auto mb-6">
+              {[1,2,3,4,5].map((i) => {
+                const active = (hoverRating || rating) >= i;
+                return (
+                  <button
+                    key={i}
+                    type="button"
+                    aria-label={`${i} star${i>1?'s':''}`}
+                    onMouseEnter={() => setHoverRating(i)}
+                    onMouseLeave={() => setHoverRating(0)}
+                    onClick={() => setRating(i)}
+                    className="p-1"
+                  >
+                    <svg
+                      className={`w-10 h-10 drop-shadow-sm ${active ? 'text-yellow-300' : 'text-yellow-200'} ${active ? '' : 'opacity-70'}`}
+                      viewBox="0 0 24 24"
+                      fill="currentColor"
+                      aria-hidden="true"
+                    >
+                      <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z" />
+                    </svg>
+                  </button>
+                );
+              })}
+            </div>
+            <div className="flex gap-4 mt-2">
+              <button
+                type="button"
+                className="flex-1 bg-gray-300 text-white py-4 rounded-2xl"
+                onClick={() => setShowFeedback(false)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="flex-1 bg-brand-700 hover:bg-brand-600 text-white py-4 rounded-2xl"
+                onClick={() => {
+                  setShowFeedback(false);
+                  setStatusLog((prev) => [...prev, `Feedback submitted (rating: ${rating || 0})${feedbackText ? ` - ${feedbackText}` : ''}`]);
+                  // Continue with previous leave behavior
+                  simulateRequeue();
+                  if (typeof onDisconnect === 'function') {
+                    try { onDisconnect(); } catch (_) {}
+                  }
+                  // reset inputs
+                  setRating(0);
+                  setHoverRating(0);
+                  setFeedbackText('');
+                }}
+              >
+                OK
               </button>
             </div>
           </div>
