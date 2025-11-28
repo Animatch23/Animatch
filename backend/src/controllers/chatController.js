@@ -4,10 +4,14 @@ import User from '../models/User.js';
 
 /**
  * Get active chat session for current user
+ * Query params:
+ *   - unsavedOnly: if 'true', only return unsaved active chats (for /match page button)
  */
 export const getActiveChat = async (req, res) => {
   try {
     const userId = req.user?.id;
+    const unsavedOnly = req.query.unsavedOnly === 'true';
+    
     if (!userId) {
       return res.status(401).json({ message: 'User not authenticated' });
     }
@@ -20,8 +24,9 @@ export const getActiveChat = async (req, res) => {
       expiresAt: { $gt: new Date() }
     }).populate('participants', 'username');
 
-    // If no unsaved active chat, fall back to any active chat (including saved ones)
-    if (!chatSession) {
+    // If no unsaved active chat and we're not restricted to unsaved only,
+    // fall back to any active chat (including saved ones)
+    if (!chatSession && !unsavedOnly) {
       chatSession = await ChatSession.findOne({
         participants: userId,
         active: true,
@@ -442,11 +447,25 @@ export const unmatchUser = async (req, res) => {
 
     console.log(`[UNMATCH] User ${userId} unmatched from chat ${chatSessionId}`);
 
-    // Emit socket event to notify partner
+    // Emit socket event to notify both users via their personal rooms
     const io = req.app.get('io');
     if (io) {
+      // Emit to the chat room (for users actively in the chat)
       io.to(chatSessionId.toString()).emit('chat:unmatched', {
-        message: 'Your partner has unmatched from this chat'
+        message: 'Your partner has unmatched from this chat',
+        chatSessionId: chatSessionId.toString()
+      });
+      console.log(`[UNMATCH] Emitted chat:unmatched to room ${chatSessionId}`);
+      
+      // Also emit to both users' personal rooms (for SavedChatsList updates)
+      // This ensures the notification is received even if they're not in the chat room
+      chatSession.participants.forEach(participantId => {
+        const personalRoom = `user:${participantId.toString()}`;
+        io.to(personalRoom).emit('user:chat-unmatched', {
+          chatSessionId: chatSessionId.toString(),
+          message: 'A chat has been unmatched'
+        });
+        console.log(`[UNMATCH] Emitted user:chat-unmatched to personal room ${personalRoom}`);
       });
     }
 

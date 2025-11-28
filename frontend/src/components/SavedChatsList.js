@@ -12,7 +12,6 @@ export default function SavedChatsList({ visible, onClose }) {
   const [chats, setChats] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [hasActiveChat, setHasActiveChat] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const socketRef = useRef(null);
 
@@ -21,20 +20,12 @@ export default function SavedChatsList({ visible, onClose }) {
     if (!token) return;
     
     try {
-      const [chatRes, activeRes] = await Promise.all([
-        fetch(`${API_BASE}/api/chat/history`, {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
-        fetch(`${API_BASE}/api/chat/active`, {
-          headers: { Authorization: `Bearer ${token}` },
-        }).catch(() => null)
-      ]);
+      const chatRes = await fetch(`${API_BASE}/api/chat/history`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
       
       const chatData = await chatRes.json();
-      const activeData = activeRes?.ok ? await activeRes.json() : null;
-      
       setChats(chatData || []);
-      setHasActiveChat(!!activeData?.chatSessionId);
     } catch (err) {
       setError(err.message || "Failed to fetch saved chats");
     }
@@ -46,30 +37,58 @@ export default function SavedChatsList({ visible, onClose }) {
     fetchChatsData().finally(() => setLoading(false));
   }, [visible, fetchChatsData]);
 
-  // Real-time updates via Socket.IO
+  // Real-time updates via Socket.IO - stable connection that doesn't depend on chats
   useEffect(() => {
     if (!visible) return;
     const token = localStorage.getItem("sessionToken");
     if (!token || !SOCKET_BASE) return;
 
+    // Don't create a new socket if one already exists and is connected
+    if (socketRef.current?.connected) return;
+
+    // Clean up any existing disconnected socket
+    if (socketRef.current) {
+      socketRef.current.disconnect();
+      socketRef.current = null;
+    }
+
     const socketUrl = SOCKET_BASE.replace(/\/$/, "");
     const socket = io(socketUrl, {
-      transports: ["websocket"],
+      transports: ["websocket", "polling"], // Use both transports for reliability
       auth: { token },
+      reconnection: true,
+      reconnectionAttempts: 5,
+      reconnectionDelay: 1000,
     });
     socketRef.current = socket;
 
-    // Join all saved chat rooms to receive real-time messages
     socket.on("connect", () => {
-      // Join each saved chat room to receive their messages
-      chats.forEach(chat => {
-        socket.emit("chat:join", { chatSessionId: chat._id });
-      });
+      console.log("[SavedChatsList] Socket connected, socket id:", socket.id);
+      // Fetch latest data on connect/reconnect to catch any missed events
+      fetchChatsData();
+    });
+
+    socket.on("connect_error", (err) => {
+      console.error("[SavedChatsList] Socket connection error:", err.message);
+    });
+
+    socket.on("reconnect", () => {
+      console.log("[SavedChatsList] Socket reconnected, fetching latest chats");
+      fetchChatsData();
+    });
+
+    socket.on("disconnect", (reason) => {
+      console.log("[SavedChatsList] Socket disconnected, reason:", reason);
+    });
+
+    socket.on("reconnect_failed", () => {
+      console.error("[SavedChatsList] Socket reconnection failed after max attempts");
+      // Reset the socket ref so a new connection can be attempted on next render
+      socketRef.current = null;
     });
 
     // Listen for new messages to update the chat list
     socket.on("chat:message", () => {
-      // Refetch to get updated lastMessage
       fetchChatsData();
     });
 
@@ -78,11 +97,33 @@ export default function SavedChatsList({ visible, onClose }) {
       fetchChatsData();
     });
 
+    // Listen for unmatch notifications via chat room
+    socket.on("chat:unmatched", () => {
+      console.log("[SavedChatsList] Received chat:unmatched event");
+      fetchChatsData();
+    });
+
+    // Listen for unmatch notifications via personal room (more reliable)
+    // This is the primary way to receive unmatch notifications
+    socket.on("user:chat-unmatched", (data) => {
+      console.log("[SavedChatsList] Received user:chat-unmatched event", data);
+      fetchChatsData();
+    });
+
     return () => {
       socket.disconnect();
       socketRef.current = null;
     };
-  }, [visible, fetchChatsData, chats]);
+  }, [visible, fetchChatsData]);
+
+  // Join chat rooms when chats list changes (separate from socket connection)
+  useEffect(() => {
+    if (!socketRef.current?.connected || chats.length === 0) return;
+    
+    chats.forEach(chat => {
+      socketRef.current.emit("chat:join", { chatSessionId: chat._id });
+    });
+  }, [chats]);
 
   const handleOpen = (id) => {
     router.push(`/match/chat?session=${id}`);
@@ -103,11 +144,6 @@ export default function SavedChatsList({ visible, onClose }) {
     if (hours < 24) return `${hours}h`;
     const days = Math.floor(hours / 24);
     return `${days}d`;
-  };
-
-  const handleGoToActiveChat = () => {
-    router.push('/match/chat');
-    if (typeof onClose === "function") onClose();
   };
 
   if (!visible) return null;
@@ -187,23 +223,6 @@ export default function SavedChatsList({ visible, onClose }) {
               </button>
             )}
           </div>
-          
-          {/* Return to Active Match button */}
-          {hasActiveChat && (
-            <button
-              onClick={handleGoToActiveChat}
-              className={`mt-3 w-full px-4 py-2.5 text-sm font-semibold rounded-lg shadow-sm transition-all flex items-center justify-center gap-2 ${
-                isOverlay 
-                  ? 'bg-green-600 text-white hover:bg-green-700' 
-                  : 'bg-white text-green-800 hover:bg-green-50'
-              }`}
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-              </svg>
-              Return to Active Match
-            </button>
-          )}
         </div>
         
         {/* Chat List */}

@@ -236,6 +236,10 @@ io.on('connection', async (socket) => {
   // Store userId on socket for easy access
   socket.socketUserId = socket.userId;
 
+  // Automatically join user's personal room for direct notifications
+  socket.join(`user:${socket.userId}`);
+  console.log(`[SOCKET] User ${socket.userId} joined personal room user:${socket.userId}`);
+
   // Handle explicit chat room joining
   socket.on('chat:join', async ({ chatSessionId }) => {
     try {
