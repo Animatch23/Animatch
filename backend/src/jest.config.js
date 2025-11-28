@@ -14,7 +14,8 @@ export default {
   collectCoverageFrom: [path.join(rootDir, "src/**/*.{js,jsx}")],
   testMatch: [
     path.join(rootDir, "__tests__/**/*.test.js"),
-    path.join(rootDir, "src/__tests__/**/*.test.js")
+    path.join(rootDir, "src/__tests__/**/*.test.js"),
+    path.join(rootDir, "src/__tests__/**/*_test.js")
   ],
   setupFilesAfterEnv: [path.join(rootDir, "setupTests.js")],
   transform: {
