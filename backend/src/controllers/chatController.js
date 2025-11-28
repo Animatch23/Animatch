@@ -227,22 +227,27 @@ export const saveChatSession = async (req, res) => {
 
     await chatSession.save();
 
+    // ⭐ Re-fetch to get the latest state (handles concurrent saves race condition)
+    const updatedSession = await ChatSession.findById(chatSessionId);
+    const finalSavedByCount = updatedSession.savedByUsers.length;
+    const finalIsSaved = updatedSession.isSaved;
+
     // Emit socket event to partner if available
     const io = req.app.get('io');
     if (io && !alreadySaved) {
       io.to(chatSessionId.toString()).emit('chat:partner-saved', {
-        savedByCount: chatSession.savedByUsers.length,
-        isSaved: chatSession.isSaved
+        savedByCount: finalSavedByCount,
+        isSaved: finalIsSaved
       });
     }
 
     res.json({ 
       message: 'Chat session saved successfully',
-      isSaved: chatSession.isSaved,
-      savedByCount: chatSession.savedByUsers.length,
+      isSaved: finalIsSaved,
+      savedByCount: finalSavedByCount,
       chat: {
-        savedByUsers: chatSession.savedByUsers,
-        isSaved: chatSession.isSaved
+        savedByUsers: updatedSession.savedByUsers,
+        isSaved: finalIsSaved
       }
     });
   } catch (error) {

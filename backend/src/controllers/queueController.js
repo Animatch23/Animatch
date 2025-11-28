@@ -177,15 +177,16 @@ export const joinQueue = async (req, res) => {
         continue;
       }
 
-      // Check if candidate has active chat
-      const candidateActiveChat = await ChatSession.findOne({
+      // Check if candidate has active UNSAVED chat (saved chats don't block queue)
+      const candidateActiveUnsavedChat = await ChatSession.findOne({
         participants: queueEntry.userId,
         active: true,
+        isSaved: { $ne: true }, // Only block on UNSAVED active chats
         expiresAt: { $gt: new Date() }
       });
 
-      if (candidateActiveChat) {
-        // Remove from queue if they have active chat
+      if (candidateActiveUnsavedChat) {
+        // Remove from queue if they have active unsaved chat
         await Queue.deleteOne({ userId: queueEntry.userId });
         continue;
       }
@@ -370,15 +371,16 @@ export const getQueueStatus = async (req, res) => {
             continue;
           }
 
-          // ⭐ Check partner doesn't have active chat
-          const candidateActiveChat = await ChatSession.findOne({
+          // ⭐ Check partner doesn't have active UNSAVED chat (saved chats don't block queue)
+          const candidateActiveUnsavedChat = await ChatSession.findOne({
             participants: queueEntry.userId,
             active: true,
+            isSaved: { $ne: true }, // Only block on UNSAVED active chats
             expiresAt: { $gt: new Date() }
           });
 
-          if (candidateActiveChat) {
-            console.log(`[QUEUE STATUS] Candidate ${candidateUser.email} already in active chat, removing from queue`);
+          if (candidateActiveUnsavedChat) {
+            console.log(`[QUEUE STATUS] Candidate ${candidateUser.email} has active unsaved chat, removing from queue`);
             await Queue.deleteOne({ userId: queueEntry.userId });
             continue;
           }
