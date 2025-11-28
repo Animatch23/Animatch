@@ -1,5 +1,6 @@
 import ChatSession from '../models/ChatSession.js';
 import Message from '../models/Message.js';
+import User from '../models/User.js';
 
 /**
  * Get active chat session for current user

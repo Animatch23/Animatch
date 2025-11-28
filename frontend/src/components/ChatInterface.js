@@ -475,11 +475,6 @@ export default function ChatInterface({
     setShowActionMenu(false);
     setReportOpen(true);
   };
-  
-  const handleConfirmBlock = () => {
-    setConfirmBlockOpen(false);
-    setStatusLog((prev) => [...prev, "User blocked (UI-only)."]);
-  };
 
   const handleSubmitReport = () => {
     const reason = reportReason.trim();
@@ -489,6 +484,10 @@ export default function ChatInterface({
       ...prev,
       reason ? `Report submitted: ${reason}` : "Report submitted.",
     ]);
+  };
+
+  const handleNextChat = () => {
+    router.push("/match");
   };
 
   const handleLeaveChat = async () => {
@@ -576,10 +575,6 @@ export default function ChatInterface({
   const handleBlockUser = async () => {
     if (!API_BASE || !token || !partnerId) return;
 
-    if (!confirm("Are you sure you want to block this user? You will not be matched with them again.")) {
-      return;
-    }
-
     try {
       setIsBlocking(true);
       const response = await fetch(`${API_BASE}/api/chat/block`, {
@@ -595,6 +590,8 @@ export default function ChatInterface({
         const data = await response.json();
         throw new Error(data.message || "Failed to block user");
       }
+
+      setConfirmBlockOpen(false);
 
       // Blocking also ends the chat
       if (typeof onChatEnded === "function") {
@@ -667,17 +664,6 @@ export default function ChatInterface({
               Report / Block
             </span>
           </button>
-          <button
-            type="button"
-            onClick={handleBlockUser}
-            disabled={isBlocking || isEnding}
-            className="h-9 px-4 rounded-md bg-gray-600 text-white text-sm font-medium shadow-sm hover:brightness-95 disabled:opacity-70"
-            title="Block this user"
-          >
-            {isBlocking ? "Blocking..." : "Block"}
-          </button>
-        </div>
-      </header>
 
           {showActionMenu && (
             <div
@@ -929,10 +915,11 @@ export default function ChatInterface({
               </button>
               <button
                 type="button"
-                onClick={handleConfirmBlock}
-                className="flex-1 bg-rose-600 hover:bg-rose-700 text-white py-3 rounded-2xl"
+                onClick={handleBlockUser} // <--- NEW (Correct)
+                disabled={isBlocking}     // <--- Add disabled state so they can't spam click
+                className="flex-1 bg-rose-600 hover:bg-rose-700 text-white py-3 rounded-2xl disabled:opacity-70"
               >
-                Block
+                {isBlocking ? "Blocking..." : "Block"}
               </button>
             </div>
           </div>
