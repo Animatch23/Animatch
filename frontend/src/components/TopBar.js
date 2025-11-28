@@ -16,7 +16,7 @@ export default function TopBar() {
   };
 
   return (
-    <header className="fixed inset-x-0 top-0 h-16 bg-brand-700 text-white z-40 shadow">
+    <header className="fixed inset-x-0 top-0 h-14 md:h-16 bg-brand-700 text-white z-40 shadow">
       <div className="max-w-6xl mx-auto h-full px-4 grid grid-cols-3 items-center">
         {/* Left: menu (chat history toggle) */}
         <div className="flex items-center">
@@ -44,7 +44,7 @@ export default function TopBar() {
               alt="AniMatch Logo"
               className="w-7 h-7 object-contain"
             />
-            <span className="text-lg font-semibold tracking-wide">Animatch</span>
+            <span className="text-base md:text-lg font-semibold tracking-wide">Animatch</span>
           </Link>
         </div>
 

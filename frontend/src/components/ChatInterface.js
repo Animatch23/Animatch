@@ -360,15 +360,15 @@ export default function ChatInterface({ onDisconnect }) {
   );
 
   return (
-    <div className="flex flex-col min-h-[calc(100vh-4rem)] bg-gray-50">
+    <div className="flex flex-col min-h-[calc(100dvh-3.5rem)] md:min-h-[calc(100vh-4rem)] bg-gray-50">
       {/* Chat actions below TopBar */}
-      <div className="bg-white border-b border-gray-200 px-4 py-2 flex items-center justify-end gap-2">
+      <div className="bg-white border-b border-gray-200 px-2 md:px-4 py-2 flex items-center justify-end gap-2">
         {/* Save Chat (UI only) */}
         <button
           type="button"
           onClick={saveCurrentChat}
           title="Save Chat (UI only)"
-          className="h-9 px-3 rounded-md bg-yellow-300 text-brand-600 flex items-center justify-center hover:brightness-95"
+          className="hidden md:flex h-9 px-3 rounded-md bg-yellow-300 text-brand-600 items-center justify-center hover:brightness-95"
         >
           <span className="inline-flex items-center gap-2 text-sm font-medium">
             <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -382,7 +382,7 @@ export default function ChatInterface({ onDisconnect }) {
 
         {/* Report/Block with hover menu (UI only) */}
         <div
-          className="relative"
+          className="relative hidden md:block"
           onMouseEnter={openMenu}
           onMouseLeave={scheduleCloseMenu}
         >
@@ -430,9 +430,14 @@ export default function ChatInterface({ onDisconnect }) {
       {/* Content area: sidebar + chat, split-screen (no overlay) */}
   <div className="flex-1 flex overflow-hidden">
         {/* Left sidebar (saved chats) */}
+        {/* Mobile sidebar backdrop */}
+        {showSidebar && (
+          <div className="fixed inset-0 bg-black/40 md:hidden z-40" onClick={() => setShowSidebar(false)} />
+        )}
+
         <aside
           aria-label="Saved chats"
-          className={`relative flex-shrink-0 bg-gray-100 border-r border-gray-200 overflow-hidden transition-[width,opacity] duration-200 ${showSidebar ? "w-80 sm:w-96 opacity-100" : "w-0 opacity-0"}`}
+          className={`bg-gray-100 border-r border-gray-200 overflow-hidden transition-all duration-200 ${showSidebar ? "fixed top-14 left-0 bottom-0 w-72 sm:w-80 z-50 md:static md:w-80" : "w-0 md:w-0"} md:relative md:flex-shrink-0`}
         >
           <div className="h-full overflow-y-auto p-4 space-y-4">
             {/* Temporarily hide new match action in sidebar */}
@@ -456,12 +461,25 @@ export default function ChatInterface({ onDisconnect }) {
                 value={filterQuery}
                 onChange={(e) => setFilterQuery(e.target.value)}
                 placeholder="Search chats..."
-                className="flex-1 h-9 px-3 rounded-md bg-white border border-gray-300 text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-600/40"
+                className="w-[82%] md:flex-1 h-9 px-3 rounded-md bg-white border border-gray-300 text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-600/40"
               />
+              {/* Mobile icon button */}
               <button
                 type="button"
                 title="Apply filter"
-                className="h-9 px-3 rounded-md bg-brand-50 text-brand-700 border border-brand-700/20"
+                aria-label="Apply filter"
+                className="md:hidden inline-flex items-center justify-center h-9 w-9 rounded-md bg-brand-50 text-brand-700 border border-brand-700/20"
+              >
+                <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2">
+                  <circle cx="11" cy="11" r="7" />
+                  <path d="M20 20l-4.2-4.2" />
+                </svg>
+              </button>
+              {/* Desktop text button */}
+              <button
+                type="button"
+                title="Apply filter"
+                className="hidden md:inline-flex md:items-center md:justify-center h-9 px-3 rounded-md bg-brand-50 text-brand-700 border border-brand-700/20"
               >
                 Filter
               </button>
@@ -608,7 +626,7 @@ export default function ChatInterface({ onDisconnect }) {
           </div>
 
           {/* Input Area */}
-          <div className="bg-white border-t border-gray-200 p-4">
+          <div className="bg-white border-t border-gray-200 p-3 md:p-4 pb-[env(safe-area-inset-bottom)]">
             <div className="flex items-center space-x-2">
               {/* Leave Chat Button */}
               <button 
