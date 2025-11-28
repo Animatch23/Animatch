@@ -10,7 +10,7 @@ export default function MatchIntroPage() {
   // no top-left back button on this page by design
 
   return (
-    <div className="min-h-[calc(100vh-4rem)] bg-brand-700 text-white relative overflow-hidden">
+    <div className="min-h-[calc(100vh-4rem)] bg-[#286633] text-white relative overflow-hidden">
       {/* top-left back button intentionally removed to reduce UI clutter */}
 
       {/* Content */}

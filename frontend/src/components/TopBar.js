@@ -2,11 +2,40 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
 
 // App-wide top bar; left-side menu toggles chat history on chat pages, profile on right
 export default function TopBar() {
   const pathname = usePathname();
   const showMenu = pathname === "/match/chat" || pathname?.startsWith("/match/chat/");
+  const [profilePicture, setProfilePicture] = useState(null);
+
+  useEffect(() => {
+    const loadProfilePicture = async () => {
+      try {
+        const email = localStorage.getItem("userEmail");
+        if (!email) return;
+
+        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/exist`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email })
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          if (data.user?.profilePicture?.url) {
+            setProfilePicture(data.user.profilePicture.url);
+          }
+        }
+      } catch (err) {
+        console.error("Error loading profile picture:", err);
+      }
+    };
+
+    loadProfilePicture();
+  }, []);
+
   const toggleSavedChats = () => {
     try {
       window.dispatchEvent(new CustomEvent("animatch:toggleSavedChats"));
@@ -16,7 +45,7 @@ export default function TopBar() {
   };
 
   return (
-    <header className="fixed inset-x-0 top-0 h-14 md:h-16 bg-brand-700 text-white z-40 shadow">
+    <header className="fixed inset-x-0 top-0 h-14 md:h-16 bg-[#286633] text-white z-40 shadow">
       <div className="max-w-6xl mx-auto h-full px-4 grid grid-cols-3 items-center">
         {/* Left: menu (chat history toggle) */}
         <div className="flex items-center">
@@ -55,12 +84,21 @@ export default function TopBar() {
             title="My Profile"
             className="p-0.5 rounded-full ring-2 ring-white/70 hover:ring-white transition"
           >
-            <span className="block w-9 h-9 rounded-full bg-white text-brand-600 flex items-center justify-center">
-              <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0z" />
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-              </svg>
-            </span>
+            {profilePicture ? (
+              /* eslint-disable-next-line @next/next/no-img-element */
+              <img
+                src={`${process.env.NEXT_PUBLIC_API_URL}/api${profilePicture}`}
+                alt="Profile"
+                className="w-9 h-9 rounded-full object-cover"
+              />
+            ) : (
+              <span className="block w-9 h-9 rounded-full bg-white text-[#286633] flex items-center justify-center">
+                <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                </svg>
+              </span>
+            )}
           </Link>
         </div>
       </div>

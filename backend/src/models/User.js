@@ -82,6 +82,11 @@ const userSchema = new mongoose.Schema({
         type: Number,
         default: 0
     },
+    // Track partner IDs for unique match counting
+    matchedPartners: [{
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User'
+    }],
     badges: [{
         type: String // Badge IDs like 'first_match', 'streak_7', etc.
     }],

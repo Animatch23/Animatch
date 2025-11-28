@@ -122,10 +122,18 @@ export const recordMatch = async (userId, partnerId) => {
   }
 
   // Check if this is a unique match (never matched with this partner before)
-  // This would require a separate collection to track, for now we'll increment
+  const existingPartners = user.matchedPartners || [];
+  const isUniqueMatch = !existingPartners.some(p => p.toString() === partnerId.toString());
+
   const updates = {
-    $inc: { totalMatches: 1, uniqueMatchCount: 1 }
+    $inc: { totalMatches: 1 }
   };
+
+  // Only increment uniqueMatchCount if this is a new partner
+  if (isUniqueMatch) {
+    updates.$inc.uniqueMatchCount = 1;
+    updates.$addToSet = { matchedPartners: partnerId };
+  }
 
   const updatedUser = await User.findByIdAndUpdate(
     userId,
@@ -139,6 +147,7 @@ export const recordMatch = async (userId, partnerId) => {
   return {
     totalMatches: updatedUser.totalMatches,
     uniqueMatchCount: updatedUser.uniqueMatchCount,
+    isUniqueMatch,
     newBadges
   };
 };
@@ -254,22 +263,27 @@ export const getUserStats = async (userId) => {
  */
 export const getLeaderboard = async (type = 'streak', limit = 10) => {
   let sortField;
+  let filterField;
   
   switch (type) {
     case 'streak':
       sortField = { maxStreak: -1 };
+      filterField = { maxStreak: { $gt: 0 } };
       break;
     case 'messages':
       sortField = { totalMessages: -1 };
+      filterField = { totalMessages: { $gt: 0 } };
       break;
     case 'matches':
       sortField = { totalMatches: -1 };
+      filterField = { totalMatches: { $gt: 0 } };
       break;
     default:
       sortField = { maxStreak: -1 };
+      filterField = { maxStreak: { $gt: 0 } };
   }
 
-  const users = await User.find({})
+  const users = await User.find(filterField)
     .sort(sortField)
     .limit(limit)
     .select('username currentStreak maxStreak totalMessages totalMatches badges');

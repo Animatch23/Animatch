@@ -107,9 +107,9 @@ export default function GamificationStats({ token }) {
 
   return (
     <div className="bg-white rounded-lg shadow overflow-hidden">
-      {/* Header with Stats Summary */}
-      <div className="bg-gradient-to-r from-green-600 to-emerald-600 p-6 text-white">
-        <h2 className="text-xl font-bold mb-4">🎮 Gamification</h2>
+      {/* Header with Stats Summary - Sprint-2 green styling */}
+      <div className="bg-[#286633] p-6 text-white">
+        <h2 className="text-xl font-bold mb-4">🏆 Streaks & Badges</h2>
         
         <div className="grid grid-cols-3 gap-4 text-center">
           {/* Streak Display */}
@@ -142,7 +142,7 @@ export default function GamificationStats({ token }) {
             onClick={() => setActiveTab("badges")}
             className={`flex-1 py-3 px-4 text-sm font-medium border-b-2 transition-colors ${
               activeTab === "badges"
-                ? "border-green-600 text-green-600"
+                ? "border-[#286633] text-[#286633]"
                 : "border-transparent text-gray-500 hover:text-gray-700"
             }`}
           >
@@ -152,7 +152,7 @@ export default function GamificationStats({ token }) {
             onClick={() => setActiveTab("streak")}
             className={`flex-1 py-3 px-4 text-sm font-medium border-b-2 transition-colors ${
               activeTab === "streak"
-                ? "border-green-600 text-green-600"
+                ? "border-[#286633] text-[#286633]"
                 : "border-transparent text-gray-500 hover:text-gray-700"
             }`}
           >
@@ -162,7 +162,7 @@ export default function GamificationStats({ token }) {
             onClick={() => setActiveTab("leaderboard")}
             className={`flex-1 py-3 px-4 text-sm font-medium border-b-2 transition-colors ${
               activeTab === "leaderboard"
-                ? "border-green-600 text-green-600"
+                ? "border-[#286633] text-[#286633]"
                 : "border-transparent text-gray-500 hover:text-gray-700"
             }`}
           >
@@ -255,7 +255,7 @@ export default function GamificationStats({ token }) {
                     key={i}
                     className={`w-8 h-8 rounded-full flex items-center justify-center text-sm ${
                       i < stats.currentStreak
-                        ? "bg-green-500 text-white"
+                        ? "bg-[#286633] text-white"
                         : "bg-gray-200 text-gray-400"
                     }`}
                   >
@@ -263,7 +263,7 @@ export default function GamificationStats({ token }) {
                   </div>
                 ))}
                 {stats.currentStreak >= 7 && (
-                  <span className="text-sm text-green-600 font-medium">+{stats.currentStreak - 7} more!</span>
+                  <span className="text-sm text-[#286633] font-medium">+{stats.currentStreak - 7} more!</span>
                 )}
               </div>
             </div>
@@ -281,7 +281,7 @@ export default function GamificationStats({ token }) {
                   onClick={() => setLeaderboardType(type)}
                   className={`px-3 py-1 rounded-full text-sm ${
                     leaderboardType === type
-                      ? "bg-green-600 text-white"
+                      ? "bg-[#286633] text-white"
                       : "bg-gray-100 text-gray-600 hover:bg-gray-200"
                   }`}
                 >

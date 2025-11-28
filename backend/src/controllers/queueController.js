@@ -1,6 +1,7 @@
 import ChatSession from '../models/ChatSession.js';
 import Queue from '../models/Queue.js';
 import User from '../models/User.js';
+import gamificationService from '../services/gamificationService.js';
 
 /**
  * Calculate similarity score between two users (0-100)
@@ -297,6 +298,14 @@ export const joinQueue = async (req, res) => {
         savedByUsers: []
       });
 
+      // US-15: Record match for both users (for gamification stats)
+      try {
+        await gamificationService.recordMatch(userId, partner.userId);
+        await gamificationService.recordMatch(partner.userId, userId);
+      } catch (gamificationError) {
+        console.error('[QUEUE JOIN] Gamification error (non-blocking):', gamificationError);
+      }
+
       console.log(`[QUEUE JOIN] ✅ Match created: ${chatSession._id} - ${user.email} <-> ${partnerUser.email} (similarity score: ${candidate.score})`);
 
       return res.json({
@@ -505,6 +514,14 @@ export const getQueueStatus = async (req, res) => {
                 isSaved: false,
                 savedByUsers: []
               });
+
+              // US-15: Record match for both users (for gamification stats)
+              try {
+                await gamificationService.recordMatch(userId, partner.userId);
+                await gamificationService.recordMatch(partner.userId, userId);
+              } catch (gamificationError) {
+                console.error('[QUEUE STATUS] Gamification error (non-blocking):', gamificationError);
+              }
 
               console.log(`[QUEUE STATUS] ✅ Match created: ${chatSession._id} - ${user.email} <-> ${partnerUser.email} (similarity: ${candidate.score})`);
 

@@ -3,20 +3,17 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import GamificationStats from "../../components/GamificationStats";
+import GamificationStats from "@/components/GamificationStats";
 
 export default function ProfilePage() {
   const router = useRouter();
   const [profile, setProfile] = useState({ username: "", hasPhoto: false, profilePicture: null });
   const [isLoading, setIsLoading] = useState(true);
-  const [token, setToken] = useState(null);
 
   useEffect(() => {
     const loadProfile = async () => {
       try {
         const email = localStorage.getItem("userEmail");
-        const storedToken = localStorage.getItem("sessionToken");
-        setToken(storedToken);
         
         if (!email) {
           setIsLoading(false);
@@ -87,7 +84,18 @@ export default function ProfilePage() {
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-3xl mx-auto p-6">
         <div className="flex items-center justify-between mb-6">
-          <h1 className="text-3xl font-bold text-green-800">My Profile</h1>
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => router.push('/match')}
+              className="p-2 rounded-lg hover:bg-gray-200 transition-colors"
+              aria-label="Back to match"
+            >
+              <svg className="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
+            </button>
+            <h1 className="text-3xl font-bold text-green-800">My Profile</h1>
+          </div>
           <button
             onClick={handleLogout}
             className="px-4 py-2 rounded-md bg-red-100 text-red-700 hover:bg-red-200 font-medium transition-colors flex items-center gap-2"
@@ -128,13 +136,11 @@ export default function ProfilePage() {
           </div>
         </div>
         )}
-        
-        {/* US-15: Gamification Stats Section */}
-        {!isLoading && token && (
-          <div className="mt-6">
-            <GamificationStats token={token} />
-          </div>
-        )}
+
+        {/* US-15: Gamification Stats - Sprint-2 green styling */}
+        <div className="mt-6">
+          <GamificationStats token={typeof window !== 'undefined' ? localStorage.getItem('sessionToken') : null} />
+        </div>
       </div>
     </div>
   );

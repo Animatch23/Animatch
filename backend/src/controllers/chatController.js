@@ -12,11 +12,22 @@ export const getActiveChat = async (req, res) => {
       return res.status(401).json({ message: 'User not authenticated' });
     }
 
-    const chatSession = await ChatSession.findOne({
+    // First, try to find an unsaved active chat (the current/new match)
+    let chatSession = await ChatSession.findOne({
       participants: userId,
       active: true,
+      isSaved: false,
       expiresAt: { $gt: new Date() }
     }).populate('participants', 'username');
+
+    // If no unsaved active chat, fall back to any active chat (including saved ones)
+    if (!chatSession) {
+      chatSession = await ChatSession.findOne({
+        participants: userId,
+        active: true,
+        expiresAt: { $gt: new Date() }
+      }).populate('participants', 'username');
+    }
 
     if (!chatSession) {
       return res.status(404).json({ message: 'No active chat session found' });
