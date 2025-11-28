@@ -48,6 +48,7 @@ export default function ChatInterface({
   const [feedback, setFeedback] = useState(null);
   const [saveStatus, setSaveStatus] = useState({ currentUserSaved: false, partnerSaved: false, bothSaved: false });
   const [partnerLeft, setPartnerLeft] = useState(false);
+  const [partnerOnline, setPartnerOnline] = useState(true); // Track partner's connection status
   const [showSavedChats, setShowSavedChats] = useState(false);
   const [isUnmatched, setIsUnmatched] = useState(false);
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
@@ -78,9 +79,11 @@ export default function ChatInterface({
   }, []);
 
   useEffect(() => {
-    // Reset save status when chat session changes to prevent premature saves
+    // Reset state when chat session changes
     setSaveStatus({ currentUserSaved: false, partnerSaved: false, bothSaved: false });
     setFeedback(null);
+    setPartnerOnline(true); // Assume partner is online when switching chats
+    setPartnerLeft(false);
     
     // Fetch current save status from backend to handle reloads (Design consideration #1)
     if (API_BASE && chatSessionId && token) {
@@ -195,6 +198,7 @@ export default function ChatInterface({
 
     setConnectionStatus("connecting");
     setPartnerTyping(false);
+    setPartnerOnline(true); // Assume partner is online when connecting to new chat
 
     const socket = io(socketUrl, {
       transports: ["websocket"],
@@ -231,13 +235,20 @@ export default function ChatInterface({
 
     socket.on("chat:message", (payload) => {
       const messageId = payload._id || `${payload.sentAt}-${Math.random()}`;
+      const isOwnMessage = currentUserIdRef.current
+        ? payload.senderId === currentUserIdRef.current
+        : false;
+      
+      // If message is from partner, they're online
+      if (!isOwnMessage) {
+        setPartnerOnline(true);
+      }
+      
       const message = {
         id: messageId,
         content: payload.content,
         sentAt: payload.sentAt,
-        isOwn: currentUserIdRef.current
-          ? payload.senderId === currentUserIdRef.current
-          : false,
+        isOwn: isOwnMessage,
       };
 
       setMessages((prev) => {
@@ -250,6 +261,10 @@ export default function ChatInterface({
 
     socket.on("chat:typing", ({ isTyping }) => {
       setPartnerTyping(Boolean(isTyping));
+      // If partner is typing, they're online
+      if (isTyping) {
+        setPartnerOnline(true);
+      }
     });
 
     socket.on("chat:partner-saved", ({ savedByCount, isSaved }) => {
@@ -312,6 +327,12 @@ export default function ChatInterface({
 
     socket.on("chat:unmatched", () => {
       setIsUnmatched(true);
+    });
+
+    // Handle partner disconnection (e.g., logout, closed browser, network issue)
+    socket.on("chat:partner-disconnected", () => {
+      setPartnerOnline(false);
+      setPartnerTyping(false); // Clear typing indicator when partner disconnects
     });
 
     socket.on("disconnect", () => {
@@ -409,8 +430,16 @@ export default function ChatInterface({
   };
 
   const statusLabel = useMemo(() => {
+    // First check our own connection status
     switch (connectionStatus) {
       case "connected":
+        // Our connection is good - now show partner status
+        if (partnerLeft) {
+          return "Partner left";
+        }
+        if (!partnerOnline) {
+          return "Partner offline";
+        }
         return "Connected";
       case "disconnected":
         return "Reconnecting...";
@@ -420,11 +449,17 @@ export default function ChatInterface({
       default:
         return "Connecting";
     }
-  }, [connectionStatus]);
+  }, [connectionStatus, partnerOnline, partnerLeft]);
 
   const statusColor = useMemo(() => {
     switch (connectionStatus) {
       case "connected":
+        if (partnerLeft) {
+          return "text-rose-600";
+        }
+        if (!partnerOnline) {
+          return "text-yellow-600";
+        }
         return "text-green-600";
       case "error":
         return "text-red-600";
@@ -433,7 +468,7 @@ export default function ChatInterface({
       default:
         return "text-gray-500";
     }
-  }, [connectionStatus]);
+  }, [connectionStatus, partnerOnline, partnerLeft]);
 
   function stopTypingNotification() {
     if (socketRef.current && hasSentTypingRef.current) {
