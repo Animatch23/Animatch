@@ -6,7 +6,13 @@ import {
   endChatSession,
   leaveChatSession,
   saveChatSession,
+  getSavedChats,
+  getChatSession,
+  unmatchUser,
+  getChatSaveStatus,
+  nextChat,
   blockUser,
+  notifyLogout,
   getSavedMatches
 } from '../controllers/chatController.js';
 import {
@@ -24,6 +30,9 @@ router.get('/queue/status', authenticate, getQueueStatus);
 router.post('/queue/leave', authenticate, leaveQueue);
 router.get('/match/active', authenticate, getActiveMatch);
 
+// Logout notification - notify active chat partner that user is logging out
+router.post('/notify-logout', authenticate, notifyLogout);
+
 // All routes require authentication
 router.get('/active', authenticate, getActiveChat);
 router.get('/:chatSessionId/history', authenticate, getChatHistory);
@@ -31,7 +40,14 @@ router.get('/saved', authenticate, getSavedMatches);
 router.post('/:chatSessionId/end', authenticate, endChatSession);
 router.post('/:chatSessionId/leave', authenticate, leaveChatSession);
 router.post('/:chatSessionId/save', authenticate, saveChatSession);
+router.post('/:chatSessionId/next', authenticate, nextChat); // US #6: Next Chat
 router.post('/block', authenticate, blockUser);
 router.post('/:chatSessionId/feedback', authenticate, submitFeedback);
+
+// Additional routes from us-8 for chat history and session details
+router.get('/history', authenticate, getSavedChats);
+router.get('/:sessionId', authenticate, getChatSession);
+router.get('/:chatSessionId/save-status', authenticate, getChatSaveStatus);
+router.post('/:chatSessionId/unmatch', authenticate, unmatchUser);
 
 export default router;

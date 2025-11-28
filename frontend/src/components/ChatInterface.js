@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { io } from "socket.io-client";
 import { useRouter } from "next/navigation";
+import SavedChatsList from "./SavedChatsList";
+import { io } from "socket.io-client";
 import Image from "next/image";
+import ReportModal from "./ReportModal";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL;
 const SOCKET_BASE = process.env.NEXT_PUBLIC_SOCKET_URL || API_BASE;
@@ -33,14 +35,12 @@ export default function ChatInterface({
   token,
   currentUserId,
   onChatEnded,
+  isReadOnly = false,
 }) {
   const router = useRouter();
   
-  // --- State from sprint-2 (Backend Logic) ---
-  const [messages, setMessages] = useState([
-      { id: 1, text: "Hey there! How's your day going?", sender: "other", timestamp: new Date() },
-    { id: 2, text: "Hi! It's going well, thanks for asking! How about yours?", sender: "me", timestamp: new Date() }
-  ]);
+  // State
+  const [messages, setMessages] = useState([]);
   const [inputValue, setInputValue] = useState("");
   const [connectionStatus, setConnectionStatus] = useState("connecting");
   const [error, setError] = useState("");
@@ -51,8 +51,11 @@ export default function ChatInterface({
   const [feedback, setFeedback] = useState(null);
   const [saveStatus, setSaveStatus] = useState({ currentUserSaved: false, partnerSaved: false, bothSaved: false });
   const [partnerLeft, setPartnerLeft] = useState(false);
-
-  // --- State from us-5-11 (UI Features) ---
+  const [partnerOffline, setPartnerOffline] = useState(false); // Track if partner explicitly logged out
+  const [showSavedChats, setShowSavedChats] = useState(false);
+  const [isUnmatched, setIsUnmatched] = useState(false);
+  const [isReportModalOpen, setIsReportModalOpen] = useState(false);
+  const [isReporting, setIsReporting] = useState(false);
   const [showSidebar, setShowSidebar] = useState(false);
   const [savedChats, setSavedChats] = useState([]);
   const [showActionMenu, setShowActionMenu] = useState(false);
@@ -60,10 +63,12 @@ export default function ChatInterface({
   const [reportOpen, setReportOpen] = useState(false);
   const [reportReason, setReportReason] = useState("");
   const [statusLog, setStatusLog] = useState([]);
+  // US-16: Feedback System state
   const [showFeedback, setShowFeedback] = useState(false);
   const [feedbackText, setFeedbackText] = useState("");
   const [rating, setRating] = useState(0); // 0..5
   const [hoverRating, setHoverRating] = useState(0);
+  // US-13: Filter Matches state
   const [filterQuery, setFilterQuery] = useState("");
   const [showFilterMenu, setShowFilterMenu] = useState(false);
   const [activeFilters, setActiveFilters] = useState({
@@ -72,6 +77,7 @@ export default function ChatInterface({
     orgs: false
   });
   const [isLoadingSaved, setIsLoadingSaved] = useState(false);
+
   const socketRef = useRef(null);
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -88,8 +94,64 @@ export default function ChatInterface({
   }, []);
 
   useEffect(() => {
-    currentUserIdRef.current = currentUserId ?? "";
-  }, [currentUserId]);
+    // Reset state when chat session changes
+    setSaveStatus({ currentUserSaved: false, partnerSaved: false, bothSaved: false });
+    setFeedback(null);
+    setPartnerLeft(false);
+    setPartnerOffline(false);
+    
+    // Fetch current save status from backend to handle reloads (Design consideration #1)
+    if (API_BASE && chatSessionId && token) {
+      fetch(`${API_BASE}/api/chat/${chatSessionId}/save-status`, {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+        .then(res => res.json())
+        .then(data => {
+          if (data.currentUserSaved !== undefined) {
+            const partnerSavedButNotBoth = data.savedByCount === 1 && !data.currentUserSaved;
+            const currentUserSavedButNotBoth = data.currentUserSaved && !data.isSaved;
+            
+            setSaveStatus({
+              currentUserSaved: data.currentUserSaved,
+              partnerSaved: data.savedByCount === 2 || partnerSavedButNotBoth,
+              bothSaved: data.isSaved
+            });
+            
+            // Show persistent feedback messages based on saved state
+            if (data.isSaved) {
+              setFeedback({ 
+                type: "success", 
+                message: "🎉 Match saved! Both of you have saved this chat." 
+              });
+            } else if (partnerSavedButNotBoth) {
+              // Partner saved but current user hasn't - show notification to prompt user to save
+              setFeedback({
+                type: "info",
+                message: `💝 ${partnerUsername || "Your partner"} wants to save this chat! Click "Save Chat" to keep the conversation alive!`
+              });
+            } else if (currentUserSavedButNotBoth) {
+              // Current user saved but partner hasn't
+              setFeedback({ 
+                type: "waiting", 
+                message: "✓ You saved the chat. Waiting for your partner to save..." 
+              });
+            }
+          }
+        })
+        .catch(err => console.error("Failed to fetch save status:", err));
+    }
+  }, [chatSessionId, token, partnerUsername]);
+
+  useEffect(() => {
+    const toggleSavedChatsListener = () => {
+      setShowSavedChats((v) => !v);
+    };
+    window.addEventListener("animatch:toggleSavedChats", toggleSavedChatsListener);
+    return () => window.removeEventListener("animatch:toggleSavedChats", toggleSavedChatsListener);
+  }, []);
 
   const fetchSavedMatches = async () => {
     if (!API_BASE || !token) return;
@@ -156,9 +218,9 @@ export default function ChatInterface({
               id: item._id || `${item.sentAt}-${Math.random()}`,
               content: item.content,
               sentAt: item.sentAt,
-              isOwn: currentUserIdRef.current
-                ? item.senderId === currentUserIdRef.current
-                : Boolean(item.isOwnMessage),
+              // Backend provides isOwnMessage which is authoritative
+              isOwn: Boolean(item.isOwnMessage),
+              senderId: item.senderId,
             }))
           : [];
 
@@ -205,8 +267,12 @@ export default function ChatInterface({
       setError(err?.message || "Unable to connect to chat service.");
     });
 
-    socket.on("chat:joined", () => {
+    socket.on("chat:joined", ({ userId }) => {
       setConnectionStatus("connected");
+      // Store the user ID from the socket server for message ownership detection
+      if (userId) {
+        currentUserIdRef.current = userId;
+      }
     });
 
     socket.on("chat:error", ({ message }) => {
@@ -216,13 +282,15 @@ export default function ChatInterface({
 
     socket.on("chat:message", (payload) => {
       const messageId = payload._id || `${payload.sentAt}-${Math.random()}`;
+      const isOwnMessage = currentUserIdRef.current
+        ? payload.senderId === currentUserIdRef.current
+        : false;
+      
       const message = {
         id: messageId,
         content: payload.content,
         sentAt: payload.sentAt,
-        isOwn: currentUserIdRef.current
-          ? payload.senderId === currentUserIdRef.current
-          : false,
+        isOwn: isOwnMessage,
       };
 
       setMessages((prev) => {
@@ -250,6 +318,12 @@ export default function ChatInterface({
           message: "🎉 Match saved! Both of you have saved this chat." 
         });
         fetchSavedMatches();
+      } else {
+        // Notify user B that user A wants to save the match
+        setFeedback({
+          type: "info",
+          message: `💝 ${partnerUsername || "Your partner"} wants to save this chat! Click "Save Chat" to keep the conversation alive!`
+        });
       }
     });
 
@@ -277,6 +351,39 @@ export default function ChatInterface({
         isOwn: false,
         isSystem: true
       }]);
+    });
+
+    // US #6: Partner clicked "Next Chat" - handle notification
+    socket.on("chat:partner-next", ({ message }) => {
+      // If chat is saved, show info message but don't mark as ended
+      if (saveStatus.bothSaved) {
+        setFeedback({
+          type: "info",
+          message: message || "Your partner is looking for a new match. This saved chat remains available."
+        });
+      }
+    });
+
+    socket.on("chat:unmatched", () => {
+      setIsUnmatched(true);
+    });
+
+    // Handle partner navigating away from chat (e.g., went to profile page)
+    // We just clear typing indicator but don't change connection status display
+    socket.on("chat:partner-away", () => {
+      setPartnerTyping(false); // Clear typing indicator when partner navigates away
+    });
+
+    // Handle partner explicitly logging out
+    socket.on("chat:partner-offline", () => {
+      setPartnerOffline(true);
+      setPartnerTyping(false);
+    });
+
+    // Handle partner joining/rejoining the chat room
+    socket.on("chat:partner-joined", () => {
+      // Partner is back - clear offline status
+      setPartnerOffline(false);
     });
 
     socket.on("disconnect", () => {
@@ -421,8 +528,16 @@ export default function ChatInterface({
   };
 
   const statusLabel = useMemo(() => {
+    // First check our own connection status
     switch (connectionStatus) {
       case "connected":
+        // Our connection is good - check partner status
+        if (partnerLeft) {
+          return "Partner left";
+        }
+        if (partnerOffline) {
+          return "Partner offline";
+        }
         return "Connected";
       case "disconnected":
         return "Reconnecting...";
@@ -432,11 +547,17 @@ export default function ChatInterface({
       default:
         return "Connecting";
     }
-  }, [connectionStatus]);
+  }, [connectionStatus, partnerLeft, partnerOffline]);
 
   const statusColor = useMemo(() => {
     switch (connectionStatus) {
       case "connected":
+        if (partnerLeft) {
+          return "text-rose-600";
+        }
+        if (partnerOffline) {
+          return "text-yellow-600";
+        }
         return "text-green-600";
       case "error":
         return "text-red-600";
@@ -445,7 +566,7 @@ export default function ChatInterface({
       default:
         return "text-gray-500";
     }
-  }, [connectionStatus]);
+  }, [connectionStatus, partnerLeft, partnerOffline]);
 
   function stopTypingNotification() {
     if (socketRef.current && hasSentTypingRef.current) {
@@ -593,10 +714,6 @@ const activeFilterCount = Object.values(activeFilters).filter(Boolean).length;
     ]);
   };
 
-  const handleNextChat = () => {
-    router.push("/match");
-  };
-
   const handleLeaveChat = async () => {
     if (!API_BASE || !token) {
       if (typeof onChatEnded === "function") {
@@ -673,6 +790,82 @@ const activeFilterCount = Object.values(activeFilters).filter(Boolean).length;
       });
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleReportUser = async ({ reason, description }) => {
+    if (!API_BASE || !token) return;
+
+    try {
+      setIsReporting(true);
+      const response = await fetch(`${API_BASE}/api/reports`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          chatSessionId,
+          reason,
+          description,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to submit report");
+      }
+
+      setFeedback({
+        type: "success",
+        message: "Report submitted successfully. Admins will review it shortly.",
+      });
+      setIsReportModalOpen(false);
+    } catch (err) {
+      setFeedback({
+        type: "error",
+        message: "Failed to submit report. Please try again.",
+      });
+    } finally {
+      setIsReporting(false);
+    }
+  };
+
+  // US #6: Next Chat - Skip to another match
+  const [isNexting, setIsNexting] = useState(false);
+  
+  const handleNextChat = async () => {
+    if (!API_BASE || !token) {
+      router.push("/match/queue");
+      return;
+    }
+
+    try {
+      setIsNexting(true);
+      setError("");
+      stopTypingNotification();
+      
+      const response = await fetch(`${API_BASE}/api/chat/${chatSessionId}/next`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(data.message || "Failed to process next chat");
+      }
+
+      // Clear active chat session from storage
+      sessionStorage.removeItem("activeChatSessionId");
+      
+      // Redirect to queue to find new match (AC3)
+      router.push("/match/queue");
+    } catch (err) {
+      console.error("Failed to next chat", err);
+      setError(err instanceof Error ? err.message : "Failed to process next chat request");
+      setIsNexting(false);
     }
   };
 
@@ -782,30 +975,62 @@ const activeFilterCount = Object.values(activeFilters).filter(Boolean).length;
 
   return (
     <div className="flex flex-col min-h-[calc(100vh-4rem)] bg-gray-50">
-      {/* Chat actions below TopBar */}
-      <div className="bg-white border-b border-gray-200 px-4 py-2 flex items-center justify-end gap-2">
-        {/* Save Chat */}
-        <button
-          type="button"
-          onClick={handleSaveChat}
-          disabled={isSaving || saveStatus.bothSaved || partnerLeft}
-          title="Save Chat"
-          className={`h-9 px-3 rounded-md flex items-center justify-center text-sm font-medium transition-all ${
-            partnerLeft
-              ? "bg-gray-200 text-gray-600 cursor-not-allowed"
-              : saveStatus.bothSaved
-              ? "bg-green-100 text-green-700 cursor-not-allowed"
-              : saveStatus.currentUserSaved
-              ? "bg-blue-100 text-blue-700 cursor-wait"
-              : "bg-yellow-300 text-[#286633] hover:brightness-95"
-          } disabled:opacity-60`}
-        >
-          <span className="inline-flex items-center gap-2">
-            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0z" />
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 14a7 7 0 00-7 7h7" />
-              <path strokeLinecap="round" strokeLinejoin="round" d="M19 7v6m3-3h-6" />
+      <ReportModal
+        isOpen={isReportModalOpen}
+        onClose={() => setIsReportModalOpen(false)}
+        onSubmit={handleReportUser}
+        isSubmitting={isReporting}
+      />
+      <header className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          {/* Burger icon to open SavedChatsList */}
+          <button
+            type="button"
+            onClick={() => setShowSavedChats(true)}
+            className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
+            aria-label="Open saved chats"
+          >
+            <svg className="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
             </svg>
+          </button>
+          <div>
+            <h1 className="text-lg font-semibold text-gray-900">
+              {partnerUsername || "Anonymous Match"}
+            </h1>
+            <p className={`text-sm ${statusColor}`}>{statusLabel}</p>
+            {partnerTyping && connectionStatus === "connected" && !partnerLeft && (
+              <p className="text-xs text-gray-500 mt-1">{partnerUsername || "Partner"} is typing...</p>
+            )}
+            {partnerLeft && (
+              <p className="text-xs text-rose-600 mt-1 font-medium">⚠️ Partner has left the chat</p>
+            )}
+          </div>
+        </div>
+        <div className="flex gap-2">
+          {/* US #6: Next Chat button - to the left of Save Chat (AC1) */}
+          <button
+            type="button"
+            onClick={handleNextChat}
+            disabled={isNexting || partnerLeft || isReadOnly}
+            className="h-9 px-4 rounded-md bg-blue-500 text-white text-sm font-medium shadow-sm hover:bg-blue-600 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+          >
+            {isNexting ? "Finding..." : "Next Chat"}
+          </button>
+          <button
+            type="button"
+            onClick={handleSaveChat}
+            disabled={isSaving || saveStatus.bothSaved || partnerLeft}
+            className={`h-9 px-4 rounded-md text-sm font-medium shadow-sm transition-all ${
+              partnerLeft
+                ? "bg-gray-200 text-gray-600 cursor-not-allowed"
+                : saveStatus.bothSaved
+                ? "bg-green-100 text-green-700 cursor-not-allowed"
+                : saveStatus.currentUserSaved
+                ? "bg-blue-100 text-blue-700 cursor-wait"
+                : "bg-yellow-300 text-[#286633] hover:brightness-95"
+            } disabled:opacity-60`}
+          >
             {partnerLeft
               ? "Partner Left"
               : saveStatus.bothSaved 
@@ -814,64 +1039,47 @@ const activeFilterCount = Object.values(activeFilters).filter(Boolean).length;
               ? "Waiting..." 
               : isSaving 
               ? "Saving..." 
-              : "Save chat"}
-          </span>
-        </button>
-
-        {/* Report/Block with hover menu */}
-        <div
-          className="relative"
-          onMouseEnter={openMenu}
-          onMouseLeave={scheduleCloseMenu}
-        >
+              : "Save Chat"}
+          </button>
+          {/* US #11: Report User button */}
           <button
             type="button"
-            aria-haspopup="true"
-            aria-expanded={showActionMenu}
-            onClick={() => setShowActionMenu((v) => !v)}
-            title="Report / Block"
-            className="h-9 px-3 rounded-md bg-rose-500 text-white flex items-center justify-center hover:brightness-95"
+            onClick={() => setIsReportModalOpen(true)}
+            className="h-9 px-4 rounded-md text-sm font-medium shadow-sm bg-rose-600 text-white hover:bg-rose-700 focus-visible:ring-2 focus-visible:ring-rose-400"
           >
-            <span className="inline-flex items-center gap-2 text-sm font-medium">
-              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M4 6v14M4 6h10l-1.5 3H20l-1.5 3H10L8.5 15H4" />
-              </svg>
-              Report / Block
-            </span>
+            Report User
           </button>
-
-          {showActionMenu && (
-            <div
-              className="absolute right-0 mt-2 w-44 bg-white text-black rounded-md shadow-lg z-20 ring-1 ring-black/5"
-              onMouseEnter={openMenu}
-              onMouseLeave={scheduleCloseMenu}
-            >
-              <button
-                type="button"
-                onClick={blockUser}
-                className="w-full text-left px-3 py-2 hover:bg-gray-100 transition"
-              >
-                Block user
-              </button>
-              <button
-                type="button"
-                onClick={reportUser}
-                className="w-full text-left px-3 py-2 hover:bg-gray-100 border-t transition"
-              >
-                Report user
-              </button>
-            </div>
-          )}
+          {/* US #10: Block button */}
+          <button
+            type="button"
+            onClick={() => setConfirmBlockOpen(true)}
+            disabled={isBlocking || partnerLeft || isReadOnly || !partnerId}
+            className="h-9 px-4 rounded-md bg-orange-500 text-white text-sm font-medium shadow-sm hover:bg-orange-600 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+          >
+            {isBlocking ? "Blocking..." : "Block"}
+          </button>
+          <button
+            type="button"
+            onClick={handleLeaveChat}
+            disabled={isEnding || partnerLeft}
+            className="h-9 px-4 rounded-md bg-rose-500 text-white text-sm font-medium shadow-sm hover:brightness-95 disabled:opacity-70"
+          >
+            {partnerLeft ? "Partner Left" : isEnding ? "Leaving..." : "End Chat"}
+          </button>
         </div>
-      </div>
+      </header>
 
       {/* Feedback / Error Messages */}
       {(error || feedback) && (
-        <div className="px-4 pt-2">
-          {error && <div className="p-2 text-sm text-red-700 bg-red-50 rounded border border-red-200">{error}</div>}
+        <div className="px-6 pt-4 space-y-3">
+          {error && (
+            <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              {error}
+            </div>
+          )}
           {feedback && (
             <div
-              className={`p-2 text-sm rounded border flex items-start gap-2 ${
+              className={`rounded-md border px-4 py-3 text-sm flex items-start gap-2 ${
                 feedback.type === "success"
                   ? "border-green-200 bg-green-50 text-green-700"
                   : feedback.type === "waiting"
@@ -895,7 +1103,7 @@ const activeFilterCount = Object.values(activeFilters).filter(Boolean).length;
 
       {/* Content area: sidebar + chat, split-screen (no overlay) */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Left sidebar (saved chats) */}
+        {/* Left sidebar (saved chats) - US #13 Filter Matches */}
         <aside className={`bg-gray-100 border-r border-gray-200 flex flex-col w-80 sm:w-96`}>
           <div className="p-4 border-b border-gray-200 bg-white">
             <h2 className="font-bold text-gray-700 mb-2">Saved Matches</h2>
@@ -1076,6 +1284,11 @@ const activeFilterCount = Object.values(activeFilters).filter(Boolean).length;
                     ) : (
                       <p className="text-sm whitespace-pre-wrap">{message.content}</p>
                     )}
+                    {!message.isSystem && !message.type && (
+                      <time className={`block text-xs mt-1 ${isMe ? "text-white/70" : "text-gray-500"}`}>
+                        {formatTimestamp(message.sentAt)}
+                      </time>
+                    )}
                   </div>
                 </div>
               );
@@ -1189,8 +1402,8 @@ const activeFilterCount = Object.values(activeFilters).filter(Boolean).length;
               </button>
               <button
                 type="button"
-                onClick={handleBlockUser} // <--- NEW (Correct)
-                disabled={isBlocking}     // <--- Add disabled state so they can't spam click
+                onClick={handleBlockUser}
+                disabled={isBlocking}
                 className="flex-1 bg-rose-600 hover:bg-rose-700 text-white py-3 rounded-2xl disabled:opacity-70"
               >
                 {isBlocking ? "Blocking..." : "Block"}
@@ -1199,6 +1412,7 @@ const activeFilterCount = Object.values(activeFilters).filter(Boolean).length;
           </div>
         </div>
       )}
+
       {/* Report Modal */}
       {reportOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
@@ -1233,18 +1447,19 @@ const activeFilterCount = Object.values(activeFilters).filter(Boolean).length;
           </div>
         </div>
       )}
-      {/* Feedback Modal (on exit) */}
+
+      {/* US #16: Feedback Modal (Rate Match Quality - on exit) */}
       {showFeedback && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center">
           <div className="absolute inset-0 bg-black/40" onClick={() => setShowFeedback(false)} />
           <div className="relative bg-white w-[92%] max-w-xl rounded-3xl p-6 shadow-2xl">
-            <h2 className="text-3xl font-extrabold text-brand-700 text-center mb-4">Enjoying the App?</h2>
+            <h2 className="text-3xl font-extrabold text-[#286633] text-center mb-4">Rate Your Match</h2>
             <div className="mb-6">
               <textarea
                 value={feedbackText}
                 onChange={(e) => setFeedbackText(e.target.value)}
-                placeholder="Tell us what you think..."
-                className="w-full min-h-[180px] rounded-2xl bg-brand-50/80 border border-brand-700/10 outline-none p-4 text-gray-800 placeholder:text-gray-500 focus:ring-2 focus:ring-brand-600/30"
+                placeholder="Tell us what you think... (optional)"
+                className="w-full min-h-[180px] rounded-2xl bg-green-50 border border-green-200 outline-none p-4 text-gray-800 placeholder:text-gray-500 focus:ring-2 focus:ring-green-500"
               />
             </div>
             {/* Stars */}
@@ -1262,7 +1477,7 @@ const activeFilterCount = Object.values(activeFilters).filter(Boolean).length;
                     className="p-1"
                   >
                     <svg
-                      className={`w-10 h-10 drop-shadow-sm ${active ? 'text-yellow-300' : 'text-yellow-200'} ${active ? '' : 'opacity-70'}`}
+                      className={`w-10 h-10 drop-shadow-sm ${active ? 'text-yellow-400' : 'text-yellow-200'} ${active ? '' : 'opacity-70'}`}
                       viewBox="0 0 24 24"
                       fill="currentColor"
                       aria-hidden="true"
@@ -1286,7 +1501,7 @@ const activeFilterCount = Object.values(activeFilters).filter(Boolean).length;
               </button>
               <button
                 type="button"
-                className="flex-1 bg-brand-700 hover:bg-brand-600 text-white py-4 rounded-2xl transition-colors"
+                className="flex-1 bg-green-600 hover:bg-green-700 text-white py-4 rounded-2xl transition-colors"
                 onClick={handleSubmitFeedback}
               >
                 Submit
@@ -1295,6 +1510,12 @@ const activeFilterCount = Object.values(activeFilters).filter(Boolean).length;
           </div>
         </div>
       )}
+
+      {/* SavedChatsList Overlay (for mobile) */}
+      <SavedChatsList
+        visible={showSavedChats}
+        onClose={() => setShowSavedChats(false)}
+      />
     </div>
   );
 }

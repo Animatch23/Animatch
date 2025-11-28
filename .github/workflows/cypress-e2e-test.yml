@@ -3,16 +3,13 @@ name: Cypress E2E Tests
 on:
   push:
     branches:
-      - main
-      - "frontend/**"
-      - "**frontend**"
+      - "**"
   pull_request:
     branches:
       - main
       - "frontend/**"
       - "**frontend**"
       - "**sprint**"
-  workflow_dispatch:
 
 jobs:
   cypress-run:

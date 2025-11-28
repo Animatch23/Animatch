@@ -379,4 +379,209 @@ describe('Queue Controller Tests', () => {
     expect(chatSession.participants).toContainEqual(mockUser1.id);
     expect(chatSession.participants).toContainEqual(user2Id);
   });
+
+  test('joinQueue should not match users who have ACTIVE saved chats', async () => {
+    // Create two users
+    await User.create({
+      _id: mockUser1.id,
+      email: 'user1@test.com',
+      username: 'testuser1',
+      course: 'Computer Science',
+      housing: 'Agape Hall',
+      organizations: ['ACM'],
+      interests: ['Gaming']
+    });
+
+    await User.create({
+      _id: mockUser2.id,
+      email: 'user2@test.com',
+      username: 'testuser2',
+      course: 'Computer Science',
+      housing: 'Agape Hall',
+      organizations: ['ACM'],
+      interests: ['Gaming']
+    });
+
+    // Create an ACTIVE saved chat between them (only active saved chats block rematching)
+    await ChatSession.create({
+      participants: [mockUser1.id, mockUser2.id],
+      active: true, // ACTIVE saved chat blocks rematching
+      isSaved: true,
+      savedByUsers: [mockUser1.id, mockUser2.id],
+      expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000) // Far in the future
+    });
+
+    // Add user2 to queue
+    await Queue.create({ userId: mockUser2.id, status: 'waiting' });
+
+    // Try to add user1 to queue - should NOT match with user2
+    const req = mockRequest(mockUser1);
+    const res = mockResponse();
+    await joinQueue(req, res);
+
+    // Should NOT be matched, should be queued instead
+    expect(res._jsonData.matched).toBe(false);
+    expect(res._jsonData.queued).toBe(true);
+
+    // Both users should still be in queue
+    const queueEntries = await Queue.find({});
+    expect(queueEntries.length).toBe(2);
+  });
+
+  test('checkQueueStatus should exclude ACTIVE saved chat partners from matching', async () => {
+    // Create two users
+    await User.create({
+      _id: mockUser1.id,
+      email: 'user1@test.com',
+      username: 'testuser1',
+      course: 'Computer Science',
+      housing: 'Agape Hall',
+      organizations: [],
+      interests: []
+    });
+
+    await User.create({
+      _id: mockUser2.id,
+      email: 'user2@test.com',
+      username: 'testuser2',
+      course: 'Computer Science',
+      housing: 'Agape Hall',
+      organizations: [],
+      interests: []
+    });
+
+    // Create an ACTIVE saved chat between them (only active saved chats block)
+    await ChatSession.create({
+      participants: [mockUser1.id, mockUser2.id],
+      active: true, // ACTIVE saved chat blocks rematching
+      isSaved: true,
+      savedByUsers: [mockUser1.id, mockUser2.id],
+      expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000)
+    });
+
+    // Add both users to queue with enough wait time for random matching
+    await Queue.create({ userId: mockUser1.id, status: 'waiting', createdAt: new Date(Date.now() - 35000) });
+    await Queue.create({ userId: mockUser2.id, status: 'waiting', createdAt: new Date(Date.now() - 35000) });
+
+    // Check status for user1 - should NOT match with user2 even after timeout
+    const req = mockRequest(mockUser1);
+    const res = mockResponse();
+    await checkQueueStatus(req, res);
+
+    // Should still be queued, not matched
+    expect(res._jsonData.queued).toBe(true);
+    expect(res._jsonData.matched).toBe(false);
+  });
+
+  test('joinQueue should match with new users even if user has saved chats with others', async () => {
+    const user3Id = new mongoose.Types.ObjectId();
+
+    // Create three users
+    await User.create({
+      _id: mockUser1.id,
+      email: 'user1@test.com',
+      username: 'testuser1',
+      course: 'Computer Science',
+      housing: 'Agape Hall',
+      organizations: ['ACM'],
+      interests: ['Gaming']
+    });
+
+    await User.create({
+      _id: mockUser2.id,
+      email: 'user2@test.com',
+      username: 'testuser2',
+      course: 'Computer Science',
+      housing: 'Agape Hall',
+      organizations: ['ACM'],
+      interests: ['Gaming']
+    });
+
+    await User.create({
+      _id: user3Id,
+      email: 'user3@test.com',
+      username: 'testuser3',
+      course: 'Computer Science',
+      housing: 'Agape Hall',
+      organizations: ['ACM'],
+      interests: ['Gaming']
+    });
+
+    // Create a saved chat between user1 and user2
+    await ChatSession.create({
+      participants: [mockUser1.id, mockUser2.id],
+      active: false,
+      isSaved: true,
+      savedByUsers: [mockUser1.id, mockUser2.id],
+      expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000)
+    });
+
+    // Add user3 to queue (fresh user with no saved chats)
+    await Queue.create({ userId: user3Id, status: 'waiting' });
+
+    // User1 joins queue - should match with user3 (not user2)
+    const req = mockRequest(mockUser1);
+    const res = mockResponse();
+    await joinQueue(req, res);
+
+    // Should be matched with user3
+    expect(res._jsonData.matched).toBe(true);
+    expect(res._jsonData.chatSessionId).toBeTruthy();
+
+    // Verify the match is with user3, not user2
+    const chatSession = await ChatSession.findOne({ active: true });
+    expect(chatSession.participants).toContainEqual(mockUser1.id);
+    expect(chatSession.participants).toContainEqual(user3Id);
+    expect(chatSession.participants).not.toContainEqual(mockUser2.id);
+  });
+
+  test('joinQueue should allow rematch when saved chat was unmatched', async () => {
+    // Create two users
+    await User.create({
+      _id: mockUser1.id,
+      email: 'user1@test.com',
+      username: 'testuser1',
+      course: 'Computer Science',
+      housing: 'Agape Hall',
+      organizations: ['ACM'],
+      interests: ['Gaming']
+    });
+
+    await User.create({
+      _id: mockUser2.id,
+      email: 'user2@test.com',
+      username: 'testuser2',
+      course: 'Computer Science',
+      housing: 'Agape Hall',
+      organizations: ['ACM'],
+      interests: ['Gaming']
+    });
+
+    // Create a saved chat between them but mark as unmatched (should allow rematch)
+    await ChatSession.create({
+      participants: [mockUser1.id, mockUser2.id],
+      active: false,
+      isSaved: true,
+      savedByUsers: [mockUser1.id, mockUser2.id],
+      unmatchedBy: mockUser1.id, // user1 had unmatched previously
+      expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000)
+    });
+
+    // Add user2 to queue
+    await Queue.create({ userId: mockUser2.id, status: 'waiting' });
+
+    // Now add user1 to queue - they should be allowed to be matched with user2 because the saved chat was unmatched
+    const req = mockRequest(mockUser1);
+    const res = mockResponse();
+    await joinQueue(req, res);
+
+    // Should be matched now
+    expect(res._jsonData.matched).toBe(true);
+    expect(res._jsonData.chatSessionId).toBeTruthy();
+
+    const chatSession = await ChatSession.findById(res._jsonData.chatSessionId);
+    expect(chatSession).toBeTruthy();
+    expect(chatSession.participants).toContainEqual(mockUser1.id);
+    expect(chatSession.participants).toContainEqual(mockUser2.id);
+  });
 });
