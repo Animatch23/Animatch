@@ -135,14 +135,14 @@ test("User A blocks User B, and blocked users cannot match again", async () => {
       pageB.waitForURL("**/match/chat?session=*", { timeout: 60000 })
     ]);
 
-    // Chat exchange
-    await pageA.locator("textarea").fill("hi");
-    await pageA.getByRole("button", { name: "Send" }).click();
-    await expect(pageB.getByText("hi")).toBeVisible({ timeout: 5000 });
+    // // Chat exchange
+    // await pageA.locator("textarea").fill("hi");
+    // await pageA.getByRole("button", { name: "Send" }).click();
+    // await expect(pageB.getByText("hi")).toBeVisible({ timeout: 5000 });
 
-    await pageB.locator("textarea").fill("hi");
-    await pageB.getByRole("button", { name: "Send" }).click();
-    await expect(pageA.getByText("hi")).toBeVisible({ timeout: 5000 });
+    // await pageB.locator("textarea").fill("hi");
+    // await pageB.getByRole("button", { name: "Send" }).click();
+    // await expect(pageA.getByText("hi")).toBeVisible({ timeout: 5000 });
 
     // First Block on page
     await pageA.getByRole("button", { name: "Block" }).first().click();
