@@ -458,7 +458,7 @@ export const unmatchUser = async (req, res) => {
 
 /**
  * US #6: Next Chat - Skip to another match
- * If chat is saved, keep it active (users can continue chatting in saved chats)
+ * If chat is saved, unmatch it (set unmatchedBy, deactivate) but preserve messages
  * If chat is unsaved, end it and delete messages
  */
 export const nextChat = async (req, res) => {
@@ -482,38 +482,40 @@ export const nextChat = async (req, res) => {
 
     const wasSaved = chatSession.isSaved;
 
-    // If chat is NOT saved, end it and delete messages (AC6)
+    // For BOTH saved and unsaved chats, end the session
+    chatSession.active = false;
+    chatSession.endedAt = new Date();
+
     if (!wasSaved) {
-      chatSession.active = false;
-      chatSession.endedAt = new Date();
-      await chatSession.save();
-
-      // Delete all messages from this chat
+      // If chat is NOT saved, delete messages (AC6)
       await Message.deleteMany({ chatSessionId: chatSession._id });
-
       console.log(`[NEXT CHAT] User ${userId} skipped unsaved chat ${chatSessionId} - messages deleted`);
     } else {
-      // For saved chats, keep them ACTIVE so users can continue chatting
-      // Just notify the partner that this user is looking for a new match
-      console.log(`[NEXT CHAT] User ${userId} looking for new match, saved chat ${chatSessionId} remains ACTIVE`);
+      // For saved chats, mark as unmatched so it behaves like unmatch
+      // This allows both users to rematch with others while preserving the chat history
+      chatSession.unmatchedBy = userId;
+      console.log(`[NEXT CHAT] User ${userId} unmatched from saved chat ${chatSessionId} - chat preserved for history`);
     }
+
+    await chatSession.save();
 
     // Notify partner
     const io = req.app.get('io');
     if (io) {
-      if (!wasSaved) {
-        io.to(chatSessionId.toString()).emit('chat:partner-left', {
-          message: 'Your partner is looking for a new match'
+      if (wasSaved) {
+        // For saved chats, emit unmatched event
+        io.to(chatSessionId.toString()).emit('chat:unmatched', {
+          message: 'Your partner has moved on to find a new match. This saved chat is preserved in your history.'
         });
       } else {
-        io.to(chatSessionId.toString()).emit('chat:partner-next', {
-          message: 'Your partner is looking for a new match. This saved chat remains available.'
+        io.to(chatSessionId.toString()).emit('chat:partner-left', {
+          message: 'Your partner is looking for a new match'
         });
       }
     }
 
     res.json({
-      message: wasSaved ? 'Looking for new match (saved chat preserved)' : 'Chat ended, looking for new match',
+      message: wasSaved ? 'Unmatched from saved chat, looking for new match' : 'Chat ended, looking for new match',
       redirectToQueue: true,
       chatPreserved: wasSaved,
       isSaved: wasSaved
