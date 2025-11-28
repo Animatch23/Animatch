@@ -195,4 +195,52 @@ test.describe("chat test", () => {
 
     await browser.close();
   });
+
+    test("end chat test", async () => {
+    const browser = await chromium.launch();
+    const context1 = await browser.newContext();
+    const context2 = await browser.newContext();
+    const page1 = await context1.newPage();
+    const page2 = await context2.newPage();
+
+    await Promise.all([
+      setupUser(page1),
+      setupUser(page2)
+    ]);
+
+    await Promise.all([
+      page1.getByText("Start Matching").click(),
+      page2.getByText("Start Matching").click()
+    ]);
+
+    await Promise.all([
+      page1.waitForURL('**/match/chat?session=*', { timeout: 45000 }),
+      page2.waitForURL('**/match/chat?session=*', { timeout: 45000 })
+    ]);
+
+    await page1.waitForLoadState("networkidle");
+    await page2.waitForLoadState("networkidle");
+    await page1.waitForTimeout(2000);
+    await page2.waitForTimeout(2000);
+
+    // Click end chat button on both pages
+    const endChatBtn1 = page1.getByRole("button", { name: "End Chat" });
+    const endChatBtn2 = page2.getByRole("button", { name: "End Chat" });
+
+    await expect(endChatBtn1).toBeVisible({ timeout: 15000 });
+    await expect(endChatBtn2).toBeVisible({ timeout: 15000 });
+
+    await Promise.all([
+      endChatBtn1.click(),
+      endChatBtn2.click()
+    ]);
+
+    // Verify both redirect back to /match
+    await Promise.all([
+      page1.waitForURL('**/match', { timeout: 5000 }),
+      page2.waitForURL('**/match', { timeout: 5000 })
+    ]);
+
+    await browser.close();
+    });
 });
