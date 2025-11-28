@@ -1,0 +1,91 @@
+{
+  "info": {
+    "name": "Animatch Queue & Matchmaking",
+    "_postman_id": "a6b9f6ce-queue-matchmaking",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:3000/api" },
+    { "key": "token", "value": "{{TOKEN}}" }
+  ],
+  "item": [
+    {
+      "name": "Auth Debug Create User",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": "{{baseUrl}}/auth/debug-create-user",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"user1@example.com\",\n  \"password\": \"Pass123!\",\n  \"name\": \"User One\"\n}"
+        }
+      }
+    },
+    {
+      "name": "Join Queue",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{token}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "url": "{{baseUrl}}/queue/join",
+        "body": { "mode": "raw", "raw": "{}" }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Status 200', () => pm.response.code === 200);",
+              "pm.test('Has matched flag', () => pm.response.json().hasOwnProperty('matched'));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Check Queue Status",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+        "url": "{{baseUrl}}/queue/status"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const j = pm.response.json();",
+              "pm.test('Status 200', () => pm.response.code === 200);",
+              "pm.test('Has inQueue or matched', () => pm.expect(j.inQueue !== undefined || j.matched !== undefined).to.be.true);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Leave Queue",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{token}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "url": "{{baseUrl}}/queue/leave",
+        "body": { "mode": "raw", "raw": "{}" }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Status 200', () => pm.response.code === 200);",
+              "pm.test('Removed message', () => pm.response.json().message === 'Removed from queue');"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

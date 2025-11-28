@@ -1,0 +1,19 @@
+{
+  "watch": [
+    "src/",
+    "public/",
+    "*.js",
+    "*.json",
+    "*.mjs"
+  ],
+  "ext": "js,jsx,ts,tsx,json,css,md",
+  "ignore": [
+    "node_modules/",
+    ".next/",
+    "*.log"
+  ],
+  "exec": "next dev",
+  "env": {
+    "NODE_ENV": "development"
+  }
+}

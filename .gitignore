@@ -1,12 +1,38 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
 # dependencies
+node_modules
 /node_modules
+node_modules/
 /.pnp
 .pnp.js
 
 # testing
 /coverage
+.jest-cache/
+**/mongodb-memory-server-*
+.nyc_output/
+**/.env.test
+**/.env.test.local
+
+# Test generated files
+**/globalConfig.json
+
+# IDE specific files
+.vscode/
+.idea/
+*.sublime-*
+
+# OS specific
+Thumbs.db
+
+# Jest reports beyond basic coverage
+/reports/
+/test-results/
+/junit.xml
+
+# MongoDB memory server temp files
+**/mongo-*
 
 # next.js
 /.next/
@@ -34,3 +60,28 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Jest
+.jest/
+__snapshots__/
+
+# Babel
+.babel-cache/
+
+# MongoDB memory server
+.mongodb-data/
+
+# Coverage reports
+coverage/
+
+# IDE-specific files
+.vscode/
+.idea/
+
+# Logs
+logs/
+*.log
+
+# Temp files
+*.tmp
+.temp/repomix-output.xml 
