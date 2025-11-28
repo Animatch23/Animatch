@@ -107,7 +107,7 @@ const completeInterestSetup = async (page, coursePreference, housingPreference, 
 
 // Test Case #1
 test("User A blocks User B, and blocked users cannot match again", async () => {
-  const browser = await chromium.launch({ headless: false, slowMo: 50 });
+  const browser = await chromium.launch({ headless: true, slowMo: 50 });
 
   const contextA = await browser.newContext();
   const contextB = await browser.newContext();
@@ -186,7 +186,7 @@ test("User A blocks User B, and blocked users cannot match again", async () => {
 
 // Test Case #2
 test("Block canceled flow: Users can continue chat if block is canceled", async () => {
-const browser = await chromium.launch({ headless: false, slowMo: 50 });
+const browser = await chromium.launch({ headless: true, slowMo: 50 });
 
 const contextA = await browser.newContext();
 const contextB = await browser.newContext();
