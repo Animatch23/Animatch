@@ -1,6 +1,5 @@
 import express from 'express';
 import ChatSession from '../models/ChatSession.js';
-import User from '../models/User.js';
 import { authenticate } from '../middleware/authMiddleware.js';
 import {
   joinQueue,

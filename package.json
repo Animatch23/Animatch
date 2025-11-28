@@ -11,6 +11,7 @@
     "install:all": "npm run install:backend && npm run install:frontend"
   },
   "devDependencies": {
+    "concurrently": "^9.2.1",
     "newman": "^6.2.1"
   }
 }
