@@ -12,11 +12,15 @@ export const getActiveChat = async (req, res) => {
       return res.status(401).json({ message: 'User not authenticated' });
     }
 
+    // Prioritize UNSAVED active chats over saved ones
+    // This ensures "Return to Active Match" goes to the unsaved chat first
     const chatSession = await ChatSession.findOne({
       participants: userId,
       active: true,
       expiresAt: { $gt: new Date() }
-    }).populate('participants', 'username');
+    })
+    .sort({ isSaved: 1 }) // unsaved (false/undefined) comes before saved (true)
+    .populate('participants', 'username');
 
     if (!chatSession) {
       return res.status(404).json({ message: 'No active chat session found' });
@@ -64,8 +68,9 @@ export const getChatHistory = async (req, res) => {
       return res.status(403).json({ message: 'Access denied to this chat session' });
     }
 
-    // Block access if chat was unmatched (hidden from both users)
-    if (chatSession.unmatchedBy) {
+    // Block access if chat was unmatched, UNLESS it was saved by both users
+    // If both users saved the chat (isSaved: true), they can still view history
+    if (chatSession.unmatchedBy && !chatSession.isSaved) {
       return res.status(403).json({ message: 'This chat has been removed' });
     }
 
@@ -271,13 +276,14 @@ export const getSavedChats = async (req, res) => {
       return res.status(401).json({ message: 'User not authenticated' });
     }
 
-    // Find all ACTIVE saved chats for this user (inactive saved chats are hidden)
-    // Exclude unmatched chats (they should not appear in saved list)
+    // Find all saved chats for this user where both users saved (isSaved: true)
+    // Saved chats remain visible even if unmatched or inactive
+    // This preserves chat history for mutually saved matches
     const savedChats = await ChatSession.find({
       participants: userId,
-      isSaved: true,
-      active: true, // Only show ACTIVE saved chats
-      unmatchedBy: { $exists: false } // Exclude unmatched chats
+      isSaved: true
+      // Note: We show saved chats regardless of active status or unmatchedBy
+      // because both users agreed to save this connection
     })
     .populate('participants', 'username email')
     .sort({ endedAt: -1, startedAt: -1 })
@@ -352,8 +358,9 @@ export const getChatSession = async (req, res) => {
       return res.status(403).json({ msg: 'User not authorized for this chat' });
     }
 
-    // Block access if chat was unmatched
-    if (chatSession.unmatchedBy) {
+    // Block access if chat was unmatched, UNLESS it was saved by both users
+    // If both users saved the chat (isSaved: true), they can still view it
+    if (chatSession.unmatchedBy && !chatSession.isSaved) {
       return res.status(403).json({ msg: 'This chat has been removed' });
     }
 

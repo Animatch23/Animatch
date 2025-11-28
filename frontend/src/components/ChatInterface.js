@@ -106,12 +106,8 @@ export default function ChatInterface({
             });
             
             // Show persistent feedback messages based on saved state
-            if (data.isSaved) {
-              setFeedback({ 
-                type: "success", 
-                message: "🎉 Match saved! Both of you have saved this chat." 
-              });
-            } else if (partnerSavedButNotBoth) {
+            // Note: Don't show success message on reload - it should only appear once when saving
+            if (partnerSavedButNotBoth) {
               // Partner saved but current user hasn't - show notification to prompt user to save
               setFeedback({
                 type: "info",
@@ -124,6 +120,7 @@ export default function ChatInterface({
                 message: "✓ You saved the chat. Waiting for your partner to save..." 
               });
             }
+            // If bothSaved (data.isSaved), don't show any message on reload
           }
         })
         .catch(err => console.error("Failed to fetch save status:", err));
@@ -672,6 +669,10 @@ export default function ChatInterface({
           type: "success", 
           message: "🎉 Match saved! Both of you have saved this chat." 
         });
+        // Auto-dismiss success message after 3 seconds
+        setTimeout(() => {
+          setFeedback(null);
+        }, 3000);
       } else {
         setFeedback({ 
           type: "waiting", 
@@ -807,17 +808,6 @@ export default function ChatInterface({
       />
       <header className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          {/* Burger icon to open SavedChatsList */}
-          <button
-            type="button"
-            onClick={() => setShowSavedChats(true)}
-            className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
-            aria-label="Open saved chats"
-          >
-            <svg className="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-            </svg>
-          </button>
           <div>
             <h1 className="text-lg font-semibold text-gray-900">
               {partnerUsername || "Anonymous Match"}
@@ -869,7 +859,8 @@ export default function ChatInterface({
           <button
             type="button"
             onClick={() => setIsReportModalOpen(true)}
-            className="h-9 px-4 rounded-md text-sm font-medium shadow-sm bg-rose-600 text-white hover:bg-rose-700 focus-visible:ring-2 focus-visible:ring-rose-400"
+            disabled={isReadOnly}
+            className="h-9 px-4 rounded-md text-sm font-medium shadow-sm bg-rose-600 text-white hover:bg-rose-700 focus-visible:ring-2 focus-visible:ring-rose-400 disabled:opacity-60 disabled:cursor-not-allowed"
           >
             Report User
           </button>
@@ -885,8 +876,8 @@ export default function ChatInterface({
           <button
             type="button"
             onClick={handleLeaveChat}
-            disabled={isEnding || partnerLeft}
-            className="h-9 px-4 rounded-md bg-rose-500 text-white text-sm font-medium shadow-sm hover:brightness-95 disabled:opacity-70"
+            disabled={isEnding || partnerLeft || isReadOnly}
+            className="h-9 px-4 rounded-md bg-rose-500 text-white text-sm font-medium shadow-sm hover:brightness-95 disabled:opacity-70 disabled:cursor-not-allowed"
           >
             {partnerLeft ? "Partner Left" : isEnding ? "Leaving..." : "End Chat"}
           </button>
