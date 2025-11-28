@@ -5,6 +5,6 @@ module.exports = {
     },
     autoStart: false,
     instance: {
-        dbName: 'jest', // The name of the test DB
+        // dbName: 'jest', // Removed to allow unique DB names per test suite
     },
 };

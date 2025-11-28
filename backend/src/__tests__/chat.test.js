@@ -7,11 +7,11 @@ import User from '../models/User.js';
 import Message from '../models/Message.js';
 
 beforeAll(async () => {
-    await mongoose.connect(process.env.MONGO_URL);
+    await connectTestDB();
 });
 
 afterAll(async () => {
-    await mongoose.disconnect();
+    await disconnectTestDB();
 });
 
 // Helper function to generate JWT tokens for testing

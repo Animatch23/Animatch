@@ -8,8 +8,8 @@ const ChatSessionSchema = new mongoose.Schema({
   }],
   active: {
     type: Boolean,
-    default: true,
-    index: true // Add index for active chats
+    default: true
+    // index: true - Removed to avoid duplicate index warning
   },
   startedAt: {
     type: Date,
@@ -24,8 +24,8 @@ const ChatSessionSchema = new mongoose.Schema({
   }],
   isSaved: {
     type: Boolean,
-    default: false,
-    index: true // Add index for saved status
+    default: false
+    // index: true - Removed to avoid duplicate index warning
   },
   expiresAt: {
     type: Date,

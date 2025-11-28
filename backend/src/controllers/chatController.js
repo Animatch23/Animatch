@@ -1,5 +1,6 @@
 import ChatSession from '../models/ChatSession.js';
 import Message from '../models/Message.js';
+import User from '../models/User.js';
 
 /**
  * Get active chat session for current user
@@ -29,6 +30,7 @@ export const getActiveChat = async (req, res) => {
     res.json({
       chatSessionId: chatSession._id,
       partnerUsername: partner?.username || 'Anonymous',
+      partnerId: partner?._id,
       startedAt: chatSession.startedAt,
       expiresAt: chatSession.expiresAt,
       active: chatSession.active,
@@ -258,259 +260,310 @@ export const saveChatSession = async (req, res) => {
   }
 };
 
+/**
+ * Get saved chats for user (US #8: Saved Chats List)
+ * Only returns ACTIVE saved chats (inactive saved chats are hidden)
+ */
 export const getSavedChats = async (req, res) => {
-    try {
-        const userId = req.user.id;
-
-        // Find only ACTIVE SAVED chat sessions where user is a participant
-        // - isSaved=true means both users have saved the chat
-        // - active=true means the chat is still ongoing (inactive chats are hidden)
-        // - Exclude unmatched chats - they should be hidden from the list
-        const chats = await ChatSession.find({
-          participants: { $in: [userId] },
-          isSaved: true, // Only return saved chats
-          active: true, // Only return ACTIVE chats (inactive/ended are hidden)
-          unmatchedBy: { $exists: false } // Exclude unmatched chats
-        })
-        .populate('participants', 'username')
-        .sort({ startedAt: -1 });
-
-        // For each chat, get the last message
-        const chatsWithLastMessage = await Promise.all(chats.map(async (chat) => {
-            const lastMessage = await Message.findOne({ chatSessionId: chat._id })
-                .sort({ sentAt: -1 })
-                .populate('senderId', 'username')
-                .lean();
-
-            // Detect attachment type based on content
-            let messageType = 'text';
-            if (lastMessage && lastMessage.content) {
-                const content = lastMessage.content;
-                if (content.startsWith('/uploads/') || content.startsWith('http://') || content.startsWith('https://')) {
-                    messageType = 'attachment';
-                }
-            }
-
-            const lastMessageObj = lastMessage ? {
-                content: lastMessage.content,
-                senderUsername: lastMessage.senderId.username,
-                sentAt: lastMessage.sentAt,
-                isOwn: lastMessage.senderId._id.toString() === userId.toString(),
-                type: lastMessage.type || messageType
-            } : null;
-
-            return {
-                ...chat.toObject(),
-                lastMessage: lastMessageObj,
-                isSaved: chat.isSaved,
-                currentUserSaved: chat.savedByUsers.some(id => id.toString() === userId.toString())
-            };
-        }));
-
-        res.json(chatsWithLastMessage);
-
-    } catch (err) {
-        console.error(err.message);
-        res.status(500).send('Server Error');
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ message: 'User not authenticated' });
     }
-};
 
-export const getChatSession = async (req, res) => {
-    try {
-        const { sessionId } = req.params;
-        const userId = req.user.id;
+    // Find all ACTIVE saved chats for this user (inactive saved chats are hidden)
+    // Exclude unmatched chats (they should not appear in saved list)
+    const savedChats = await ChatSession.find({
+      participants: userId,
+      isSaved: true,
+      active: true, // Only show ACTIVE saved chats
+      unmatchedBy: { $exists: false } // Exclude unmatched chats
+    })
+    .populate('participants', 'username email')
+    .sort({ endedAt: -1, startedAt: -1 })
+    .lean();
 
-        const chatSession = await ChatSession.findById(sessionId)
-        .populate('participants', 'username profilePicture');
+    // For each chat, get the last message
+    const chatsWithLastMessage = await Promise.all(
+      savedChats.map(async (chat) => {
+        const lastMessage = await Message.findOne({ chatSessionId: chat._id })
+          .sort({ sentAt: -1 })
+          .lean();
 
-        if (!chatSession) {
-            return res.status(404).json({ msg: 'Chat not found' });
+        // Get sender's username for the last message
+        let lastMessageData = null;
+        if (lastMessage) {
+          const sender = await User.findById(lastMessage.senderId).select('username').lean();
+          const isOwn = lastMessage.senderId.toString() === userId.toString();
+          
+          // Determine if it's an attachment (simple check for file paths or URLs)
+          const isAttachment = lastMessage.content.startsWith('/uploads/') || 
+                              lastMessage.content.startsWith('http://') || 
+                              lastMessage.content.startsWith('https://');
+          
+          lastMessageData = {
+            content: lastMessage.content,
+            sentAt: lastMessage.sentAt,
+            senderUsername: sender?.username || 'Unknown',
+            isOwn: isOwn,
+            type: isAttachment ? 'attachment' : 'text'
+          };
         }
 
-        // Security Check
-        if (!chatSession.participants.some(p => p._id.equals(userId))) {
-            return res.status(403).json({ msg: 'User not authorized for this chat' });
-        }
+        return {
+          ...chat,
+          lastMessage: lastMessageData
+        };
+      })
+    );
 
-        // Block access if chat was unmatched (hidden from both users)
-        if (chatSession.unmatchedBy) {
-            return res.status(403).json({ msg: 'This chat has been removed' });
-        }
-
-        // Allow access to both active chats AND saved chats
-        // Only block access if the chat has ended AND is not saved
-        if (!chatSession.active && !chatSession.isSaved) {
-            return res.status(403).json({ msg: 'This chat has ended and was not saved' });
-        }
-
-        res.json(chatSession);
-
-    } catch (err) {
-        console.error(err.message);
-        res.status(500).send('Server Error');
-    }
+    res.json(chatsWithLastMessage);
+  } catch (error) {
+    console.error('Error fetching saved chats:', error);
+    res.status(500).json({ message: 'Failed to fetch saved chats' });
+  }
 };
 
 /**
- * Unmatch from a chat session
- * Sets active to false, endedAt, and unmatchedBy
+ * Get specific chat session details
  */
-export const unmatchUser = async (req, res) => {
-    try {
-        const userId = req.user.id;
-        const { chatSessionId } = req.params;
+export const getChatSession = async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    const { sessionId } = req.params;
 
-        // Find the chat session and verify user is a participant
-        const chatSession = await ChatSession.findOne({
-            _id: chatSessionId,
-            participants: { $in: [userId] }
-        });
-
-        if (!chatSession) {
-            return res.status(403).json({ error: 'Not authorized to unmatch this chat' });
-        }
-
-        // Update the chat session
-        chatSession.active = false;
-        chatSession.endedAt = new Date();
-        chatSession.unmatchedBy = userId;
-
-        await chatSession.save();
-
-        console.log(`[UNMATCH] User ${userId} unmatched from chat ${chatSessionId}`);
-
-        // Emit socket event to notify partner (US-9 AC2)
-        const io = req.app.get('io');
-        if (io) {
-            io.to(chatSessionId.toString()).emit('chat:unmatched', {
-                message: 'Your partner has unmatched. This conversation is now closed.',
-                unmatchedBy: userId
-            });
-        }
-
-        res.status(200).json({
-            message: 'Successfully unmatched from chat',
-            chatSessionId: chatSession._id
-        });
-
-    } catch (err) {
-        console.error('Error unmatching user:', err);
-        res.status(500).json({ error: 'Failed to unmatch from chat' });
+    if (!userId) {
+      return res.status(401).json({ message: 'User not authenticated' });
     }
+
+    const chatSession = await ChatSession.findById(sessionId)
+      .populate('participants', 'username email');
+
+    if (!chatSession) {
+      return res.status(404).json({ msg: 'Chat session not found' });
+    }
+
+    // Check if user is a participant
+    const isParticipant = chatSession.participants.some(
+      p => p._id.toString() === userId.toString()
+    );
+
+    if (!isParticipant) {
+      return res.status(403).json({ msg: 'User not authorized for this chat' });
+    }
+
+    // Block access if chat was unmatched
+    if (chatSession.unmatchedBy) {
+      return res.status(403).json({ msg: 'This chat has been removed' });
+    }
+
+    res.json(chatSession);
+  } catch (error) {
+    console.error('Error fetching chat session:', error);
+    res.status(500).json({ message: 'Failed to fetch chat session' });
+  }
 };
 
 /**
  * Get save status for a chat session
- * Returns whether current user has saved and overall save status
  */
 export const getChatSaveStatus = async (req, res) => {
-    try {
-        const userId = req.user.id;
-        const { chatSessionId } = req.params;
+  try {
+    const userId = req.user?.id;
+    const { chatSessionId } = req.params;
 
-        const chatSession = await ChatSession.findOne({
-            _id: chatSessionId,
-            participants: { $in: [userId] }
-        });
-
-        if (!chatSession) {
-            return res.status(404).json({ message: 'Chat session not found' });
-        }
-
-        const currentUserSaved = chatSession.savedByUsers.some(
-            id => id.toString() === userId.toString()
-        );
-
-        res.json({
-            currentUserSaved,
-            savedByCount: chatSession.savedByUsers.length,
-            isSaved: chatSession.isSaved,
-            active: chatSession.active
-        });
-
-    } catch (err) {
-        console.error('Error getting save status:', err);
-        res.status(500).json({ message: 'Failed to get save status' });
+    if (!userId) {
+      return res.status(401).json({ message: 'User not authenticated' });
     }
+
+    const chatSession = await ChatSession.findOne({
+      _id: chatSessionId,
+      participants: userId
+    });
+
+    if (!chatSession) {
+      return res.status(404).json({ message: 'Chat session not found' });
+    }
+
+    const currentUserSaved = chatSession.savedByUsers.some(
+      id => id.toString() === userId.toString()
+    );
+
+    res.json({
+      currentUserSaved,
+      savedByCount: chatSession.savedByUsers.length,
+      isSaved: chatSession.isSaved,
+      active: chatSession.active
+    });
+  } catch (error) {
+    console.error('Error fetching save status:', error);
+    res.status(500).json({ message: 'Failed to fetch save status' });
+  }
+};
+
+/**
+ * Unmatch from a chat session (US #9)
+ * Immediately ends the chat and hides it from both users
+ */
+export const unmatchUser = async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    const { chatSessionId } = req.params;
+
+    if (!userId) {
+      return res.status(401).json({ message: 'User not authenticated' });
+    }
+
+    const chatSession = await ChatSession.findOne({
+      _id: chatSessionId,
+      participants: userId
+    });
+
+    if (!chatSession) {
+      return res.status(403).json({ error: 'Not authorized to unmatch this chat' });
+    }
+
+    // Mark as unmatched and end the session
+    chatSession.unmatchedBy = userId;
+    chatSession.active = false;
+    chatSession.endedAt = new Date();
+    await chatSession.save();
+
+    console.log(`[UNMATCH] User ${userId} unmatched from chat ${chatSessionId}`);
+
+    // Emit socket event to notify partner
+    const io = req.app.get('io');
+    if (io) {
+      io.to(chatSessionId.toString()).emit('chat:unmatched', {
+        message: 'Your partner has unmatched from this chat'
+      });
+    }
+
+    res.json({
+      message: 'Successfully unmatched from chat',
+      chatSessionId: chatSessionId.toString()
+    });
+  } catch (error) {
+    console.error('Error unmatching:', error);
+    res.status(500).json({ message: 'Failed to unmatch' });
+  }
 };
 
 /**
  * US #6: Next Chat - Skip to another match
- * 
- * Behavior:
- * - If chat is saved (isSaved=true): Chat stays ACTIVE, user can find new match while keeping saved chat
- * - If chat is NOT saved: End chat immediately, notify partner, delete history, user goes to queue
+ * If chat is saved, keep it active (users can continue chatting in saved chats)
+ * If chat is unsaved, end it and delete messages
  */
 export const nextChat = async (req, res) => {
-    try {
-        const userId = req.user.id;
-        const { chatSessionId } = req.params;
+  try {
+    const userId = req.user?.id;
+    const { chatSessionId } = req.params;
 
-        const chatSession = await ChatSession.findOne({
-            _id: chatSessionId,
-            participants: { $in: [userId] },
-            active: true
-        });
-
-        if (!chatSession) {
-            return res.status(404).json({ message: 'Active chat session not found' });
-        }
-
-        const io = req.app.get('io');
-
-        // If chat is saved by both users: Keep chat ACTIVE, user can find new match
-        // Saved chats don't block queue - only unsaved active chats do
-        if (chatSession.isSaved) {
-            // DO NOT set active=false - saved chats remain active so users can continue chatting
-            // Queue controller will only block on active UNSAVED chats
-
-            console.log(`[NEXT CHAT] User ${userId} finding new match while keeping saved chat ${chatSessionId} active`);
-            
-            // Notify partner that user is looking for new match (optional info)
-            if (io) {
-                io.to(chatSessionId.toString()).emit('chat:partner-next', {
-                    message: 'Your partner is looking for a new match. You can continue chatting here.'
-                });
-            }
-
-            return res.json({
-                message: 'You can now find a new match. Your saved chat remains active.',
-                chatPreserved: true,
-                isSaved: true,
-                redirectToQueue: true
-            });
-        }
-
-        // AC2-6: Chat is NOT saved - end it immediately
-        // AC4: Current chat is ended immediately
-        chatSession.active = false;
-        chatSession.endedAt = new Date();
-        await chatSession.save();
-
-        console.log(`[NEXT CHAT] User ${userId} ended unsaved chat ${chatSessionId} - partner will be notified`);
-
-        // AC5: Notify partner that chat has ended
-        if (io) {
-            io.to(chatSessionId.toString()).emit('chat:partner-left', {
-                message: 'Your partner has moved on to find a new match.'
-            });
-        }
-
-        // AC6: Delete chat history from skipped chat
-        await Message.deleteMany({ chatSessionId: chatSession._id });
-        console.log(`[NEXT CHAT] Deleted messages for chat ${chatSessionId}`);
-
-        // AC3: User will be redirected to queue by frontend
-        return res.json({
-            message: 'Chat ended. You can now find a new match.',
-            chatPreserved: false,
-            isSaved: false,
-            redirectToQueue: true
-        });
-
-    } catch (err) {
-        console.error('Error in nextChat:', err);
-        res.status(500).json({ message: 'Failed to process next chat request' });
+    if (!userId) {
+      return res.status(401).json({ message: 'User not authenticated' });
     }
+
+    const chatSession = await ChatSession.findOne({
+      _id: chatSessionId,
+      participants: userId,
+      active: true
+    });
+
+    if (!chatSession) {
+      return res.status(404).json({ message: 'Active chat session not found' });
+    }
+
+    const wasSaved = chatSession.isSaved;
+
+    // If chat is NOT saved, end it and delete messages (AC6)
+    if (!wasSaved) {
+      chatSession.active = false;
+      chatSession.endedAt = new Date();
+      await chatSession.save();
+
+      // Delete all messages from this chat
+      await Message.deleteMany({ chatSessionId: chatSession._id });
+
+      console.log(`[NEXT CHAT] User ${userId} skipped unsaved chat ${chatSessionId} - messages deleted`);
+    } else {
+      // For saved chats, keep them ACTIVE so users can continue chatting
+      // Just notify the partner that this user is looking for a new match
+      console.log(`[NEXT CHAT] User ${userId} looking for new match, saved chat ${chatSessionId} remains ACTIVE`);
+    }
+
+    // Notify partner
+    const io = req.app.get('io');
+    if (io) {
+      if (!wasSaved) {
+        io.to(chatSessionId.toString()).emit('chat:partner-left', {
+          message: 'Your partner is looking for a new match'
+        });
+      } else {
+        io.to(chatSessionId.toString()).emit('chat:partner-next', {
+          message: 'Your partner is looking for a new match. This saved chat remains available.'
+        });
+      }
+    }
+
+    res.json({
+      message: wasSaved ? 'Looking for new match (saved chat preserved)' : 'Chat ended, looking for new match',
+      redirectToQueue: true,
+      chatPreserved: wasSaved,
+      isSaved: wasSaved
+    });
+  } catch (error) {
+    console.error('Error processing next chat:', error);
+    res.status(500).json({ message: 'Failed to process next chat' });
+  }
 };
 
+/**
+ * Block a user - prevents future matching with this user
+ */
+export const blockUser = async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    const { userIdToBlock } = req.body;
+
+    if (!userId) {
+      return res.status(401).json({ message: 'User not authenticated' });
+    }
+
+    if (!userIdToBlock) {
+      return res.status(400).json({ message: 'User ID to block is required' });
+    }
+
+    // Add to blocked users list
+    await User.findByIdAndUpdate(
+      userId,
+      { $addToSet: { blockedUsers: userIdToBlock } }
+    );
+
+    // End any active chat between these users
+    const activeChat = await ChatSession.findOne({
+      participants: { $all: [userId, userIdToBlock] },
+      active: true
+    });
+
+    if (activeChat) {
+      activeChat.active = false;
+      activeChat.endedAt = new Date();
+      await activeChat.save();
+
+      // Notify the blocked user
+      const io = req.app.get('io');
+      if (io) {
+        io.to(activeChat._id.toString()).emit('chat:partner-left', {
+          message: 'The chat has ended'
+        });
+      }
+    }
+
+    console.log(`[BLOCK] User ${userId} blocked user ${userIdToBlock}`);
+
+    res.json({ message: 'User blocked successfully' });
+  } catch (error) {
+    console.error('Error blocking user:', error);
+    res.status(500).json({ message: 'Failed to block user' });
+  }
+};

@@ -262,8 +262,7 @@ test.describe("save chat test", () => {
     const page2 = await context2.newPage();
 
     const saveChatSelector = 'button:has-text("Save Chat")';
-    // Look for either success message (waiting for partner OR both saved)
-    const successSelector = 'div.p-2.text-sm.rounded span';
+    const successSelector = 'div.rounded-md:has-text("Match saved! Both of you have saved this chat.")';
 
 
     let username1, username2;

@@ -30,6 +30,7 @@ const formatBytes = (bytes) => {
 export default function ChatInterface({
   chatSessionId,
   partnerUsername,
+  partnerId,
   token,
   currentUserId,
   onChatEnded,
@@ -41,6 +42,7 @@ export default function ChatInterface({
   const [error, setError] = useState("");
   const [partnerTyping, setPartnerTyping] = useState(false);
   const [isEnding, setIsEnding] = useState(false);
+  const [isBlocking, setIsBlocking] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [feedback, setFeedback] = useState(null);
   const [saveStatus, setSaveStatus] = useState({ currentUserSaved: false, partnerSaved: false, bothSaved: false });
@@ -553,11 +555,6 @@ export default function ChatInterface({
     setShowActionMenu(false);
     setReportOpen(true);
   };
-  
-  const handleConfirmBlock = () => {
-    setConfirmBlockOpen(false);
-    setStatusLog((prev) => [...prev, "User blocked (UI-only)."]);
-  };
 
   const handleSubmitReport = () => {
     const reason = reportReason.trim();
@@ -690,6 +687,39 @@ export default function ChatInterface({
     }
   };
 
+  const handleBlockUser = async () => {
+    if (!API_BASE || !token || !partnerId) return;
+
+    try {
+      setIsBlocking(true);
+      const response = await fetch(`${API_BASE}/api/chat/block`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ userIdToBlock: partnerId }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.message || "Failed to block user");
+      }
+
+      setConfirmBlockOpen(false);
+
+      // Blocking also ends the chat
+      if (typeof onChatEnded === "function") {
+        onChatEnded();
+      }
+    } catch (err) {
+      console.error("Failed to block user", err);
+      alert(err instanceof Error ? err.message : "Failed to block user");
+    } finally {
+      setIsBlocking(false);
+    }
+  };
+
   return (
     <div className="flex flex-col min-h-[calc(100vh-4rem)] bg-gray-50">
       <header className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
@@ -819,6 +849,34 @@ export default function ChatInterface({
           <div ref={messagesEndRef} />
         </div>
       </main>
+
+      {/* Confirm Block Modal */}
+      {confirmBlockOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setConfirmBlockOpen(false)} />
+          <div className="relative bg-white w-[90%] max-w-md rounded-2xl p-6 shadow-xl">
+            <h2 className="text-2xl font-bold text-[#286633] text-center mb-2">Block user?</h2>
+            <p className="text-center text-gray-600 mb-6">You won&apos;t be matched with this user again.</p>
+            <div className="flex gap-4">
+              <button
+                type="button"
+                onClick={() => setConfirmBlockOpen(false)}
+                className="flex-1 bg-gray-300 text-white py-3 rounded-2xl"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleBlockUser}
+                disabled={isBlocking}
+                className="flex-1 bg-rose-600 hover:bg-rose-700 text-white py-3 rounded-2xl disabled:opacity-70"
+              >
+                {isBlocking ? "Blocking..." : "Block"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <form onSubmit={handleSubmit} className="bg-white border-t border-gray-200 px-6 py-4">
         <div className="flex items-end gap-3">
