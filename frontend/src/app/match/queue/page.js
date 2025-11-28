@@ -16,6 +16,8 @@ export default function MatchQueuePage() {
   const pollTimerRef = useRef(null);
   const isUnmountedRef = useRef(false);
   const isJoiningRef = useRef(false);
+  const notInQueueCountRef = useRef(0); // Track consecutive "not in queue" responses
+  const hasJoinedSuccessfullyRef = useRef(false); // Track if join was successful
 
   useEffect(() => {
     const token = localStorage.getItem("sessionToken");
@@ -26,6 +28,8 @@ export default function MatchQueuePage() {
 
     isUnmountedRef.current = false;
     authTokenRef.current = token;
+    notInQueueCountRef.current = 0; // Reset counter on mount
+    hasJoinedSuccessfullyRef.current = false; // Reset join status on mount
     sessionStorage.removeItem("activeChatSessionId");
 
     if (!API_BASE) {
@@ -73,16 +77,30 @@ export default function MatchQueuePage() {
         }
 
         // Handle case where user is no longer in queue and not matched
-        // This can happen if something went wrong or user was removed
+        // Only redirect if we've seen this state multiple times consecutively
+        // This prevents false redirects from transient states or race conditions
         if (!data.queued && !data.matched) {
-          console.log("[QUEUE] User not in queue and not matched - redirecting to match page");
-          if (pollTimerRef.current) {
-            clearInterval(pollTimerRef.current);
-            pollTimerRef.current = null;
+          notInQueueCountRef.current += 1;
+          
+          // Only redirect after 3 consecutive "not in queue" responses
+          // AND only if we had successfully joined the queue before
+          if (notInQueueCountRef.current >= 3 && hasJoinedSuccessfullyRef.current) {
+            console.log("[QUEUE] User consistently not in queue after joining - redirecting to match page");
+            if (pollTimerRef.current) {
+              clearInterval(pollTimerRef.current);
+              pollTimerRef.current = null;
+            }
+            router.replace("/match");
+            return;
           }
-          router.replace("/match");
+          
+          // If we haven't joined yet, don't redirect - just wait
+          console.log(`[QUEUE] Not in queue yet (attempt ${notInQueueCountRef.current}), waiting...`);
           return;
         }
+
+        // Reset the counter when we get a valid queued response
+        notInQueueCountRef.current = 0;
 
         setStatus("waiting");
         setMatchingStatus(data.matchingStatus || null);
@@ -141,6 +159,7 @@ export default function MatchQueuePage() {
 
         if (data.matched && data.chatSessionId) {
           setStatus("matched");
+          hasJoinedSuccessfullyRef.current = true; // Mark as joined (matched immediately)
           if (pollTimerRef.current) {
             clearInterval(pollTimerRef.current);
             pollTimerRef.current = null;
@@ -149,6 +168,8 @@ export default function MatchQueuePage() {
           return;
         }
 
+        // Successfully joined the queue
+        hasJoinedSuccessfullyRef.current = true;
         setStatus("waiting");
         setMatchingStatus(data.matchingStatus || null);
         pollTimerRef.current = window.setInterval(pollStatus, POLL_INTERVAL_MS);
