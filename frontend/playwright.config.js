@@ -9,6 +9,6 @@ export default defineConfig({
     ["html", { open: "never" }]
   ],
 
-  repeatEach: 1,
   workers: 1,
+  retries: 0,
 });
