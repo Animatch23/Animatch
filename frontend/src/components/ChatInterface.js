@@ -60,6 +60,10 @@ export default function ChatInterface({
   const [reportOpen, setReportOpen] = useState(false);
   const [reportReason, setReportReason] = useState("");
   const [statusLog, setStatusLog] = useState([]);
+  
+  // US #14: Icebreaker Prompts
+  const [icebreaker, setIcebreaker] = useState(null);
+  const [icebreakerLoading, setIcebreakerLoading] = useState(false);
 
   const router = useRouter();
 
@@ -84,6 +88,7 @@ export default function ChatInterface({
     setFeedback(null);
     setPartnerLeft(false);
     setPartnerOffline(false);
+    setIcebreaker(null); // Reset icebreaker when chat changes
     
     // Fetch current save status from backend to handle reloads (Design consideration #1)
     if (API_BASE && chatSessionId && token) {
@@ -187,6 +192,36 @@ export default function ChatInterface({
       cancelled = true;
     };
   }, [chatSessionId, token]);
+
+  // US #14: Fetch icebreaker prompt for new chats
+  useEffect(() => {
+    if (!API_BASE || !chatSessionId || !token || isReadOnly) {
+      return;
+    }
+
+    const fetchIcebreaker = async () => {
+      try {
+        const response = await fetch(`${API_BASE}/api/icebreaker/${chatSessionId}`, {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        const data = await response.json().catch(() => ({}));
+
+        if (response.ok && data.prompt && !data.dismissed) {
+          setIcebreaker(data.prompt);
+        } else if (data.dismissed) {
+          setIcebreaker(null);
+        }
+      } catch (err) {
+        console.error("Failed to fetch icebreaker:", err);
+      }
+    };
+
+    fetchIcebreaker();
+  }, [chatSessionId, token, isReadOnly]);
 
   useEffect(() => {
     if (!socketUrl || !chatSessionId || !token) {
@@ -332,6 +367,15 @@ export default function ChatInterface({
     socket.on("chat:partner-joined", () => {
       // Partner is back - clear offline status
       setPartnerOffline(false);
+    });
+
+    // US #14: Handle icebreaker updates from partner
+    socket.on("icebreaker:updated", ({ prompt, dismissed }) => {
+      if (dismissed) {
+        setIcebreaker(null);
+      } else if (prompt) {
+        setIcebreaker(prompt);
+      }
     });
 
     socket.on("disconnect", () => {
@@ -689,6 +733,79 @@ export default function ChatInterface({
     }
   };
 
+  // US #14: Refresh icebreaker prompt
+  const handleRefreshIcebreaker = async () => {
+    if (!API_BASE || !chatSessionId || !token || icebreakerLoading) return;
+
+    try {
+      setIcebreakerLoading(true);
+      const response = await fetch(`${API_BASE}/api/icebreaker/${chatSessionId}/refresh`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      const data = await response.json().catch(() => ({}));
+
+      if (response.ok && data.prompt) {
+        setIcebreaker(data.prompt);
+      } else if (data.message?.includes("used all available")) {
+        // All prompts used - dismiss the icebreaker
+        setIcebreaker(null);
+      }
+    } catch (err) {
+      console.error("Failed to refresh icebreaker:", err);
+    } finally {
+      setIcebreakerLoading(false);
+    }
+  };
+
+  // US #14: Dismiss icebreaker prompt
+  const handleDismissIcebreaker = async () => {
+    if (!API_BASE || !chatSessionId || !token) return;
+
+    try {
+      await fetch(`${API_BASE}/api/icebreaker/${chatSessionId}/dismiss`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      setIcebreaker(null);
+    } catch (err) {
+      console.error("Failed to dismiss icebreaker:", err);
+      // Still dismiss locally even if API fails
+      setIcebreaker(null);
+    }
+  };
+
+  // US #14: Show/restore icebreaker prompt
+  const handleShowIcebreaker = async () => {
+    if (!API_BASE || !chatSessionId || !token || icebreakerLoading) return;
+
+    try {
+      setIcebreakerLoading(true);
+      const response = await fetch(`${API_BASE}/api/icebreaker/${chatSessionId}/refresh`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      const data = await response.json().catch(() => ({}));
+
+      if (response.ok && data.prompt) {
+        setIcebreaker(data.prompt);
+      }
+    } catch (err) {
+      console.error("Failed to show icebreaker:", err);
+    } finally {
+      setIcebreakerLoading(false);
+    }
+  };
+
   const handleReportUser = async ({ reason, description }) => {
     if (!API_BASE || !token) return;
 
@@ -822,6 +939,19 @@ export default function ChatInterface({
           </div>
         </div>
         <div className="flex gap-2">
+          {/* US #14: Show Icebreaker button */}
+          {!icebreaker && !isReadOnly && (
+            <button
+              type="button"
+              onClick={handleShowIcebreaker}
+              disabled={icebreakerLoading || partnerLeft}
+              className="h-9 px-3 rounded-md bg-purple-500 text-white text-sm font-medium shadow-sm hover:bg-purple-600 disabled:opacity-60 disabled:cursor-not-allowed transition-colors flex items-center gap-1"
+              title="Show icebreaker prompt"
+            >
+              <span>💡</span>
+              {icebreakerLoading ? "..." : "Icebreaker"}
+            </button>
+          )}
           {/* US #6: Next Chat button - to the left of Save Chat (AC1) */}
           <button
             type="button"
@@ -917,6 +1047,44 @@ export default function ChatInterface({
       )}
 
       <main className="flex-1 overflow-y-auto px-6 py-6">
+        {/* US #14: Icebreaker Prompt */}
+        {icebreaker && !isReadOnly && (
+          <div className="mb-6 p-4 bg-gradient-to-r from-purple-100 to-pink-100 rounded-2xl border border-purple-200 shadow-sm">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex-1">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-lg">💡</span>
+                  <span className="text-xs font-semibold uppercase tracking-wide text-purple-600">Icebreaker</span>
+                </div>
+                <p className="text-sm text-gray-800 font-medium">{icebreaker}</p>
+              </div>
+              <div className="flex gap-2 flex-shrink-0">
+                <button
+                  type="button"
+                  onClick={handleRefreshIcebreaker}
+                  disabled={icebreakerLoading}
+                  className="p-2 rounded-lg bg-white/80 hover:bg-white text-purple-600 hover:text-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  title="Get new prompt"
+                >
+                  <svg className={`w-4 h-4 ${icebreakerLoading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDismissIcebreaker}
+                  className="p-2 rounded-lg bg-white/80 hover:bg-white text-gray-500 hover:text-gray-700 transition-colors"
+                  title="Dismiss"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className="flex flex-col gap-3">
           {messages.map((message) => (
             <div
