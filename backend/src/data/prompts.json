@@ -1,0 +1,31 @@
+[
+  { "id": 1, "text": "What’s your favorite spot on campus?", "tags": ["campus"] },
+  { "id": 2, "text": "If you could skip one subject forever, which one would it be?", "tags": ["fun"] },
+  { "id": 3, "text": "Best food around school?", "tags": ["campus"] },
+  { "id": 4, "text": "Which org or club are you curious to join?", "tags": ["campus"] },
+  { "id": 5, "text": "What’s a skill you want to learn this term?", "tags": ["fun"] },
+
+  { "id": 6, "text": "If you could rename one DLSU building for fun, what would you call it?", "tags": ["campus", "fun"] },
+  { "id": 7, "text": "What’s your go-to Agno food when you’re stressed?", "tags": ["campus"] },
+  { "id": 8, "text": "Which class gave you the most character development?", "tags": ["fun"] },
+  { "id": 9, "text": "If DLSU had a campus pet mascot, what animal should it be?", "tags": ["fun"] },
+  { "id": 10, "text": "What’s a subject you secretly enjoyed even if everyone else hated it?", "tags": ["fun"] },
+
+  { "id": 11, "text": "Which campus elevator do you trust the least?", "tags": ["campus", "fun"] },
+  { "id": 12, "text": "If you had to live inside one DLSU building for a week, which would you pick?", "tags": ["fun", "campus"] },
+  { "id": 13, "text": "What’s one Lasallian stereotype you think is actually true?", "tags": ["fun"] },
+  { "id": 14, "text": "What campus spot would you teleport to right now?", "tags": ["campus"] },
+  { "id": 15, "text": "What’s your favorite \"waiting for prof\" small talk topic?", "tags": ["fun", "campus"] },
+
+  { "id": 16, "text": "Which closed food stall near campus do you wish would come back?", "tags": ["campus"] },
+  { "id": 17, "text": "What’s your most memorable first-week-of-term moment?", "tags": ["fun"] },
+  { "id": 18, "text": "If your DLSU life were a subject, what would the course title be?", "tags": ["fun"] },
+  { "id": 19, "text": "What’s the funniest thing you’ve overheard in the hallway?", "tags": ["campus", "fun"] },
+  { "id": 20, "text": "Which campus spot has the best aircon?", "tags": ["campus"] },
+
+  { "id": 21, "text": "What’s your quick escape from academic stress?", "tags": ["fun"] },
+  { "id": 22, "text": "If you could theme a classroom, what theme would you choose?", "tags": ["fun"] },
+  { "id": 23, "text": "Which prof’s catchphrase lives rent-free in your head?", "tags": ["fun"] },
+  { "id": 24, "text": "What emoji best describes your current academic mood?", "tags": ["fun"] },
+  { "id": 25, "text": "If you could invent a new Lasallian tradition, what would it be?", "tags": ["fun", "campus"] }
+]

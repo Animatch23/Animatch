@@ -21,6 +21,7 @@ import ChatSession from "./models/ChatSession.js";
 import Message from "./models/Message.js";
 import User from "./models/User.js";
 import Queue from "./models/Queue.js";
+import promptsRoutes from "./routes/promptsRoute.js";
 
 if (process.env.NODE_ENV === 'test') {
   dotenv.config({ path: '.env.test' });
@@ -173,6 +174,7 @@ app.use('/api/test-uploads', express.static('test-uploads'));
 app.use("/api/terms", termRoutes);
 app.use("/api", matchRoutes);
 app.use("/api/chat", chatRoutes);
+app.use("/api/prompts", promptsRoutes);
 app.use("/api/reports", reportRoutes);
 
 // API ping route

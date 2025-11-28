@@ -37,6 +37,9 @@ export default function ChatInterface({
   onChatEnded,
   isReadOnly = false,
 }) {
+  const router = useRouter();
+  
+  // State
   const [messages, setMessages] = useState([]);
   const [inputValue, setInputValue] = useState("");
   const [connectionStatus, setConnectionStatus] = useState("connecting");
@@ -60,16 +63,28 @@ export default function ChatInterface({
   const [reportOpen, setReportOpen] = useState(false);
   const [reportReason, setReportReason] = useState("");
   const [statusLog, setStatusLog] = useState([]);
-
-  const router = useRouter();
+  // US-16: Feedback System state
+  const [showFeedback, setShowFeedback] = useState(false);
+  const [feedbackText, setFeedbackText] = useState("");
+  const [rating, setRating] = useState(0); // 0..5
+  const [hoverRating, setHoverRating] = useState(0);
+  // US-13: Filter Matches state
+  const [filterQuery, setFilterQuery] = useState("");
+  const [showFilterMenu, setShowFilterMenu] = useState(false);
+  const [activeFilters, setActiveFilters] = useState({
+    course: false,
+    housing: false,
+    orgs: false
+  });
+  const [isLoadingSaved, setIsLoadingSaved] = useState(false);
 
   const socketRef = useRef(null);
   const messagesEndRef = useRef(null);
+  const fileInputRef = useRef(null);
+  const menuCloseTimeoutRef = useRef(null);
   const typingTimeoutRef = useRef(null);
   const hasSentTypingRef = useRef(false);
   const currentUserIdRef = useRef(currentUserId ?? "");
-  const fileInputRef = useRef(null);
-  const menuCloseTimeoutRef = useRef(null);
 
   const socketUrl = useMemo(() => {
     if (!SOCKET_BASE) {
@@ -137,6 +152,39 @@ export default function ChatInterface({
     window.addEventListener("animatch:toggleSavedChats", toggleSavedChatsListener);
     return () => window.removeEventListener("animatch:toggleSavedChats", toggleSavedChatsListener);
   }, []);
+
+  const fetchSavedMatches = async () => {
+    if (!API_BASE || !token) return;
+    
+    setIsLoadingSaved(true);
+    try {
+      const queryParams = new URLSearchParams();
+      if (activeFilters.course) queryParams.append('course', 'true');
+      if (activeFilters.housing) queryParams.append('housing', 'true');
+      if (activeFilters.orgs) queryParams.append('orgs', 'true');
+
+      const response = await fetch(`${API_BASE}/api/chat/saved?${queryParams.toString()}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setSavedChats(data);
+      } else {
+        console.error("Failed to fetch saved matches");
+      }
+    } catch (err) {
+      console.error("Error fetching saved matches:", err);
+    } finally {
+      setIsLoadingSaved(false);
+    }
+  };
+
+  // Fetch on mount and when filters change
+  useEffect(() => {
+    fetchSavedMatches();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeFilters, token]);
 
   useEffect(() => {
     if (!API_BASE || !chatSessionId || !token) {
@@ -269,6 +317,7 @@ export default function ChatInterface({
           type: "success", 
           message: "🎉 Match saved! Both of you have saved this chat." 
         });
+        fetchSavedMatches();
       } else {
         // Notify user B that user A wants to save the match
         setFeedback({
@@ -357,18 +406,41 @@ export default function ChatInterface({
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // --- UI Helpers from us-5-11 ---
-  
-  // Listen for global toggle from TopBar (menu icon)
-  useEffect(() => {
-    const handler = () => setShowSidebar((v) => !v);
+  // Icebreaker prompt state
+  const [icePrompt, setIcePrompt] = useState(null); // {id, text}
+  const [iceExcluded, setIceExcluded] = useState([]);
+  const [iceVisible, setIceVisible] = useState(false);
+
+  const fetchIcebreaker = async (excludeIds = []) => {
     try {
-      window.addEventListener("animatch:toggleSavedChats", handler);
-    } catch (_) {}
-    return () => {
-      try { window.removeEventListener("animatch:toggleSavedChats", handler); } catch (_) {}
-    };
-  }, []);
+      const sessionId = "demo-session"; // replace with real session id when available
+      const res = await fetch("/api/prompts/next", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionId, excludeIds })
+      });
+      if (!res.ok) throw new Error("Failed to fetch prompt");
+      const data = await res.json();
+      setIcePrompt(data);
+      setIceExcluded((prev) => [data.id, ...prev]);
+      setIceVisible(true);
+    } catch (e) {
+      // Dev fallback: show a sample prompt so UI can be previewed
+      const sample = { id: 0, text: "What’s your favorite spot on campus?" };
+      setIcePrompt(sample);
+      setIceVisible(true);
+      setStatusLog((prev) => [...prev, "Icebreaker shown using fallback sample (backend unavailable)."]);
+    }
+  };
+
+  // When chat connects, show icebreaker
+  useEffect(() => {
+    if (connectionStatus === "connected") {
+      fetchIcebreaker(iceExcluded);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [connectionStatus]);
+
 
   // Load saved chats from localStorage (seed with a demo item if empty)
   useEffect(() => {
@@ -380,18 +452,19 @@ export default function ChatInterface({
         // Seed with a demo chat to mirror the mockup
         const demoChat = {
           id: Date.now(),
-          name: partnerUsername || "Juan Dela Cruz",
+          name: "Juan Dela Cruz",
           messages: [
-            { id: 1, content: "Hello!", isOwn: true, sentAt: new Date() },
-            { id: 2, content: "Hi there!", isOwn: false, sentAt: new Date() }
+            { id: 1, text: "Hello!", sender: "me", timestamp: new Date() },
+            { id: 2, text: "Hi there!", sender: "other", timestamp: new Date() }
           ],
+          streakDays: 3,
         };
         setSavedChats([demoChat]);
       }
     } catch (_) {
       // ignore
     }
-  }, [partnerUsername]);
+  }, []);
 
   // Persist saved chats
   useEffect(() => {
@@ -400,35 +473,58 @@ export default function ChatInterface({
     } catch (_) {}
   }, [savedChats]);
 
+
+  const toggleSidebar = () => setShowSidebar((v) => !v);
+
+  // Listen for global toggle from TopBar (menu icon)
+  useEffect(() => {
+    const handler = () => setShowSidebar((v) => !v);
+    try {
+      window.addEventListener("animatch:toggleSavedChats", handler);
+    } catch (_) {}
+    return () => {
+      try { window.removeEventListener("animatch:toggleSavedChats", handler); } catch (_) {}
+    };
+  }, []);
+
   const chatDisplayName = (chat) => {
     if (!chat) return "Juan Dela Cruz";
     return chat.name && !chat.name.startsWith("Saved chat") ? chat.name : "Juan Dela Cruz";
   };
 
+  // Compute consecutive day streak ending on most recent message day.
+  const computeStreakDays = (messages = []) => {
+    if (!messages.length) return 0;
+    const daySet = new Set();
+    for (const m of messages) {
+      const d = new Date(m.timestamp);
+      // Normalize to YYYY-MM-DD
+      const key = d.getFullYear() + "-" + (String(d.getMonth() + 1).padStart(2, "0")) + "-" + String(d.getDate()).padStart(2, "0");
+      daySet.add(key);
+    }
+    // Find latest message date
+    const latest = new Date(Math.max(...messages.map(m => new Date(m.timestamp).getTime())));
+    let streak = 0;
+    let cursor = new Date(latest);
+    // Walk backward day by day while a day exists in set
+    while (true) {
+      const key = cursor.getFullYear() + "-" + (String(cursor.getMonth() + 1).padStart(2, "0")) + "-" + String(cursor.getDate()).padStart(2, "0");
+      if (!daySet.has(key)) break;
+      streak += 1;
+      cursor.setDate(cursor.getDate() - 1);
+    }
+    return streak;
+  };
+
   const lastPreview = (chat) => {
-    const last = [...(chat?.messages || [])].reverse().find((m) => m.content || m.type === "file");
+    const last = [...(chat?.messages || [])].reverse().find((m) => m.text || m.type === "file");
     if (!last) return "";
     if (last.type === "file") {
-      const who = last.isOwn ? "You" : chatDisplayName(chat);
+      const who = last.sender === "me" ? "You" : chatDisplayName(chat);
       return `${who}: Attachment${last.fileName ? ` (${last.fileName})` : ""}`;
     }
-    const who = last.isOwn ? "You" : chatDisplayName(chat);
-    return `${who}: ${last.content}`;
-  };
-
-  const saveCurrentChat = () => {
-    const id = Date.now();
-    const name = partnerUsername || "Juan Dela Cruz";
-    const snapshot = messages.map((m) => ({ ...m }));
-    setSavedChats((prev) => [{ id, name, messages: snapshot }, ...prev]);
-    setStatusLog((prev) => [...prev, "Chat saved to history (local)."]);
-  };
-
-  const loadChat = (chat) => {
-    if (!chat) return;
-    setMessages(chat.messages || []);
-    setShowSidebar(false);
-    setStatusLog((prev) => [...prev, `Loaded chat: ${chat.name}`]);
+    const who = last.sender === "me" ? "You" : chatDisplayName(chat);
+    return `${who}: ${last.text}`;
   };
 
   const statusLabel = useMemo(() => {
@@ -477,7 +573,7 @@ export default function ChatInterface({
       socketRef.current.emit("chat:typing", { isTyping: false });
     }
     hasSentTypingRef.current = false;
-  }
+  };
 
   const handleInputChange = (event) => {
     const value = event.target.value;
@@ -586,6 +682,18 @@ export default function ChatInterface({
     }, 200);
   };
 
+const activeFilterCount = Object.values(activeFilters).filter(Boolean).length;
+  const clearFilters = () => {
+    setActiveFilters({ course: false, housing: false, orgs: false });
+    setShowFilterMenu(false);
+  };
+
+  const toggleFilter = (key) => setActiveFilters(p => ({ ...p, [key]: !p[key] }));
+
+  const displayChats = savedChats.filter(chat => 
+    (chat.name || "Anonymous").toLowerCase().includes(filterQuery.toLowerCase().trim())
+  );
+
   const blockUser = () => {
     setShowActionMenu(false);
     setConfirmBlockOpen(true);
@@ -625,12 +733,9 @@ export default function ChatInterface({
       });
     } catch (err) {
       console.error("Failed to end chat", err);
-      setError("We could not end the chat cleanly, but you can start a new match.");
     } finally {
       setIsEnding(false);
-      if (typeof onChatEnded === "function") {
-        onChatEnded();
-      }
+      setShowFeedback(true);
     }
   };
 
@@ -797,6 +902,77 @@ export default function ChatInterface({
     }
   };
 
+  const handleSubmitFeedback = async () => {
+    if (!rating) {
+      // Just close if no rating provided (Skip)
+      if (onChatEnded) onChatEnded();
+      return;
+    }
+
+    try {
+      const response = await fetch(`${API_BASE}/api/chat/${chatSessionId}/feedback`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ rating, comment: feedbackText }),
+      });
+
+      if (!response.ok) {
+        console.warn("Feedback submission failed");
+      }
+    } catch (err) {
+      console.error("Error submitting feedback", err);
+    } finally {
+      // Close modal and actually leave the screen
+      setShowFeedback(false);
+      if (onChatEnded) onChatEnded();
+    }
+  };
+
+  // Simulate queue-reconnect entirely within chat via system logs
+  const simulateRequeue = () => {
+    // Append log entries with short delays
+    setConnectionStatus("disconnected");
+    setStatusLog((prev) => [...prev, "Disconnected."]);
+
+    setTimeout(() => {
+      setConnectionStatus("finding");
+      setStatusLog((prev) => [...prev, "Finding another Match..."]);
+    }, 600);
+
+    setTimeout(() => {
+      setConnectionStatus("connected");
+      setStatusLog((prev) => [...prev, "Match Found..."]);
+    }, 2600);
+  };
+
+  const handleConfirmBlock = () => {
+    setConfirmBlockOpen(false);
+    setStatusLog((prev) => [...prev, "User blocked (UI-only)."]);
+  };
+
+  // Save current chat to history
+  const saveCurrentChat = () => {
+    const id = Date.now();
+    const name = "Juan Dela Cruz"; // temporary placeholder name for mockup
+    const snapshot = messages.map((m) => ({ ...m }));
+    setSavedChats((prev) => [{ id, name, messages: snapshot }, ...prev]);
+    setStatusLog((prev) => [...prev, "Chat saved to history (local)."]);
+  };
+
+  const loadChat = (chat) => {
+    if (!chat) return;
+    setMessages(chat.messages || []);
+    setShowSidebar(false);
+    setStatusLog((prev) => [...prev, `Loaded chat: ${chat.name}`]);
+  };
+
+  const visibleChats = savedChats.filter((chat) =>
+    chatDisplayName(chat).toLowerCase().includes(filterQuery.trim().toLowerCase())
+  );
+
   return (
     <div className="flex flex-col min-h-[calc(100vh-4rem)] bg-gray-50">
       <ReportModal
@@ -925,30 +1101,186 @@ export default function ChatInterface({
         </div>
       )}
 
-      <main className="flex-1 overflow-y-auto px-6 py-6">
-        <div className="flex flex-col gap-3">
-          {messages.map((message) => (
-            <div
-              key={message.id}
-              className={`max-w-xl rounded-2xl px-4 py-3 text-sm shadow-sm ${
-                message.isSystem
-                  ? "self-center bg-gray-200 text-gray-700 text-center italic"
-                  : message.isOwn
-                  ? "self-end bg-[#286633] text-white"
-                  : "self-start bg-white text-gray-900"
-              }`}
-            >
-              <p className="whitespace-pre-wrap break-words">{message.content}</p>
-              {!message.isSystem && (
-                <time className={`block text-xs mt-1 ${message.isOwn ? "text-white/70" : "text-gray-500"}`}>
-                  {formatTimestamp(message.sentAt)}
-                </time>
-              )}
+      {/* Content area: sidebar + chat, split-screen (no overlay) */}
+      <div className="flex-1 flex overflow-hidden">
+        {/* Right pane: chat area */}
+        <div className="flex-1 flex flex-col overflow-hidden">
+          {/* Messages Area */}
+          <div className="flex-1 overflow-y-auto p-4 space-y-4">
+            {/* Icebreaker Card */}
+            {iceVisible && icePrompt && (
+              <div className="max-w-xl mx-auto border-2 border-brand-700/20 rounded-2xl p-4 bg-brand-50/40">
+                <p className="text-gray-800 text-base mb-2 font-semibold">Icebreaker prompt:</p>
+                <p className="text-gray-800 text-base mb-4">{icePrompt.text}</p>
+                <div className="flex gap-3 justify-center">
+                  <button
+                    type="button"
+                    className="px-4 py-2 rounded-full bg-brand-700 hover:bg-brand-600 text-white"
+                    onClick={() => {
+                      // Send prompt as a message
+                      const message = {
+                        id: messages.length + 1,
+                        text: icePrompt.text,
+                        sender: "me",
+                        timestamp: new Date()
+                      };
+                      setMessages((prev) => [...prev, message]);
+                      setIceVisible(false);
+                    }}
+                  >
+                    Send
+                  </button>
+                  <button
+                    type="button"
+                    className="px-4 py-2 rounded-full bg-danger-600/90 hover:bg-danger-600 text-white"
+                    onClick={() => fetchIcebreaker(iceExcluded)}
+                  >
+                    Generate Another
+                  </button>
+                  <button
+                    type="button"
+                    className="px-4 py-2 rounded-full bg-gray-300 text-white"
+                    onClick={() => setIceVisible(false)}
+                  >
+                    Dismiss
+                  </button>
+                </div>
+              </div>
+            )}
+            {messages.map((message) => {
+              const isMe = message.isOwn;
+              const bubbleBase = isMe ? "bg-green-600 text-white" : "bg-gray-300 text-gray-800";
+              return (
+                <div key={message.id} className={`flex ${isMe ? "justify-end" : "justify-start"}`}>
+                  <div className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${bubbleBase}`}>
+                    {message.type === "file" ? (
+                      <div>
+                        {message.isImage ? (
+                          <Image
+                            src={message.fileUrl}
+                            alt={message.fileName}
+                            width={256}
+                            height={256}
+                            className="rounded-md mb-2 max-h-64 object-contain bg-white/10"
+                          />
+                        ) : (
+                          <div className="flex items-center gap-2">
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                            </svg>
+                            <span className="text-sm break-all">{message.fileName}</span>
+                          </div>
+                        )}
+                        <div className={`text-xs mt-1 ${isMe ? "text-white/80" : "text-gray-700"}`}>
+                          {message.fileName} • {formatBytes(message.fileSize)}
+                          {message.isLocalPreview ? " • preview only" : ""}
+                        </div>
+                      </div>
+                    ) : message.isSystem ? (
+                      <p className="text-sm whitespace-pre-wrap italic text-center">{message.content}</p>
+                    ) : (
+                      <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                    )}
+                    {!message.isSystem && !message.type && (
+                      <time className={`block text-xs mt-1 ${isMe ? "text-white/70" : "text-gray-500"}`}>
+                        {formatTimestamp(message.sentAt)}
+                      </time>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+
+            {/* Typing Indicator */}
+            {partnerTyping && !partnerLeft && (
+              <div className="flex justify-start">
+                <div className="bg-gray-300 text-gray-800 max-w-xs px-4 py-2 rounded-lg">
+                  <div className="flex space-x-1">
+                    <div className="w-2 h-2 bg-gray-500 rounded-full animate-bounce"></div>
+                    <div className="w-2 h-2 bg-gray-500 rounded-full animate-bounce" style={{ animationDelay: "0.1s" }}></div>
+                    <div className="w-2 h-2 bg-gray-500 rounded-full animate-bounce" style={{ animationDelay: "0.2s" }}></div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div ref={messagesEndRef} />
+          </div>
+
+          {/* System logs just above the input, bottom-left aligned */}
+          <div className="px-4 pb-1 text-xs text-gray-500 space-y-1 select-none">
+            {statusLog.map((line, idx) => (
+              <p key={idx}>{line}</p>
+            ))}
+          </div>
+
+          {/* Input Area */}
+          <form onSubmit={handleSubmit} className="bg-white border-t border-gray-200 p-4">
+            <div className="flex items-center space-x-2">
+              {/* Leave Chat Button */}
+              <button 
+                type="button"
+                onClick={handleLeaveChat}
+                disabled={isEnding || partnerLeft}
+                className="bg-red-500 hover:bg-red-600 text-white p-3 rounded-lg transition-colors disabled:opacity-50"
+                title="Leave Chat"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                </svg>
+              </button>
+
+              {/* Attachment Button */}
+              <button 
+                type="button"
+                onClick={openFilePicker}
+                className="bg-green-600 hover:bg-green-700 text-white p-3 rounded-lg transition-colors"
+                title="Attach a file (UI demo)"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                </svg>
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                className="hidden"
+                onChange={handleFileChange}
+                accept="image/*,application/pdf,application/zip,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+              />
+
+              {/* Message Input */}
+              <div className="flex-1 relative">
+                <textarea
+                  value={inputValue}
+                  onChange={handleInputChange}
+                  onBlur={handleInputBlur}
+                  placeholder={connectionStatus === "connected" ? "Type your message..." : "Connecting..."}
+                  disabled={connectionStatus !== "connected"}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg resize-none focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none text-black placeholder-gray-400"
+                  rows="1"
+                  style={{ minHeight: "48px", maxHeight: "120px" }}
+                />
+              </div>
+
+              {/* Send Button */}
+              <button 
+                type="submit"
+                disabled={!inputValue.trim() || connectionStatus !== "connected"}
+                className={`p-3 rounded-lg transition-colors ${
+                  inputValue.trim() && connectionStatus === "connected"
+                    ? "bg-green-600 hover:bg-green-700 text-white" 
+                    : "bg-gray-300 text-gray-500 cursor-not-allowed"
+                }`}
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                </svg>
+              </button>
             </div>
-          ))}
-          <div ref={messagesEndRef} />
+          </form>
         </div>
-      </main>
+      </div>
 
       {/* Confirm Block Modal */}
       {confirmBlockOpen && (
@@ -978,28 +1310,105 @@ export default function ChatInterface({
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="bg-white border-t border-gray-200 px-6 py-4">
-        <div className="flex items-end gap-3">
-          <textarea
-            value={inputValue}
-            onChange={handleInputChange}
-            onBlur={handleInputBlur}
-            rows={2}
-            placeholder={connectionStatus === "connected" ? "Say hello..." : "Waiting for connection"}
-            disabled={connectionStatus !== "connected"}
-            className="flex-1 resize-none rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#286633]/60 disabled:opacity-60"
-          />
-          <button
-            type="submit"
-            disabled={!inputValue.trim() || connectionStatus !== "connected"}
-            className="h-11 px-6 rounded-2xl bg-[#286633] text-white text-sm font-semibold shadow-sm hover:brightness-110 disabled:opacity-60"
-          >
-            Send
-          </button>
+      {/* Report Modal */}
+      {reportOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setReportOpen(false)} />
+          <div className="relative bg-white w-[92%] max-w-xl rounded-2xl p-6 shadow-xl">
+            <h2 className="text-3xl font-bold text-[#286633] text-center mb-4">Report Issue</h2>
+            <label className="block mb-6">
+              <span className="sr-only">Describe the issue</span>
+              <textarea
+                value={reportReason}
+                onChange={(e) => setReportReason(e.target.value)}
+                placeholder="Describe the issue or reason for reporting..."
+                className="w-full min-h-[200px] rounded-xl bg-green-100/70 border-2 border-transparent focus:border-blue-500 outline-none p-4 text-gray-800"
+              />
+            </label>
+            <div className="flex gap-4">
+              <button
+                type="button"
+                onClick={() => setReportOpen(false)}
+                className="flex-1 bg-gray-300 text-white py-3 rounded-2xl"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSubmitReport}
+                className="flex-1 bg-green-600 hover:bg-green-700 text-white py-3 rounded-2xl"
+              >
+                Report
+              </button>
+            </div>
+          </div>
         </div>
-      </form>
+      )}
 
-      {/* SavedChatsList Overlay */}
+      {/* US #16: Feedback Modal (Rate Match Quality - on exit) */}
+      {showFeedback && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setShowFeedback(false)} />
+          <div className="relative bg-white w-[92%] max-w-xl rounded-3xl p-6 shadow-2xl">
+            <h2 className="text-3xl font-extrabold text-[#286633] text-center mb-4">Rate Your Match</h2>
+            <div className="mb-6">
+              <textarea
+                value={feedbackText}
+                onChange={(e) => setFeedbackText(e.target.value)}
+                placeholder="Tell us what you think... (optional)"
+                className="w-full min-h-[180px] rounded-2xl bg-green-50 border border-green-200 outline-none p-4 text-gray-800 placeholder:text-gray-500 focus:ring-2 focus:ring-green-500"
+              />
+            </div>
+            {/* Stars */}
+            <div className="flex items-center justify-between max-w-sm mx-auto mb-6">
+              {[1,2,3,4,5].map((i) => {
+                const active = (hoverRating || rating) >= i;
+                return (
+                  <button
+                    key={i}
+                    type="button"
+                    aria-label={`${i} star${i>1?'s':''}`}
+                    onMouseEnter={() => setHoverRating(i)}
+                    onMouseLeave={() => setHoverRating(0)}
+                    onClick={() => setRating(i)}
+                    className="p-1"
+                  >
+                    <svg
+                      className={`w-10 h-10 drop-shadow-sm ${active ? 'text-yellow-400' : 'text-yellow-200'} ${active ? '' : 'opacity-70'}`}
+                      viewBox="0 0 24 24"
+                      fill="currentColor"
+                      aria-hidden="true"
+                    >
+                      <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z" />
+                    </svg>
+                  </button>
+                );
+              })}
+            </div>
+            <div className="flex gap-4 mt-2">
+              <button
+                type="button"
+                className="flex-1 bg-gray-300 text-white py-4 rounded-2xl hover:bg-gray-400 transition-colors"
+                onClick={() => {
+                  setShowFeedback(false);
+                  if (onChatEnded) onChatEnded();
+                }}
+              >
+                Skip
+              </button>
+              <button
+                type="button"
+                className="flex-1 bg-green-600 hover:bg-green-700 text-white py-4 rounded-2xl transition-colors"
+                onClick={handleSubmitFeedback}
+              >
+                Submit
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* SavedChatsList Overlay (for mobile) */}
       <SavedChatsList
         visible={showSavedChats}
         onClose={() => setShowSavedChats(false)}
