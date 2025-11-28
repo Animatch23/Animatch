@@ -203,7 +203,8 @@ export default function MatchQueuePage() {
   };
 
   return (
-    <div className="min-h-[calc(100vh-4rem)] bg-[#286633] text-white relative overflow-hidden">
+    <div className="min-h-[calc(100vh-4rem)] bg-brand-700 text-white relative overflow-hidden">
+      {/* Close button */}
       <div className="absolute top-4 left-4">
         <button
           type="button"
@@ -218,7 +219,8 @@ export default function MatchQueuePage() {
         </button>
       </div>
 
-      <div className="flex flex-col items-center justify-center min-h-[calc(100vh-4rem)] gap-6 px-4 text-center">
+      {/* Center spinner with icon */}
+  <div className="flex flex-col items-center justify-center min-h-[calc(100vh-4rem)] gap-6">
         <div className="relative w-56 h-56">
           <svg viewBox="0 0 100 100" className="absolute inset-0 w-full h-full">
             <circle cx="50" cy="50" r="40" fill="none" stroke="rgba(255,255,255,0.35)" strokeWidth="12" />
@@ -237,22 +239,14 @@ export default function MatchQueuePage() {
             </g>
           </svg>
 
+          {/* Center logo */}
           <div className="absolute inset-0 flex items-center justify-center">
-            <svg
-              viewBox="0 0 64 64"
-              className="w-16 h-16 text-white"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="3"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
-            >
-              <path d="M10 40 C24 22, 42 22, 54 40" />
-              <path d="M10 40 L32 32" />
-              <path d="M54 40 L32 32" />
-              <path d="M50 28 l8 -2 l-2 8" />
-            </svg>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/animatch-logo-2.png"
+              alt="AniMatch Logo"
+              className="w-16 h-16 object-contain"
+            />
           </div>
         </div>
 
