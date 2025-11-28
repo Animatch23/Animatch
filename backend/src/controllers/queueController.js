@@ -325,13 +325,13 @@ export const joinQueue = async (req, res) => {
     // Check if we're still in the queue (we might have been removed by another match attempt)
     const stillInQueue = await Queue.findOne({ userId });
     if (!stillInQueue) {
-      // We were removed from queue but don't have a chat - re-add to queue
-      console.log(`[QUEUE JOIN] User ${user.email} was removed from queue without match, re-adding`);
-      await Queue.updateOne(
-        { userId },
-        { $set: { userId, status: 'waiting', createdAt: new Date() } },
-        { upsert: true }
-      );
+      // We were removed from queue but don't have a chat
+      // Don't re-add here - let the frontend handle re-joining to avoid race condition loops
+      console.log(`[QUEUE JOIN] User ${user.email} was removed from queue without match - returning queued:false`);
+      return res.json({ 
+        matched: false, 
+        queued: false // Tell frontend to re-join
+      });
     }
 
     console.log(`[QUEUE JOIN] No available partners for ${user.email}, staying in queue`);
@@ -557,16 +557,15 @@ export const getQueueStatus = async (req, res) => {
         });
       }
 
-      // Also verify we're still in queue (might have been removed by race condition)
+      // Verify we're still in queue (might have been removed by race condition)
       const stillInQueue = await Queue.findOne({ userId });
       if (!stillInQueue) {
-        // Re-add to queue since we weren't matched but got removed
-        console.log(`[QUEUE STATUS] User ${user.email} was removed from queue without match, re-adding`);
-        await Queue.updateOne(
-          { userId },
-          { $set: { userId, status: 'waiting', createdAt: new Date() } },
-          { upsert: true }
-        );
+        // Don't re-add here - let frontend handle re-joining
+        console.log(`[QUEUE STATUS] User ${user.email} was removed from queue without match - returning queued:false`);
+        return res.json({ 
+          queued: false, 
+          matched: false 
+        });
       }
 
       console.log(`[QUEUE STATUS] User ${user.email} in queue`);

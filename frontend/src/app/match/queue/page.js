@@ -77,15 +77,16 @@ export default function MatchQueuePage() {
         }
 
         // Handle case where user is no longer in queue and not matched
-        // Only redirect if we've seen this state multiple times consecutively
-        // This prevents false redirects from transient states or race conditions
+        // This can happen due to race conditions in concurrent matching
+        // Instead of redirecting, try to re-join the queue
         if (!data.queued && !data.matched) {
           notInQueueCountRef.current += 1;
+          console.log(`[QUEUE] Not in queue (attempt ${notInQueueCountRef.current}), will try to re-join...`);
           
-          // Only redirect after 3 consecutive "not in queue" responses
-          // AND only if we had successfully joined the queue before
-          if (notInQueueCountRef.current >= 3 && hasJoinedSuccessfullyRef.current) {
-            console.log("[QUEUE] User consistently not in queue after joining - redirecting to match page");
+          // Only give up after many consecutive failures (not just 3)
+          // This handles race conditions where we get temporarily removed
+          if (notInQueueCountRef.current >= 10 && hasJoinedSuccessfullyRef.current) {
+            console.log("[QUEUE] Too many consecutive 'not in queue' responses - redirecting to match page");
             if (pollTimerRef.current) {
               clearInterval(pollTimerRef.current);
               pollTimerRef.current = null;
@@ -94,8 +95,36 @@ export default function MatchQueuePage() {
             return;
           }
           
-          // If we haven't joined yet, don't redirect - just wait
-          console.log(`[QUEUE] Not in queue yet (attempt ${notInQueueCountRef.current}), waiting...`);
+          // Try to re-join the queue instead of just waiting
+          try {
+            const rejoinResponse = await fetch(`${API_BASE}/api/chat/queue/join`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${authTokenRef.current}`,
+              },
+            });
+            const rejoinData = await rejoinResponse.json().catch(() => ({}));
+            
+            if (rejoinData.matched && rejoinData.chatSessionId) {
+              console.log("[QUEUE] Re-join resulted in match!");
+              setStatus("matched");
+              if (pollTimerRef.current) {
+                clearInterval(pollTimerRef.current);
+                pollTimerRef.current = null;
+              }
+              handleMatch(rejoinData.chatSessionId);
+              return;
+            }
+            
+            if (rejoinData.queued) {
+              console.log("[QUEUE] Successfully re-joined queue");
+              notInQueueCountRef.current = 0; // Reset counter on successful rejoin
+              setStatus("waiting");
+            }
+          } catch (rejoinErr) {
+            console.error("[QUEUE] Failed to re-join:", rejoinErr);
+          }
           return;
         }
 
