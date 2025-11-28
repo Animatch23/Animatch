@@ -1,11 +1,67 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useState, useEffect } from "react";
 import SavedChatsList from "../../components/SavedChatsList";
+
+const API_BASE = process.env.NEXT_PUBLIC_API_URL;
 
 // Intro/landing for matching flow (UI-only)
 export default function MatchIntroPage() {
-  // router not required here
+  const router = useRouter();
+  const [hasActiveChat, setHasActiveChat] = useState(false);
+  const [checkingActive, setCheckingActive] = useState(true);
+
+  // Check for active unsaved chat
+  const checkActiveChat = async (showLoading = true) => {
+    const token = localStorage.getItem("sessionToken");
+    if (!token) {
+      setCheckingActive(false);
+      return;
+    }
+    
+    if (showLoading) setCheckingActive(true);
+    
+    try {
+      // Use unsavedOnly=true to only detect unsaved active chats
+      const res = await fetch(`${API_BASE}/api/chat/active?unsavedOnly=true`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      
+      if (res.ok) {
+        const data = await res.json();
+        setHasActiveChat(!!data?.chatSessionId);
+      } else {
+        // 404 means no unsaved active chat
+        setHasActiveChat(false);
+      }
+    } catch (err) {
+      console.error("Error checking active chat:", err);
+      setHasActiveChat(false);
+    } finally {
+      setCheckingActive(false);
+    }
+  };
+
+  // Check on mount
+  useEffect(() => {
+    checkActiveChat();
+  }, []);
+
+  // Re-check when window regains focus (user might have saved the chat in another tab/navigation)
+  useEffect(() => {
+    const handleFocus = () => {
+      checkActiveChat(false); // Don't show loading spinner on focus re-check
+    };
+    
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
+  }, []);
+
+  const handleReturnToActiveMatch = () => {
+    router.push("/match/chat");
+  };
 
   // no top-left back button on this page by design
 
@@ -45,12 +101,29 @@ export default function MatchIntroPage() {
           </svg>
 
           <div className="flex flex-col gap-4 w-full max-w-xs">
-            <Link
-              href="/match/queue"
-              className="text-center bg-white text-green-800 font-semibold rounded-lg py-3 shadow hover:bg-white/90 transition-colors"
-            >
-              Start Matching
-            </Link>
+            {/* Conditional button: Return to Active Match if active chat exists, otherwise Start Matching */}
+            {checkingActive ? (
+              <div className="text-center bg-white/50 text-green-800 font-semibold rounded-lg py-3 shadow">
+                <div className="animate-spin inline-block w-5 h-5 border-2 border-green-800 border-t-transparent rounded-full"></div>
+              </div>
+            ) : hasActiveChat ? (
+              <button
+                onClick={handleReturnToActiveMatch}
+                className="text-center bg-white text-green-800 font-semibold rounded-lg py-3 shadow hover:bg-white/90 transition-colors flex items-center justify-center gap-2"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                </svg>
+                Return to Active Match
+              </button>
+            ) : (
+              <Link
+                href="/match/queue"
+                className="text-center bg-white text-green-800 font-semibold rounded-lg py-3 shadow hover:bg-white/90 transition-colors"
+              >
+                Start Matching
+              </Link>
+            )}
             <Link
               href="/profile/interests?from=match"
               className="text-center bg-white text-green-800 font-semibold rounded-lg py-3 shadow hover:bg-white/90 transition-colors"

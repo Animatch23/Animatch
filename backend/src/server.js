@@ -17,10 +17,16 @@ import termRoutes from "./routes/termsRoutes.js";
 import matchRoutes from "./routes/matchRoutes.js";
 import chatRoutes from "./routes/chatRoutes.js";
 import reportRoutes from "./routes/reportRoutes.js";
+import promptsRoutes from "./routes/promptsRoute.js";
+import gamificationRoutes from "./routes/gamificationRoutes.js";
+import moderationRoutes from "./routes/moderationRoutes.js";
 import ChatSession from "./models/ChatSession.js";
 import Message from "./models/Message.js";
 import User from "./models/User.js";
 import Queue from "./models/Queue.js";
+import { seedBadges } from "./models/Badge.js";
+import moderationService from "./services/moderationService.js";
+import gamificationService from "./services/gamificationService.js";
 
 if (process.env.NODE_ENV === 'test') {
   dotenv.config({ path: '.env.test' });
@@ -174,6 +180,9 @@ app.use("/api/terms", termRoutes);
 app.use("/api", matchRoutes);
 app.use("/api/chat", chatRoutes);
 app.use("/api/reports", reportRoutes);
+app.use("/api/prompts", promptsRoutes);
+app.use("/api/gamification", gamificationRoutes);
+app.use("/api/moderation", moderationRoutes);
 
 // API ping route
 app.get("/api/ping", (req, res) => res.json({ pong: true, api: true, timestamp: new Date().toISOString() }));
@@ -226,6 +235,10 @@ io.on('connection', async (socket) => {
   
   // Store userId on socket for easy access
   socket.socketUserId = socket.userId;
+
+  // Automatically join user's personal room for direct notifications
+  socket.join(`user:${socket.userId}`);
+  console.log(`[SOCKET] User ${socket.userId} joined personal room user:${socket.userId}`);
 
   // Handle explicit chat room joining
   socket.on('chat:join', async ({ chatSessionId }) => {
@@ -296,12 +309,43 @@ io.on('connection', async (socket) => {
 
       await message.save();
 
+      // US-19: Content moderation - check message for offensive content
+      const moderationResult = await moderationService.processMessage({
+        messageId: message._id,
+        userId: socket.userId,
+        chatSessionId,
+        content: message.content
+      });
+
+      if (moderationResult.flagged) {
+        console.log(`[MODERATION] Message flagged - User: ${socket.userId}, Severity: ${moderationResult.severity}`);
+      }
+
+      // US-15: Record activity for gamification (streaks, badges)
+      try {
+        const activityResult = await gamificationService.recordActivity(socket.userId, 'message');
+        
+        // Notify user of any new badges earned
+        if (activityResult.newBadges && activityResult.newBadges.length > 0) {
+          socket.emit('gamification:badges-earned', {
+            badges: activityResult.newBadges,
+            currentStreak: activityResult.currentStreak
+          });
+          console.log(`[GAMIFICATION] User ${socket.userId} earned badges:`, activityResult.newBadges.map(b => b.badgeId));
+        }
+      } catch (gamificationError) {
+        console.error('[GAMIFICATION] Error recording activity:', gamificationError);
+        // Don't block message delivery on gamification errors
+      }
+
       // Emit to room (both participants) - use 'chat:message' to match frontend
       const messagePayload = {
         _id: message._id,
         content: message.content,
         sentAt: message.sentAt,
-        senderId: socket.userId.toString()
+        senderId: socket.userId.toString(),
+        // Include moderation info (optional, for UI indication)
+        isFlagged: moderationResult.flagged
       };
       
       io.to(chatSessionId).emit('chat:message', messagePayload);
@@ -396,6 +440,11 @@ const start = async () => {
     console.log('\n🔌 CONNECTING TO DATABASE...');
     await connectDB();
     console.log('✅ Database connected successfully!');
+    
+    // US-15: Seed default badges
+    console.log('\n🏆 SEEDING BADGES...');
+    await seedBadges();
+    console.log('✅ Badges seeded successfully!');
     
     console.log('\n🌐 CORS CONFIGURATION:');
     console.log(`  Allowed Origins (${allowedOrigins.length}):`);

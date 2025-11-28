@@ -60,6 +60,12 @@ export default function ChatInterface({
   const [reportOpen, setReportOpen] = useState(false);
   const [reportReason, setReportReason] = useState("");
   const [statusLog, setStatusLog] = useState([]);
+  // US-14: Icebreaker prompt state
+  const [icebreakerPrompt, setIcebreakerPrompt] = useState(null);
+  const [isLoadingPrompt, setIsLoadingPrompt] = useState(false);
+  // US-15: Badge notification state
+  const [newBadges, setNewBadges] = useState([]);
+  const [showBadgeNotification, setShowBadgeNotification] = useState(false);
 
   const router = useRouter();
 
@@ -337,6 +343,16 @@ export default function ChatInterface({
       setPartnerOffline(false);
     });
 
+    // US-15: Listen for badge notifications
+    socket.on("gamification:badges-earned", (data) => {
+      if (data.badges && data.badges.length > 0) {
+        setNewBadges(data.badges);
+        setShowBadgeNotification(true);
+        // Auto-hide after 5 seconds
+        setTimeout(() => setShowBadgeNotification(false), 5000);
+      }
+    });
+
     socket.on("disconnect", () => {
       setConnectionStatus("disconnected");
     });
@@ -356,6 +372,61 @@ export default function ChatInterface({
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  // US-14: Fetch icebreaker prompt when chat starts
+  useEffect(() => {
+    const fetchIcebreakerPrompt = async () => {
+      if (!API_BASE || !chatSessionId || !token || isReadOnly) return;
+      
+      setIsLoadingPrompt(true);
+      try {
+        const response = await fetch(`${API_BASE}/api/prompts/session/${chatSessionId}`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          if (data.prompt) {
+            setIcebreakerPrompt(data.prompt);
+          }
+        }
+      } catch (err) {
+        console.error("Failed to fetch icebreaker prompt:", err);
+      } finally {
+        setIsLoadingPrompt(false);
+      }
+    };
+
+    fetchIcebreakerPrompt();
+  }, [chatSessionId, token, isReadOnly]);
+
+  // US-14: Function to refresh icebreaker prompt
+  const refreshIcebreakerPrompt = async () => {
+    if (!API_BASE || !chatSessionId || !token || isLoadingPrompt) return;
+    
+    setIsLoadingPrompt(true);
+    try {
+      const response = await fetch(`${API_BASE}/api/prompts/session/${chatSessionId}/refresh`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        if (data.prompt) {
+          setIcebreakerPrompt(data.prompt);
+        }
+      }
+    } catch (err) {
+      console.error("Failed to refresh icebreaker prompt:", err);
+    } finally {
+      setIsLoadingPrompt(false);
+    }
+  };
 
   // --- UI Helpers from us-5-11 ---
   
@@ -807,17 +878,6 @@ export default function ChatInterface({
       />
       <header className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          {/* Burger icon to open SavedChatsList */}
-          <button
-            type="button"
-            onClick={() => setShowSavedChats(true)}
-            className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
-            aria-label="Open saved chats"
-          >
-            <svg className="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-            </svg>
-          </button>
           <div>
             <h1 className="text-lg font-semibold text-gray-900">
               {partnerUsername || "Anonymous Match"}
@@ -927,6 +987,57 @@ export default function ChatInterface({
 
       <main className="flex-1 overflow-y-auto px-6 py-6">
         <div className="flex flex-col gap-3">
+          {/* US-14: Icebreaker Prompt Card - Sprint-2 green styling */}
+          {icebreakerPrompt && (
+            <div className="self-center max-w-md w-full mb-4">
+              <div className="bg-green-50 border border-[#286633]/30 rounded-2xl p-4 shadow-sm">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg">💡</span>
+                    <span className="text-sm font-medium text-[#286633]">Icebreaker</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={refreshIcebreakerPrompt}
+                    disabled={isLoadingPrompt}
+                    className="text-xs text-[#286633] hover:text-[#1e4d26] disabled:opacity-50 flex items-center gap-1"
+                  >
+                    <svg className={`w-3 h-3 ${isLoadingPrompt ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                    New prompt
+                  </button>
+                </div>
+                <p className="text-gray-800 text-center font-medium">
+                  &quot;{icebreakerPrompt.text}&quot;
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* US-15: Badge Notification Toast - Sprint-2 green styling */}
+          {showBadgeNotification && newBadges.length > 0 && (
+            <div className="fixed top-4 right-4 z-50 animate-in slide-in-from-right">
+              <div className="bg-[#286633] text-white rounded-xl p-4 shadow-lg max-w-sm">
+                <div className="flex items-center gap-3">
+                  <span className="text-3xl">{newBadges[0].icon || '🏆'}</span>
+                  <div>
+                    <p className="font-bold">Badge Earned!</p>
+                    <p className="text-sm opacity-90">{newBadges[0].name}</p>
+                    <p className="text-xs opacity-75">{newBadges[0].description}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowBadgeNotification(false)}
+                    className="ml-auto text-white/70 hover:text-white"
+                  >
+                    ✕
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
           {messages.map((message) => (
             <div
               key={message.id}

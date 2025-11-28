@@ -21,6 +21,24 @@ const messageSchema = new mongoose.Schema({
     type: Date,
     default: Date.now
     // index: true - Removed to avoid duplicate index warning
+  },
+  // US-19: Content moderation fields
+  isFlagged: {
+    type: Boolean,
+    default: false
+  },
+  flaggedAt: {
+    type: Date,
+    default: null
+  },
+  flagSeverity: {
+    type: Number,
+    default: 0 // 0=none, 1=low, 2=medium, 3=high
+  },
+  moderationStatus: {
+    type: String,
+    enum: ['clean', 'pending', 'reviewed', 'removed'],
+    default: 'clean'
   }
 }, { 
   timestamps: true 
