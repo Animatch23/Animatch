@@ -1,4 +1,4 @@
-import fs from "fs";
+import fs from "../utils/fs.js";
 import path from "path";
 import zlib from "zlib";
 import crypto from "crypto";

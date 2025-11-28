@@ -1,6 +1,6 @@
 import express from "express";
 import multer from "multer";
-import fs from "fs";
+import fs from "../utils/fs.js";
 import path from "path";
 import authSuperAdmin from "../middleware/authSuperAdmin.js";
 import { createBackup, listBackups, findBackupById, getLatestBackup, resolveBackupPath } from "../services/backupService.js";
