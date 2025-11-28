@@ -205,38 +205,40 @@ export const saveChatSession = async (req, res) => {
       return res.status(401).json({ message: 'User not authenticated' });
     }
 
-    const chatSession = await ChatSession.findOne({
-      _id: chatSessionId,
-      participants: userId
-    });
+    // Use atomic update to handle concurrent saves properly
+    // $addToSet ensures no duplicates and is atomic
+    const updatedSession = await ChatSession.findOneAndUpdate(
+      {
+        _id: chatSessionId,
+        participants: userId
+      },
+      {
+        $addToSet: { savedByUsers: userId }
+      },
+      { new: true } // Return the updated document
+    );
 
-    if (!chatSession) {
+    if (!updatedSession) {
       return res.status(404).json({ message: 'Chat session not found' });
     }
 
-    // Add user to savedByUsers if not already present
-    const alreadySaved = chatSession.savedByUsers.includes(userId);
-    if (!alreadySaved) {
-      chatSession.savedByUsers.push(userId);
+    // Check if this user was already in savedByUsers before this update
+    // We can't know for sure atomically, so we'll emit the event regardless
+    const savedByCount = updatedSession.savedByUsers.length;
+
+    // If both users have saved, mark as permanently saved
+    if (savedByCount === 2 && !updatedSession.isSaved) {
+      updatedSession.isSaved = true;
+      await updatedSession.save();
     }
 
-    // If both users saved, mark as permanently saved
-    if (chatSession.savedByUsers.length === 2) {
-      chatSession.isSaved = true;
-    }
+    const finalIsSaved = updatedSession.isSaved || savedByCount === 2;
 
-    await chatSession.save();
-
-    // ⭐ Re-fetch to get the latest state (handles concurrent saves race condition)
-    const updatedSession = await ChatSession.findById(chatSessionId);
-    const finalSavedByCount = updatedSession.savedByUsers.length;
-    const finalIsSaved = updatedSession.isSaved;
-
-    // Emit socket event to partner if available
+    // Emit socket event to notify partner
     const io = req.app.get('io');
-    if (io && !alreadySaved) {
+    if (io) {
       io.to(chatSessionId.toString()).emit('chat:partner-saved', {
-        savedByCount: finalSavedByCount,
+        savedByCount: savedByCount,
         isSaved: finalIsSaved
       });
     }
@@ -244,7 +246,7 @@ export const saveChatSession = async (req, res) => {
     res.json({ 
       message: 'Chat session saved successfully',
       isSaved: finalIsSaved,
-      savedByCount: finalSavedByCount,
+      savedByCount: savedByCount,
       chat: {
         savedByUsers: updatedSession.savedByUsers,
         isSaved: finalIsSaved
