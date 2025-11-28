@@ -11,12 +11,8 @@
   --font-sans: var(--font-montserrat);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
+/* Force light theme background across system preferences */
+/* Removed dark-mode override to avoid black backgrounds */
 
 body {
   background: var(--background);
