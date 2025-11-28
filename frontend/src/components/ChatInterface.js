@@ -347,8 +347,24 @@ export default function ChatInterface({
       }
     });
 
-    socket.on("chat:unmatched", () => {
+    socket.on("chat:unmatched", ({ message }) => {
       setIsUnmatched(true);
+      setPartnerLeft(true);
+      
+      // Show feedback notification
+      setFeedback({
+        type: "info",
+        message: message || "Your partner has moved on to find a new match. This saved chat is preserved in your history."
+      });
+      
+      // Add a system message to the chat
+      setMessages(prev => [...prev, {
+        id: `system-${Date.now()}`,
+        content: "Your partner has left the chat",
+        sentAt: new Date().toISOString(),
+        isOwn: false,
+        isSystem: true
+      }]);
     });
 
     // Handle partner navigating away from chat (e.g., went to profile page)
