@@ -16,6 +16,9 @@ import uploadRoutes from "./routes/uploadRoute.js";
 import termRoutes from "./routes/termsRoutes.js";
 import matchRoutes from "./routes/matchRoutes.js";
 import chatRoutes from "./routes/chatRoutes.js";
+import adminBackupRoutes from "./routes/adminBackupRoutes.js";
+import { ensureDefaultSuperAdmin } from "./utils/initSuperAdmin.js";
+import { startBackupScheduler } from "./scheduler.js";
 import ChatSession from "./models/ChatSession.js";
 import Message from "./models/Message.js";
 import User from "./models/User.js";
@@ -171,6 +174,7 @@ app.use('/api/test-uploads', express.static('test-uploads'));
 app.use("/api/terms", termRoutes);
 app.use("/api", matchRoutes);
 app.use("/api/chat", chatRoutes);
+app.use("/api", adminBackupRoutes);
 
 // API ping route
 app.get("/api/ping", (req, res) => res.json({ pong: true, api: true, timestamp: new Date().toISOString() }));
@@ -352,6 +356,13 @@ const start = async () => {
     console.log('\n🔌 CONNECTING TO DATABASE...');
     await connectDB();
     console.log('✅ Database connected successfully!');
+
+    console.log('\n🛡️  Ensuring default super admin account...');
+    await ensureDefaultSuperAdmin();
+    console.log('✅ Super admin ready');
+
+    console.log('\n🗓️  Starting backup scheduler...');
+    startBackupScheduler();
     
     console.log('\n🌐 CORS CONFIGURATION:');
     console.log(`  Allowed Origins (${allowedOrigins.length}):`);
