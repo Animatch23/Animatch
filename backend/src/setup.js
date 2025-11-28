@@ -1,17 +1,12 @@
 // Set environment variables for testing
 process.env.NODE_ENV = 'test';
-process.env.MONGO_URI = 'mongodb://localhost:27017/test';
 
-// For ES modules testing, we need to mock mongoose directly
-import { jest } from '@jest/globals';
-import mongoose from 'mongoose';
+// Note: We don't mock mongoose.connect here because tests use MongoMemoryServer
+// and need real database connections for integration testing.
+// The testDb.js utility provides connectTestDB() and disconnectTestDB() helpers
+// that properly manage the in-memory MongoDB instance.
 
-// Mock mongoose connect instead of mocking the module
-const originalConnect = mongoose.connect;
-mongoose.connect = jest.fn().mockImplementation(() => Promise.resolve());
-
-// Restore original after tests
+// Clean up after tests
 afterAll(async () => {
-  mongoose.connect = originalConnect;
   await new Promise(resolve => setTimeout(resolve, 500)); 
 });

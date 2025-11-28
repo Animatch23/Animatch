@@ -14,7 +14,6 @@ router.post("/", async (req, res) => {
         
         // Check if user exists and has completed profile setup (has course set)
         const hasProfile = !!(user && user.course);
-        const exists = !!user; // Keep original meaning of "account exists"
         
         let userWithData = null;
         if (user) {

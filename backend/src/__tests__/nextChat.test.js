@@ -13,6 +13,7 @@
 
 import request from 'supertest';
 import mongoose from 'mongoose';
+import { MongoMemoryServer } from 'mongodb-memory-server';
 import jwt from 'jsonwebtoken';
 import app from '../server.js';
 import ChatSession from '../models/ChatSession.js';
@@ -20,12 +21,18 @@ import Message from '../models/Message.js';
 import Queue from '../models/Queue.js';
 import User from '../models/User.js';
 
+let mongo;
+
 beforeAll(async () => {
-    await mongoose.connect(process.env.MONGO_URL);
+    mongo = await MongoMemoryServer.create();
+    const uri = mongo.getUri();
+    process.env.MONGO_URL = uri;
+    await mongoose.connect(uri);
 });
 
 afterAll(async () => {
     await mongoose.disconnect();
+    await mongo.stop();
 });
 
 describe('US #6: Next Chat Option', () => {

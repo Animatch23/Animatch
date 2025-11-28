@@ -16,6 +16,9 @@ import uploadRoutes from "./routes/uploadRoute.js";
 import termRoutes from "./routes/termsRoutes.js";
 import matchRoutes from "./routes/matchRoutes.js";
 import chatRoutes from "./routes/chatRoutes.js";
+import adminBackupRoutes from "./routes/adminBackupRoutes.js";
+import { ensureDefaultSuperAdmin } from "./utils/initSuperAdmin.js";
+import { startBackupScheduler } from "./scheduler.js";
 import reportRoutes from "./routes/reportRoutes.js";
 import ChatSession from "./models/ChatSession.js";
 import Message from "./models/Message.js";
@@ -173,6 +176,7 @@ app.use('/api/test-uploads', express.static('test-uploads'));
 app.use("/api/terms", termRoutes);
 app.use("/api", matchRoutes);
 app.use("/api/chat", chatRoutes);
+app.use("/api", adminBackupRoutes);
 app.use("/api/reports", reportRoutes);
 
 // API ping route
@@ -396,6 +400,13 @@ const start = async () => {
     console.log('\n🔌 CONNECTING TO DATABASE...');
     await connectDB();
     console.log('✅ Database connected successfully!');
+
+    console.log('\n🛡️  Ensuring default super admin account...');
+    await ensureDefaultSuperAdmin();
+    console.log('✅ Super admin ready');
+
+    console.log('\n🗓️  Starting backup scheduler...');
+    startBackupScheduler();
     
     console.log('\n🌐 CORS CONFIGURATION:');
     console.log(`  Allowed Origins (${allowedOrigins.length}):`);
@@ -446,7 +457,7 @@ if (process.env.NODE_ENV !== 'test') {
     process.exit(1);
   });
 
-  process.on('unhandledRejection', (reason, promise) => {
+  process.on('unhandledRejection', (reason) => {
     console.error('\n💥 UNHANDLED PROMISE REJECTION:');
     console.error('Reason:', reason);
     process.exit(1);

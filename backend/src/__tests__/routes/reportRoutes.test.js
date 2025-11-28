@@ -5,20 +5,14 @@ import app from '../../server.js';
 import ChatSession from '../../models/ChatSession.js';
 import User from '../../models/User.js';
 import Report from '../../models/Report.js';
+import { connectTestDB, disconnectTestDB } from '../../utils/testDb.js';
 
 beforeAll(async () => {
-    // Force authMiddleware to use the DB path
-    process.env.USE_REAL_DB = 'true';
-    
-    // Connect to the test database
-    // In a Jest environment with @shelf/jest-mongodb, process.env.MONGO_URL is automatically set
-    if (process.env.MONGO_URL) {
-        await mongoose.connect(process.env.MONGO_URL);
-    }
+    await connectTestDB();
 });
 
 afterAll(async () => {
-    await mongoose.disconnect();
+    await disconnectTestDB();
 });
 
 describe('Report Routes', () => {
