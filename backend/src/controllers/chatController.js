@@ -533,6 +533,11 @@ export const blockUser = async (req, res) => {
       return res.status(400).json({ message: 'User ID to block is required' });
     }
 
+    // Don't let users block themselves
+    if (userId.toString() === userIdToBlock.toString()) {
+      return res.status(400).json({ message: 'Cannot block yourself' });
+    }
+
     // Add to blocked users list
     await User.findByIdAndUpdate(
       userId,

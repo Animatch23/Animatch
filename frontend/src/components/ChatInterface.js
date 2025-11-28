@@ -782,6 +782,15 @@ export default function ChatInterface({
               ? "Saving..." 
               : "Save Chat"}
           </button>
+          {/* US #10: Block button */}
+          <button
+            type="button"
+            onClick={() => setConfirmBlockOpen(true)}
+            disabled={isBlocking || partnerLeft || isReadOnly || !partnerId}
+            className="h-9 px-4 rounded-md bg-orange-500 text-white text-sm font-medium shadow-sm hover:bg-orange-600 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+          >
+            {isBlocking ? "Blocking..." : "Block"}
+          </button>
           <button
             type="button"
             onClick={handleLeaveChat}

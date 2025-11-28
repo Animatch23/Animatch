@@ -101,6 +101,7 @@ function ChatContent() {
           setChatInfo({
             chatSessionId: sessionId,
             partnerUsername: partner?.username || "Match Partner",
+            partnerId: partner?._id,
             currentUserId: currentUserId,
             isSavedSession: true
           });

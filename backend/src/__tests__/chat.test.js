@@ -5,6 +5,7 @@ import app from '../server.js';
 import ChatSession from '../models/ChatSession.js';
 import User from '../models/User.js';
 import Message from '../models/Message.js';
+import { connectTestDB, disconnectTestDB } from '../utils/testDb.js';
 
 beforeAll(async () => {
     await connectTestDB();
