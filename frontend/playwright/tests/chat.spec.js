@@ -175,19 +175,22 @@ test.describe("chat test", () => {
     ]);
 
     await Promise.all([
-      page1.waitForSelector('input[placeholder="Type your message..."], textarea[placeholder="Type your message..."]', { timeout: 20000 }),
-      page2.waitForSelector('input[placeholder="Type your message..."], textarea[placeholder="Type your message..."]', { timeout: 20000 })
+      page1.waitForTimeout(2000),
+      page2.waitForTimeout(2000)
     ]);
 
-    await page1.getByPlaceholder("Type your message...").fill("Hello");
+    await page1.getByPlaceholder("Say hello...").fill("Hello");
     await page1.locator('button[type="submit"]').click();
 
+    await page2.getByPlaceholder("Say hello...").fill("Hello");
+    await page2.locator('button[type="submit"]').click();
+
     await expect(
-      page1.locator("div.bg-green-600").filter({ hasText: "Hello" })
+      page1.locator("div.bg-white.text-gray-900").filter({ hasText: "Hello" })
     ).toBeVisible({ timeout: 10000 });
 
     await expect(
-      page2.locator("div.rounded-2xl").filter({ hasText: "Hello" })
+      page2.locator("div.bg-white.text-gray-900").filter({ hasText: "Hello" })
     ).toBeVisible({ timeout: 10000 });
 
     await browser.close();
