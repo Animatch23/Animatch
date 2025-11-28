@@ -82,7 +82,18 @@ export default function ProfilePage() {
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-3xl mx-auto p-6">
         <div className="flex items-center justify-between mb-6">
-          <h1 className="text-3xl font-bold text-green-800">My Profile</h1>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => router.push('/match')}
+              className="p-2 rounded-md hover:bg-gray-200 transition-colors"
+              aria-label="Back to Match"
+            >
+              <svg className="w-6 h-6 text-green-800" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+              </svg>
+            </button>
+            <h1 className="text-3xl font-bold text-green-800">My Profile</h1>
+          </div>
           <button
             onClick={handleLogout}
             className="px-4 py-2 rounded-md bg-red-100 text-red-700 hover:bg-red-200 font-medium transition-colors flex items-center gap-2"

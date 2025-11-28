@@ -321,19 +321,18 @@ export default function MatchQueuePage() {
         <div className="relative w-56 h-56">
           <svg viewBox="0 0 100 100" className="absolute inset-0 w-full h-full">
             <circle cx="50" cy="50" r="40" fill="none" stroke="rgba(255,255,255,0.35)" strokeWidth="12" />
-            <g className="animate-spin origin-center [transform-box:fill-box]" style={{ animationDuration: "1.5s" }}>
-              <animateTransform attributeName="transform" type="rotate" from="0 50 50" to="360 50 50" dur="1.5s" repeatCount="indefinite" />
-              <circle
-                cx="50"
-                cy="50"
-                r="40"
-                fill="none"
-                stroke="white"
-                strokeWidth="12"
-                strokeLinecap="round"
-                strokeDasharray="150 251"
-              />
-            </g>
+          </svg>
+          <svg viewBox="0 0 100 100" className="absolute inset-0 w-full h-full animate-spin" style={{ animationDuration: "1.5s" }}>
+            <circle
+              cx="50"
+              cy="50"
+              r="40"
+              fill="none"
+              stroke="white"
+              strokeWidth="12"
+              strokeLinecap="round"
+              strokeDasharray="150 251"
+            />
           </svg>
 
           <div className="absolute inset-0 flex items-center justify-center">
