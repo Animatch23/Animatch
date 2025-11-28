@@ -6,6 +6,11 @@ import {
   endChatSession,
   leaveChatSession,
   saveChatSession,
+  getSavedChats,
+  getChatSession,
+  unmatchUser,
+  getChatSaveStatus,
+  nextChat,
   blockUser
 } from '../controllers/chatController.js';
 import {
@@ -28,6 +33,13 @@ router.get('/:chatSessionId/history', authenticate, getChatHistory);
 router.post('/:chatSessionId/end', authenticate, endChatSession);
 router.post('/:chatSessionId/leave', authenticate, leaveChatSession);
 router.post('/:chatSessionId/save', authenticate, saveChatSession);
+router.post('/:chatSessionId/next', authenticate, nextChat); // US #6: Next Chat
 router.post('/block', authenticate, blockUser);
+
+// Additional routes from us-8 for chat history and session details
+router.get('/history', authenticate, getSavedChats);
+router.get('/:sessionId', authenticate, getChatSession);
+router.get('/:chatSessionId/save-status', authenticate, getChatSaveStatus);
+router.post('/:chatSessionId/unmatch', authenticate, unmatchUser);
 
 export default router;
