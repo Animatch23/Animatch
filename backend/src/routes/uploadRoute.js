@@ -282,4 +282,34 @@ router.post('/update-interests', updateInterestsHandler);
 // Legacy route support (redirects to update-profile logic if needed, or just handles interests)
 router.post('/interests', updateProfileHandler);
 
+/**
+ * POST /check-username
+ * Checks if a username is available for registration
+ * @route POST /check-username
+ * @param {string} username - Required username to check
+ * @returns {Object} 200 - Availability status
+ * @returns {Object} 400 - Missing username
+ */
+router.post('/check-username', async (req, res) => {
+    try {
+        const { username } = req.body;
+
+        if (!username || username.trim() === '') {
+            return res.status(400).json({ error: 'Username is required' });
+        }
+
+        // Case-insensitive check
+        const existingUser = await User.findOne({
+            username: { $regex: new RegExp(`^${username.trim()}$`, 'i') }
+        });
+
+        const isAvailable = !existingUser;
+
+        res.status(200).json({ isAvailable });
+    } catch (err) {
+        console.error('[POST /check-username] Error:', err);
+        res.status(500).json({ error: 'Failed to check username availability' });
+    }
+});
+
 export default router;

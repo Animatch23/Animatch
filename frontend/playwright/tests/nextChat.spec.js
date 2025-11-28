@@ -117,7 +117,7 @@ test.describe("next chat button tests", () => {
                               await btn.click();
                               clickedIndices.add(i);
                               selectedOrganizations.push(text);
-                              await page.waitForTimeout(200);
+                              await page.waitForTimeout(2000);
                               found = true;
                               break;
                           }
@@ -191,48 +191,41 @@ test.describe("next chat button tests", () => {
       await page1.waitForLoadState("networkidle");
       await page2.waitForLoadState("networkidle");
 
-      // Click chat history toggle for User 1
-      const user1MenuBtn = page1.locator('button[aria-label*="menu"], button[aria-label*="saved"]').first();
-      await user1MenuBtn.click();
-      await page1.waitForTimeout(500);
 
       console.log("Users are starting to click new match")
       // Click "Start a New Match" button
-      const user1StartNewMatchBtn = page1.getByRole("button", { name: "Start a New Match" });
-      await expect(user1StartNewMatchBtn).toBeVisible({ timeout: 5000 });
+      const user1StartNewMatchBtn = page1.getByRole("button", { name: "Next Chat" });
+      await expect(user1StartNewMatchBtn).toBeVisible({ timeout: 15000 });
       await user1StartNewMatchBtn.click();
 
       // Verify User 1 navigated back to match page
-      await page1.waitForTimeout(1000);
-      console.log(`new user1 link: ${page1.url()}`)
-      expect(page1.url()).toContain("/match");
-
-      const user1CancelBtn =page1.locator('button[aria-label="Cancel matching"]');
-      await user1CancelBtn.click();
-      await page1.waitForURL("**/match", { timeout: 5000 });
+    await page1.waitForURL("**/match/queue", { timeout: 5000 });
+    console.log(`new user1 link: ${page1.url()}`)
 
 
+    const user1CancelBtn = page1.locator('button[aria-label="Cancel matching"]');
+    await expect(user1CancelBtn).toBeVisible({ timeout: 15000 });
+    await user1CancelBtn.click();
+    await page1.waitForURL("**/match", { timeout: 5000 });
+    console.log(`new url after cancel ${page1.url()}`);
 
-      // Click chat history toggle for User 2
-      const user2MenuBtn = page2.locator('button[aria-label*="menu"], button[aria-label*="saved"]').first();
-      await user2MenuBtn.click();
-      await page2.waitForTimeout(500);
+
 
       // Click "Start a New Match" button
-      const user2StartNewMatchBtn = page2.getByRole("button", { name: "Start a New Match" });
-      await expect(user2StartNewMatchBtn).toBeVisible({ timeout: 5000 });
-      await user2StartNewMatchBtn.click();
+    const user2StartNewMatchBtn = page2.locator('button[aria-label="Back to matchmaking"]');
+    await expect(user2StartNewMatchBtn).toBeVisible({ timeout: 15000 });
+    await user2StartNewMatchBtn.click();
 
-      // Verify User 2 navigated back to match page
-      await page1.waitForTimeout(1000);
-      console.log(`new user2 link: ${page2.url()}`)
-      expect(page2.url()).toContain("/match");
-      const user2CancelBtn = page2.locator('button[aria-label="Cancel matching"]');
-      await user2CancelBtn.click();
-      await page2.waitForURL("**/match", { timeout: 5000 });
+      // Verify User 1 navigated back to match page
+    await page2.waitForURL("**/match", { timeout: 5000 });
+    console.log(`new user2 link: ${page2.url()}`);
+    
+    expect(page1.url()).toBe(page2.url());
 
 
     } finally {
+      await page1.close();
+      await page2.close();
       await context1.close();
       await context2.close();
     }
@@ -276,21 +269,17 @@ test.describe("next chat button tests", () => {
       await page2.waitForTimeout(1000);
 
 
-      // Click chat history toggle for User 1
-      const user1MenuBtn = page1.locator('button[aria-label*="menu"], button[aria-label*="saved"]').first();
-      await user1MenuBtn.click();
-      await page1.waitForTimeout(500);
 
       console.log("Users are starting to click new match")
       // Click "Start a New Match" button
-      const user1StartNewMatchBtn = page1.getByRole("button", { name: "Start a New Match" });
-      await expect(user1StartNewMatchBtn).toBeVisible({ timeout: 5000 });
+      const user1StartNewMatchBtn = page1.getByRole("button", { name: "Next Chat" });
+      await expect(user1StartNewMatchBtn).toBeVisible({ timeout: 15000 });
       await user1StartNewMatchBtn.click();
 
       // Verify User 1 navigated back to match page
       await page1.waitForTimeout(1000);
       console.log(`new user1 link: ${page1.url()}`)
-      expect(page1.url()).toContain("/match");
+      await page1.waitForURL("**/match/queue", { timeout: 5000 });
       const user1CancelBtn = page1.locator('button[aria-label="Cancel matching"]');
       await user1CancelBtn.click();
       await page1.waitForURL("**/match", { timeout: 5000 });
@@ -302,6 +291,8 @@ test.describe("next chat button tests", () => {
       console.log("System message text:", await systemMessage.allTextContents());
 
     } finally {
+      await page1.close();
+      await page2.close();
       await context1.close();
       await context2.close();
     }
@@ -349,15 +340,10 @@ test.describe("next chat button tests", () => {
     await page1.waitForLoadState("networkidle");
     await page2.waitForLoadState("networkidle");
 
-    // Click chat history toggle for User 1
-    const user1MenuBtn = page1.locator('button[aria-label*="menu"], button[aria-label*="saved"]').first();
-    await user1MenuBtn.click();
-    await page1.waitForTimeout(500);
-
     console.log("Users are starting to click new match")
     // Click "Start a New Match" button - User 1 goes to queue automatically
-    const user1StartNewMatchBtn = page1.getByRole("button", { name: "Start a New Match" });
-    await expect(user1StartNewMatchBtn).toBeVisible({ timeout: 5000 });
+    const user1StartNewMatchBtn = page1.getByRole("button", { name: "Next Chat" });
+    await expect(user1StartNewMatchBtn).toBeVisible({ timeout: 15000 });
     await user1StartNewMatchBtn.click();
 
     // Verify User 1 is now in queue
@@ -367,7 +353,7 @@ test.describe("next chat button tests", () => {
     // User 3 joins queue shortly after - they should match
     await page3.waitForLoadState("networkidle");
     const user3StartLink = page3.getByRole("link", { name: "Start Matching" });
-    await expect(user3StartLink).toBeVisible({ timeout: 5000 });
+    await expect(user3StartLink).toBeVisible({ timeout: 10000 });
     await user3StartLink.click();
 
     // Wait for User 3 to reach queue

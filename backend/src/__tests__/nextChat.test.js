@@ -340,8 +340,9 @@ describe('US #6: Next Chat Option', () => {
             expect(response.body.message).toBeTruthy();
         });
 
-        test('should prevent user from joining queue while in active chat', async () => {
-            // Try to join queue while still in active chat
+        test('should prevent user from joining queue while in active UNSAVED chat', async () => {
+            // The default chatSession is unsaved (isSaved: false)
+            // Try to join queue while still in active unsaved chat
             const response = await request(app)
                 .post('/api/chat/queue/join')
                 .set('Authorization', `Bearer ${token1}`)

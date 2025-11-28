@@ -10,14 +10,18 @@ export default {
   rootDir,
   testEnvironment: "node",
   testTimeout: 30000,
-  coverageDirectory: path.join(rootDir, "coverage"),
+  collectCoverage: true,
+  coverageDirectory: path.join(rootDir, 'coverage'),
   collectCoverageFrom: [path.join(rootDir, "src/**/*.{js,jsx}")],
   testMatch: [
-    path.join(rootDir, "__tests__/**/*.test.js"),
-    path.join(rootDir, "src/__tests__/**/*.test.js"),
-    path.join(rootDir, "src/__tests__/**/*_test.js")
+    "<rootDir>/__tests__/**/*.test.js",
+    "<rootDir>/src/__tests__/**/*.test.js",
+    "**/__tests__/**/*.test.js"
   ],
-  setupFilesAfterEnv: [path.join(rootDir, "setupTests.js")],
+  setupFilesAfterEnv: [
+    path.join(rootDir, "setupTests.js"),
+    "<rootDir>/src/setup.js"
+  ],
   transform: {
     "^.+\\.jsx?$": ["babel-jest", { configFile: babelConfigPath }]
   },
@@ -26,8 +30,8 @@ export default {
   restoreMocks: true,
   moduleDirectories: ["node_modules", path.join(rootDir, "src")],
   moduleNameMapper: {
-     "^.+/utils/fs\\.js$": path.join(rootDir, "__mocks__/fs.cjs"),
-     "^node-cron$": path.join(rootDir, "__mocks__/node-cron.cjs"),
-     "^multer$": path.join(rootDir, "__mocks__/multer.cjs")
+    "^.+/utils/fs\\.js$": path.join(rootDir, "__mocks__/fs.cjs"),
+    "^node-cron$": path.join(rootDir, "__mocks__/node-cron.cjs"),
+    "^multer$": path.join(rootDir, "__mocks__/multer.cjs")
   }
 };

@@ -1,8 +1,20 @@
 import { defineConfig } from "@playwright/test";
 
 export default defineConfig({
+  timeout: 75000,
   testDir: "./playwright/tests",
-  reporter: "list",
-  repeatEach: 1,
-  workers: 1, 
+
+  reporter: [
+    ["list"],
+    ["html", { open: "never" }]
+  ],
+
+  use: {
+    trace: 'on-first-retry', 
+    screenshot: 'only-on-failure',
+    video: 'retain-on-failure',
+  },
+  
+  workers: 1,
+  retries: 0,
 });

@@ -3,7 +3,7 @@ import dotenv from "dotenv";
 import cors from "cors";
 import cookieParser from "cookie-parser";
 import cron from 'node-cron';
-import { expireChats } from './controllers/cronController.js';
+import { expireChats, cleanupStaleQueueEntries } from './controllers/cronController.js';
 import { createServer } from "http";
 import { Server } from "socket.io";
 import jwt from "jsonwebtoken";
@@ -19,9 +19,11 @@ import chatRoutes from "./routes/chatRoutes.js";
 import adminBackupRoutes from "./routes/adminBackupRoutes.js";
 import { ensureDefaultSuperAdmin } from "./utils/initSuperAdmin.js";
 import { startBackupScheduler } from "./scheduler.js";
+import reportRoutes from "./routes/reportRoutes.js";
 import ChatSession from "./models/ChatSession.js";
 import Message from "./models/Message.js";
 import User from "./models/User.js";
+import Queue from "./models/Queue.js";
 
 if (process.env.NODE_ENV === 'test') {
   dotenv.config({ path: '.env.test' });
@@ -175,6 +177,7 @@ app.use("/api/terms", termRoutes);
 app.use("/api", matchRoutes);
 app.use("/api/chat", chatRoutes);
 app.use("/api", adminBackupRoutes);
+app.use("/api/reports", reportRoutes);
 
 // API ping route
 app.get("/api/ping", (req, res) => res.json({ pong: true, api: true, timestamp: new Date().toISOString() }));
@@ -250,8 +253,14 @@ io.on('connection', async (socket) => {
       socket.chatSessionId = chatSessionId;
       console.log(`[SOCKET] User ${socket.userId} successfully joined room ${chatSessionId}`);
       
+      // Notify partner that this user has joined/rejoined the chat
+      socket.to(chatSessionId).emit('chat:partner-joined', {
+        message: 'Your partner has joined the chat'
+      });
+      
       socket.emit('chat:joined', { 
         chatSessionId,
+        userId: socket.userId,
         message: 'Successfully joined chat room'
       });
     } catch (error) {
@@ -319,19 +328,54 @@ io.on('connection', async (socket) => {
     }
   });
 
+  // Handle explicit logout notification
+  socket.on('chat:logout', () => {
+    console.log(`[SOCKET] User ${socket.userId} is logging out`);
+    
+    if (socket.chatSessionId) {
+      socket.to(socket.chatSessionId).emit('chat:partner-offline', {
+        message: 'Your partner has logged out'
+      });
+      console.log(`[SOCKET] Notified room ${socket.chatSessionId} that user ${socket.userId} logged out`);
+    }
+  });
+
   // Handle disconnection
-  socket.on('disconnect', () => {
+  socket.on('disconnect', async () => {
     console.log(`[SOCKET] User disconnected: ${socket.userId}`);
-    // Don't emit partner-disconnected on normal disconnect
-    // Users may just be navigating away temporarily (e.g., checking profile)
-    // The frontend will handle reconnection automatically
+    
+    // ⭐ GHOST USER CLEANUP: Remove user from queue when socket disconnects
+    // This prevents ghost entries when users close browser while in queue
+    try {
+      const removedFromQueue = await Queue.findOneAndDelete({ userId: socket.userId });
+      if (removedFromQueue) {
+        console.log(`[SOCKET] ⭐ Cleaned up ghost queue entry for user ${socket.userId}`);
+      }
+    } catch (err) {
+      console.error(`[SOCKET] Error cleaning up queue for user ${socket.userId}:`, err);
+    }
+    
+    // Notify partner that user has left the chat room (navigated away, not necessarily logged out)
+    if (socket.chatSessionId) {
+      socket.to(socket.chatSessionId).emit('chat:partner-away', {
+        message: 'Your partner has navigated away from the chat'
+      });
+      console.log(`[SOCKET] Notified room ${socket.chatSessionId} that user ${socket.userId} navigated away`);
+    }
   });
 });
 
 if (process.env.NODE_ENV !== 'test') {
+  // Run chat expiry check every hour
   cron.schedule('0 * * * *', () => {
     console.log('Running scheduled hourly check for chat expiry...');
     expireChats();
+  });
+
+  // Run stale queue cleanup every 5 minutes to remove ghost users
+  cron.schedule('*/5 * * * *', () => {
+    console.log('Running scheduled queue cleanup for ghost users...');
+    cleanupStaleQueueEntries();
   });
 }
 
@@ -397,7 +441,7 @@ const start = async () => {
   } catch (err) {
     console.error('\n╔═══════════════════════════════════════════════════════════════════╗');
     console.error('║  ❌ FATAL ERROR - SERVER FAILED TO START                          ║');
-    console.error('╚═══════════════════════════════════════════════════════════════════╝');
+    console.error('╚═══════════════════════════════════════════════════════════════════');
     console.error('Error Message:', err.message);
     console.error('Stack Trace:', err.stack);
     process.exit(1);

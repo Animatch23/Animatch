@@ -3,11 +3,7 @@ name: Playwright E2E Tests
 on:
   push:
     branches:
-      - main
-      - "frontend/**"
-      - "**frontend**"
-      - "sprint-2"
-      - "us-6_NEW"
+      - "**"
   pull_request:
     branches:
       - main
@@ -108,4 +104,12 @@ jobs:
         with:
           name: playwright-report
           path: frontend/playwright/test-results
+
+      - name: Upload Playwright Report
+        if: always() 
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: frontend/playwright-report/
+          retention-days: 30
 
