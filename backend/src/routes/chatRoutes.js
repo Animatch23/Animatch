@@ -11,7 +11,8 @@ import {
   unmatchUser,
   getChatSaveStatus,
   nextChat,
-  blockUser
+  blockUser,
+  notifyLogout
 } from '../controllers/chatController.js';
 import {
   joinQueue,
@@ -26,6 +27,9 @@ router.post('/queue/join', authenticate, joinQueue);
 router.get('/queue/status', authenticate, getQueueStatus);
 router.post('/queue/leave', authenticate, leaveQueue);
 router.get('/match/active', authenticate, getActiveMatch);
+
+// Logout notification - notify active chat partner that user is logging out
+router.post('/notify-logout', authenticate, notifyLogout);
 
 // All routes require authentication
 router.get('/active', authenticate, getActiveChat);

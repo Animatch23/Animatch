@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import SavedChatsList from "./SavedChatsList";
 import { io } from "socket.io-client";
 import Image from "next/image";
+import ReportModal from "./ReportModal";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL;
 const SOCKET_BASE = process.env.NEXT_PUBLIC_SOCKET_URL || API_BASE;
@@ -47,8 +48,11 @@ export default function ChatInterface({
   const [feedback, setFeedback] = useState(null);
   const [saveStatus, setSaveStatus] = useState({ currentUserSaved: false, partnerSaved: false, bothSaved: false });
   const [partnerLeft, setPartnerLeft] = useState(false);
+  const [partnerOffline, setPartnerOffline] = useState(false); // Track if partner explicitly logged out
   const [showSavedChats, setShowSavedChats] = useState(false);
   const [isUnmatched, setIsUnmatched] = useState(false);
+  const [isReportModalOpen, setIsReportModalOpen] = useState(false);
+  const [isReporting, setIsReporting] = useState(false);
   const [showSidebar, setShowSidebar] = useState(false);
   const [savedChats, setSavedChats] = useState([]);
   const [showActionMenu, setShowActionMenu] = useState(false);
@@ -75,9 +79,11 @@ export default function ChatInterface({
   }, []);
 
   useEffect(() => {
-    // Reset save status when chat session changes to prevent premature saves
+    // Reset state when chat session changes
     setSaveStatus({ currentUserSaved: false, partnerSaved: false, bothSaved: false });
     setFeedback(null);
+    setPartnerLeft(false);
+    setPartnerOffline(false);
     
     // Fetch current save status from backend to handle reloads (Design consideration #1)
     if (API_BASE && chatSessionId && token) {
@@ -228,13 +234,15 @@ export default function ChatInterface({
 
     socket.on("chat:message", (payload) => {
       const messageId = payload._id || `${payload.sentAt}-${Math.random()}`;
+      const isOwnMessage = currentUserIdRef.current
+        ? payload.senderId === currentUserIdRef.current
+        : false;
+      
       const message = {
         id: messageId,
         content: payload.content,
         sentAt: payload.sentAt,
-        isOwn: currentUserIdRef.current
-          ? payload.senderId === currentUserIdRef.current
-          : false,
+        isOwn: isOwnMessage,
       };
 
       setMessages((prev) => {
@@ -309,6 +317,24 @@ export default function ChatInterface({
 
     socket.on("chat:unmatched", () => {
       setIsUnmatched(true);
+    });
+
+    // Handle partner navigating away from chat (e.g., went to profile page)
+    // We just clear typing indicator but don't change connection status display
+    socket.on("chat:partner-away", () => {
+      setPartnerTyping(false); // Clear typing indicator when partner navigates away
+    });
+
+    // Handle partner explicitly logging out
+    socket.on("chat:partner-offline", () => {
+      setPartnerOffline(true);
+      setPartnerTyping(false);
+    });
+
+    // Handle partner joining/rejoining the chat room
+    socket.on("chat:partner-joined", () => {
+      // Partner is back - clear offline status
+      setPartnerOffline(false);
     });
 
     socket.on("disconnect", () => {
@@ -406,8 +432,16 @@ export default function ChatInterface({
   };
 
   const statusLabel = useMemo(() => {
+    // First check our own connection status
     switch (connectionStatus) {
       case "connected":
+        // Our connection is good - check partner status
+        if (partnerLeft) {
+          return "Partner left";
+        }
+        if (partnerOffline) {
+          return "Partner offline";
+        }
         return "Connected";
       case "disconnected":
         return "Reconnecting...";
@@ -417,11 +451,17 @@ export default function ChatInterface({
       default:
         return "Connecting";
     }
-  }, [connectionStatus]);
+  }, [connectionStatus, partnerLeft, partnerOffline]);
 
   const statusColor = useMemo(() => {
     switch (connectionStatus) {
       case "connected":
+        if (partnerLeft) {
+          return "text-rose-600";
+        }
+        if (partnerOffline) {
+          return "text-yellow-600";
+        }
         return "text-green-600";
       case "error":
         return "text-red-600";
@@ -430,7 +470,7 @@ export default function ChatInterface({
       default:
         return "text-gray-500";
     }
-  }, [connectionStatus]);
+  }, [connectionStatus, partnerLeft, partnerOffline]);
 
   function stopTypingNotification() {
     if (socketRef.current && hasSentTypingRef.current) {
@@ -648,6 +688,43 @@ export default function ChatInterface({
     }
   };
 
+  const handleReportUser = async ({ reason, description }) => {
+    if (!API_BASE || !token) return;
+
+    try {
+      setIsReporting(true);
+      const response = await fetch(`${API_BASE}/api/reports`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          chatSessionId,
+          reason,
+          description,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to submit report");
+      }
+
+      setFeedback({
+        type: "success",
+        message: "Report submitted successfully. Admins will review it shortly.",
+      });
+      setIsReportModalOpen(false);
+    } catch (err) {
+      setFeedback({
+        type: "error",
+        message: "Failed to submit report. Please try again.",
+      });
+    } finally {
+      setIsReporting(false);
+    }
+  };
+
   // US #6: Next Chat - Skip to another match
   const [isNexting, setIsNexting] = useState(false);
   
@@ -722,6 +799,12 @@ export default function ChatInterface({
 
   return (
     <div className="flex flex-col min-h-[calc(100vh-4rem)] bg-gray-50">
+      <ReportModal
+        isOpen={isReportModalOpen}
+        onClose={() => setIsReportModalOpen(false)}
+        onSubmit={handleReportUser}
+        isSubmitting={isReporting}
+      />
       <header className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
           {/* Burger icon to open SavedChatsList */}
@@ -781,6 +864,14 @@ export default function ChatInterface({
               : isSaving 
               ? "Saving..." 
               : "Save Chat"}
+          </button>
+          {/* US #11: Report User button */}
+          <button
+            type="button"
+            onClick={() => setIsReportModalOpen(true)}
+            className="h-9 px-4 rounded-md text-sm font-medium shadow-sm bg-rose-600 text-white hover:bg-rose-700 focus-visible:ring-2 focus-visible:ring-rose-400"
+          >
+            Report User
           </button>
           {/* US #10: Block button */}
           <button

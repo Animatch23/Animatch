@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { io } from "socket.io-client";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL;
 const POLL_INTERVAL_MS = 3000;
@@ -16,6 +17,9 @@ export default function MatchQueuePage() {
   const pollTimerRef = useRef(null);
   const isUnmountedRef = useRef(false);
   const isJoiningRef = useRef(false);
+  const notInQueueCountRef = useRef(0); // Track consecutive "not in queue" responses
+  const hasJoinedSuccessfullyRef = useRef(false); // Track if join was successful
+  const socketRef = useRef(null); // Socket connection for ghost user cleanup
 
   useEffect(() => {
     const token = localStorage.getItem("sessionToken");
@@ -26,6 +30,8 @@ export default function MatchQueuePage() {
 
     isUnmountedRef.current = false;
     authTokenRef.current = token;
+    notInQueueCountRef.current = 0; // Reset counter on mount
+    hasJoinedSuccessfullyRef.current = false; // Reset join status on mount
     sessionStorage.removeItem("activeChatSessionId");
 
     if (!API_BASE) {
@@ -33,6 +39,22 @@ export default function MatchQueuePage() {
       setStatus("error");
       return;
     }
+
+    // ⭐ GHOST USER CLEANUP: Establish socket connection while in queue
+    // When user closes browser/tab, socket disconnects and server cleans up queue entry
+    const socket = io(API_BASE, {
+      auth: { token },
+      transports: ['websocket', 'polling'],
+    });
+    socketRef.current = socket;
+
+    socket.on('connect', () => {
+      console.log('[QUEUE] Socket connected for ghost user tracking');
+    });
+
+    socket.on('disconnect', () => {
+      console.log('[QUEUE] Socket disconnected');
+    });
 
     const handleMatch = (chatSessionId) => {
       if (!chatSessionId) {
@@ -71,6 +93,61 @@ export default function MatchQueuePage() {
           handleMatch(data.chatSessionId);
           return;
         }
+
+        // Handle case where user is no longer in queue and not matched
+        // This can happen due to race conditions in concurrent matching
+        // Instead of redirecting, try to re-join the queue
+        if (!data.queued && !data.matched) {
+          notInQueueCountRef.current += 1;
+          console.log(`[QUEUE] Not in queue (attempt ${notInQueueCountRef.current}), will try to re-join...`);
+          
+          // Only give up after many consecutive failures (not just 3)
+          // This handles race conditions where we get temporarily removed
+          if (notInQueueCountRef.current >= 10 && hasJoinedSuccessfullyRef.current) {
+            console.log("[QUEUE] Too many consecutive 'not in queue' responses - redirecting to match page");
+            if (pollTimerRef.current) {
+              clearInterval(pollTimerRef.current);
+              pollTimerRef.current = null;
+            }
+            router.replace("/match");
+            return;
+          }
+          
+          // Try to re-join the queue instead of just waiting
+          try {
+            const rejoinResponse = await fetch(`${API_BASE}/api/chat/queue/join`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${authTokenRef.current}`,
+              },
+            });
+            const rejoinData = await rejoinResponse.json().catch(() => ({}));
+            
+            if (rejoinData.matched && rejoinData.chatSessionId) {
+              console.log("[QUEUE] Re-join resulted in match!");
+              setStatus("matched");
+              if (pollTimerRef.current) {
+                clearInterval(pollTimerRef.current);
+                pollTimerRef.current = null;
+              }
+              handleMatch(rejoinData.chatSessionId);
+              return;
+            }
+            
+            if (rejoinData.queued) {
+              console.log("[QUEUE] Successfully re-joined queue");
+              notInQueueCountRef.current = 0; // Reset counter on successful rejoin
+              setStatus("waiting");
+            }
+          } catch (rejoinErr) {
+            console.error("[QUEUE] Failed to re-join:", rejoinErr);
+          }
+          return;
+        }
+
+        // Reset the counter when we get a valid queued response
+        notInQueueCountRef.current = 0;
 
         setStatus("waiting");
         setMatchingStatus(data.matchingStatus || null);
@@ -129,6 +206,7 @@ export default function MatchQueuePage() {
 
         if (data.matched && data.chatSessionId) {
           setStatus("matched");
+          hasJoinedSuccessfullyRef.current = true; // Mark as joined (matched immediately)
           if (pollTimerRef.current) {
             clearInterval(pollTimerRef.current);
             pollTimerRef.current = null;
@@ -137,6 +215,8 @@ export default function MatchQueuePage() {
           return;
         }
 
+        // Successfully joined the queue
+        hasJoinedSuccessfullyRef.current = true;
         setStatus("waiting");
         setMatchingStatus(data.matchingStatus || null);
         pollTimerRef.current = window.setInterval(pollStatus, POLL_INTERVAL_MS);
@@ -160,6 +240,13 @@ export default function MatchQueuePage() {
         pollTimerRef.current = null;
       }
 
+      // Disconnect socket - this triggers server-side queue cleanup
+      if (socketRef.current) {
+        socketRef.current.disconnect();
+        socketRef.current = null;
+      }
+
+      // Also try HTTP cleanup (may not work on browser close, but works on navigation)
       if (API_BASE && authTokenRef.current) {
         fetch(`${API_BASE}/api/chat/queue/leave`, {
           method: "POST",

@@ -264,8 +264,26 @@ export const joinQueue = async (req, res) => {
       });
 
       if (deleteResult.deletedCount < 2) {
-        console.log(`[QUEUE JOIN] Race condition detected, partner already matched with someone else`);
-        continue; // Try next candidate
+        console.log(`[QUEUE JOIN] Race condition detected (deleted ${deleteResult.deletedCount}), checking if we were matched`);
+        
+        // Check if WE were matched by someone else
+        const weWereMatched = await ChatSession.findOne({
+          participants: userId,
+          active: true,
+          isSaved: { $ne: true },
+          expiresAt: { $gt: new Date() }
+        });
+
+        if (weWereMatched) {
+          console.log(`[QUEUE JOIN] ⭐ We were matched by another user! Returning their chat session.`);
+          return res.json({
+            matched: true,
+            chatSessionId: weWereMatched._id.toString()
+          });
+        }
+
+        // We weren't matched, partner was taken - try next candidate
+        continue;
       }
 
       // ⭐ Create ChatSession (expires in 24 hours unless saved)
@@ -287,7 +305,35 @@ export const joinQueue = async (req, res) => {
       });
     }
 
-    // No successful match found
+    // No successful match found - but check if someone else matched with us during our attempts
+    // This handles the race condition where another user's joinQueue matched with us
+    const matchedByOther = await ChatSession.findOne({
+      participants: userId,
+      active: true,
+      isSaved: { $ne: true },
+      expiresAt: { $gt: new Date() }
+    });
+
+    if (matchedByOther) {
+      console.log(`[QUEUE JOIN] ⭐ Race condition resolved: ${user.email} was matched by another user during matching attempts`);
+      return res.json({
+        matched: true,
+        chatSessionId: matchedByOther._id.toString()
+      });
+    }
+
+    // Check if we're still in the queue (we might have been removed by another match attempt)
+    const stillInQueue = await Queue.findOne({ userId });
+    if (!stillInQueue) {
+      // We were removed from queue but don't have a chat
+      // Don't re-add here - let the frontend handle re-joining to avoid race condition loops
+      console.log(`[QUEUE JOIN] User ${user.email} was removed from queue without match - returning queued:false`);
+      return res.json({ 
+        matched: false, 
+        queued: false // Tell frontend to re-join
+      });
+    }
+
     console.log(`[QUEUE JOIN] No available partners for ${user.email}, staying in queue`);
     return res.json({ 
       matched: false, 
@@ -468,12 +514,58 @@ export const getQueueStatus = async (req, res) => {
                 chatSessionId: chatSession._id.toString()
               });
             } else {
-              // Race condition - try next candidate
-              console.log(`[QUEUE STATUS] Race condition, trying next candidate`);
+              // Race condition - check if WE were matched by someone else
+              console.log(`[QUEUE STATUS] Race condition (deleted ${deleteResult.deletedCount}), checking if we were matched`);
+              
+              const weWereMatched = await ChatSession.findOne({
+                participants: userId,
+                active: true,
+                isSaved: { $ne: true },
+                expiresAt: { $gt: new Date() }
+              });
+
+              if (weWereMatched) {
+                console.log(`[QUEUE STATUS] ⭐ We were matched by another user!`);
+                return res.json({
+                  queued: false,
+                  matched: true,
+                  chatSessionId: weWereMatched._id.toString()
+                });
+              }
+              
+              // We weren't matched, partner was taken - try next candidate
               continue;
             }
           }
         }
+      }
+
+      // After trying all candidates, check if someone matched with us during the process
+      const matchedDuringSearch = await ChatSession.findOne({
+        participants: userId,
+        active: true,
+        isSaved: { $ne: true },
+        expiresAt: { $gt: new Date() }
+      });
+
+      if (matchedDuringSearch) {
+        console.log(`[QUEUE STATUS] ⭐ Race condition resolved: ${user.email} was matched during search`);
+        return res.json({
+          queued: false,
+          matched: true,
+          chatSessionId: matchedDuringSearch._id.toString()
+        });
+      }
+
+      // Verify we're still in queue (might have been removed by race condition)
+      const stillInQueue = await Queue.findOne({ userId });
+      if (!stillInQueue) {
+        // Don't re-add here - let frontend handle re-joining
+        console.log(`[QUEUE STATUS] User ${user.email} was removed from queue without match - returning queued:false`);
+        return res.json({ 
+          queued: false, 
+          matched: false 
+        });
       }
 
       console.log(`[QUEUE STATUS] User ${user.email} in queue`);
@@ -489,6 +581,30 @@ export const getQueueStatus = async (req, res) => {
       });
     }
 
+    // ⭐ RACE CONDITION FIX: User is not in queue - they might have been matched by another user
+    // Re-check for active chat one more time in case it was created after the initial check
+    const activeUnsavedChatRecheck = await ChatSession.findOne({
+      participants: userId,
+      active: true,
+      isSaved: { $ne: true },
+      expiresAt: { $gt: new Date() }
+    });
+
+    if (activeUnsavedChatRecheck) {
+      const partner = await User.findOne({
+        _id: { $in: activeUnsavedChatRecheck.participants, $ne: userId }
+      });
+
+      console.log(`[QUEUE STATUS] ⭐ Race condition resolved: User ${user.email} was matched by ${partner?.username} - found on re-check`);
+      return res.json({
+        queued: false,
+        matched: true,
+        chatSessionId: activeUnsavedChatRecheck._id.toString()
+      });
+    }
+
+    // User is truly not in queue and has no active chat
+    console.log(`[QUEUE STATUS] User ${user.email} not in queue and no active chat`);
     return res.json({ queued: false, matched: false });
   } catch (error) {
     console.error('[QUEUE STATUS] Error:', error);

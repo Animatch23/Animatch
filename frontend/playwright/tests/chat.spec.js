@@ -186,11 +186,10 @@ test.describe("chat test", () => {
       page2.waitForSelector('input[placeholder="Type your message..."], textarea[placeholder="Type your message..."]', { timeout: 20000 })
     ]);
 
-    // Additional wait for socket connections to stabilize
-    await Promise.all([
-      page1.waitForTimeout(2000),
-      page2.waitForTimeout(2000)
-    ]);
+      await expect(
+        page1.locator("div.rounded-2xl").filter({ hasText: "Hello" })
+      ).toBeVisible();
+    };
 
     // Now test messaging
     await page1.getByPlaceholder("Type your message...").fill("Hello");
@@ -200,8 +199,10 @@ test.describe("chat test", () => {
       page1.locator("div.bg-green-600").filter({ hasText: "Hello" })
     ).toBeVisible({ timeout: 10000 });
 
-    await page2.getByPlaceholder("Type your message...").fill("Hello");
-    await page2.locator('button[type="submit"]').click(); // Send button
+      await expect(
+        page2.locator("div.rounded-2xl").filter({ hasText: "Hello" })
+      ).toBeVisible();
+    };
 
     await expect(
       page2.locator("div.bg-green-600").filter({ hasText: "Hello" })
