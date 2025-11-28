@@ -1,7 +1,6 @@
 import { test, expect, chromium } from "@playwright/test";
 import { faker } from "@faker-js/faker";
 import { mockSession, login } from "../helpers/login.js";
-import fetch from "node-fetch";
 
 const setupUser = async (page, course, housing, orgs) => {
   await mockSession(page);
