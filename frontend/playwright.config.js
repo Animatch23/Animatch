@@ -10,11 +10,11 @@ export default defineConfig({
   ],
 
   use: {
-    trace: 'on-first-retry', // Record traces only when retrying a test (saves resources)
+    trace: 'on-first-retry', 
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',
   },
-
+  
   workers: 1,
   retries: 0,
 });
