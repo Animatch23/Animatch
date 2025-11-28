@@ -1022,10 +1022,10 @@ export default function ChatInterface({
           <button
             type="button"
             onClick={handleLeaveChat}
-            disabled={isEnding || partnerLeft || isReadOnly}
+            disabled={isEnding || isReadOnly}
             className="h-9 px-4 rounded-md bg-rose-500 text-white text-sm font-medium shadow-sm hover:brightness-95 disabled:opacity-70 disabled:cursor-not-allowed"
           >
-            {partnerLeft ? "Partner Left" : isEnding ? "Leaving..." : "End Chat"}
+            {isEnding ? "Leaving..." : "End Chat"}
           </button>
         </div>
       </header>
