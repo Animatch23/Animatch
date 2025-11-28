@@ -6,8 +6,6 @@ process.env.NODE_ENV = 'test';
 // The testDb.js utility provides connectTestDB() and disconnectTestDB() helpers
 // that properly manage the in-memory MongoDB instance.
 
-import { jest } from '@jest/globals';
-
 // Clean up after tests
 afterAll(async () => {
   await new Promise(resolve => setTimeout(resolve, 500)); 

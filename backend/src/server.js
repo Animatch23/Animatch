@@ -457,7 +457,7 @@ if (process.env.NODE_ENV !== 'test') {
     process.exit(1);
   });
 
-  process.on('unhandledRejection', (reason, promise) => {
+  process.on('unhandledRejection', (reason) => {
     console.error('\n💥 UNHANDLED PROMISE REJECTION:');
     console.error('Reason:', reason);
     process.exit(1);

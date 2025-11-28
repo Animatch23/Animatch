@@ -7,8 +7,12 @@ jest.unstable_mockModule('../utils/userHelpers.js', () => ({
   ensureUserRecord: mockEnsureUserRecord
 }));
 
-// Import authMiddleware after mocking
-const { authMiddleware } = await import('../middleware/authMiddleware.js');
+// Import authMiddleware after mocking (wrapped in async IIFE for ESLint compatibility)
+let authMiddleware;
+beforeAll(async () => {
+  const module = await import('../middleware/authMiddleware.js');
+  authMiddleware = module.authMiddleware;
+});
 
 describe('Auth Middleware Unit Tests', () => {
   let mockReq;

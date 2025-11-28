@@ -1,15 +1,7 @@
 import request from 'supertest';
-import mongoose from 'mongoose';
-import { jest } from '@jest/globals';
 import { connectTestDB, disconnectTestDB, clearDatabase } from '../../utils/testDb.js';
 import app from '../../server.js';
 import User from '../../models/User.js';
-import jwt from 'jsonwebtoken';
-
-// Helper function to generate valid JWT token
-const generateToken = (userId) => {
-    return jwt.sign({ userId }, process.env.JWT_SECRET || 'test_secret');
-};
 
 describe('Username Check API Tests', () => {
     beforeAll(async () => {

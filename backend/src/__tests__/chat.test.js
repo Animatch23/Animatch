@@ -21,7 +21,6 @@ const generateToken = (userId, email) => {
 };
 
 describe('POST /api/chat/:sessionId/save', () => {
-    let user1, user2, user3;
     let user1Id, user2Id, user3Id;
     let token1, token2, token3;
     let chatSession;
@@ -170,7 +169,7 @@ describe('GET /api/chat/history', () => {
 
     let savedChat1, savedChat2, unsavedChat, inactiveSavedChat;
     let user1Id, user2Id, user3Id;
-    let token1, token2, token3;
+    let token1, token2;
 
     beforeEach(async () => {
         user1Id = new mongoose.Types.ObjectId().toHexString();
@@ -185,7 +184,6 @@ describe('GET /api/chat/history', () => {
 
         token1 = generateToken(user1Id, 'user1@test.com');
         token2 = generateToken(user2Id, 'user2@test.com');
-        token3 = generateToken(user3Id, 'user3@test.com');
 
         // 1. A saved, active chat between User 1 and User 2
         savedChat1 = await ChatSession.create({
@@ -463,7 +461,7 @@ describe('GET /api/chat/:sessionId', () => {
 
     let savedChat, unsavedChat;
     let user1Id, user2Id, user3Id;
-    let token1, token2, token3;
+    let token1, token3;
 
     beforeEach(async () => {
         user1Id = new mongoose.Types.ObjectId().toHexString();
@@ -477,7 +475,6 @@ describe('GET /api/chat/:sessionId', () => {
         ]);
 
         token1 = generateToken(user1Id, 'user1@test.com');
-        token2 = generateToken(user2Id, 'user2@test.com');
         token3 = generateToken(user3Id, 'user3@test.com');
 
         // Create one saved chat and one unsaved chat
@@ -675,7 +672,7 @@ describe('POST /api/chat/:chatSessionId/unmatch', () => {
 // Tests for save status endpoint
 describe('GET /api/chat/:chatSessionId/save-status', () => {
     let user1Id, user2Id, user3Id;
-    let token1, token2, token3;
+    let token1, token3;
     let chatSession;
 
     beforeEach(async () => {
@@ -690,7 +687,6 @@ describe('GET /api/chat/:chatSessionId/save-status', () => {
         ]);
 
         token1 = generateToken(user1Id, 'user1@test.com');
-        token2 = generateToken(user2Id, 'user2@test.com');
         token3 = generateToken(user3Id, 'user3@test.com');
 
         chatSession = await ChatSession.create({
