@@ -1,10 +1,18 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 export default function ReportModal({ isOpen, onClose, onSubmit, isSubmitting }) {
   const [reason, setReason] = useState("Spam");
   const [description, setDescription] = useState("");
+
+  // Ensure form is cleared every time the modal opens so the user doesn't see previous inputs
+  useEffect(() => {
+    if (isOpen) {
+      setReason("Spam");
+      setDescription("");
+    }
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -12,6 +20,7 @@ export default function ReportModal({ isOpen, onClose, onSubmit, isSubmitting })
     e.preventDefault();
     onSubmit({ reason, description });
   };
+
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
@@ -29,7 +38,7 @@ export default function ReportModal({ isOpen, onClose, onSubmit, isSubmitting })
             <select
               value={reason}
               onChange={(e) => setReason(e.target.value)}
-              className="w-full rounded-md bg-black border border-black p-2 text-sm text-white placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-black"
+              className="w-full rounded-md bg-white border border-gray-300 p-2 text-sm text-black placeholder-gray-500 focus:border-[#286633] focus:outline-none focus:ring-1 focus:ring-[#286633]"
               aria-label="Report reason"
             >
               <option value="Spam">Spam</option>
@@ -47,7 +56,7 @@ export default function ReportModal({ isOpen, onClose, onSubmit, isSubmitting })
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               rows={3}
-              className="w-full rounded-md bg-black border border-black p-2 text-sm text-white placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-black"
+              className="w-full rounded-md bg-white border border-gray-300 p-2 text-sm text-black placeholder-gray-500 focus:border-[#286633] focus:outline-none focus:ring-1 focus:ring-[#286633]"
               placeholder="Provide more details..."
               aria-label="Report description (optional)"
             />
