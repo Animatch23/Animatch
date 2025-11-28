@@ -72,6 +72,18 @@ export default function MatchQueuePage() {
           return;
         }
 
+        // Handle case where user is no longer in queue and not matched
+        // This can happen if something went wrong or user was removed
+        if (!data.queued && !data.matched) {
+          console.log("[QUEUE] User not in queue and not matched - redirecting to match page");
+          if (pollTimerRef.current) {
+            clearInterval(pollTimerRef.current);
+            pollTimerRef.current = null;
+          }
+          router.replace("/match");
+          return;
+        }
+
         setStatus("waiting");
         setMatchingStatus(data.matchingStatus || null);
       } catch (err) {

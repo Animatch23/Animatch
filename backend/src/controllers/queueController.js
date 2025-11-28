@@ -489,6 +489,30 @@ export const getQueueStatus = async (req, res) => {
       });
     }
 
+    // ⭐ RACE CONDITION FIX: User is not in queue - they might have been matched by another user
+    // Re-check for active chat one more time in case it was created after the initial check
+    const activeUnsavedChatRecheck = await ChatSession.findOne({
+      participants: userId,
+      active: true,
+      isSaved: { $ne: true },
+      expiresAt: { $gt: new Date() }
+    });
+
+    if (activeUnsavedChatRecheck) {
+      const partner = await User.findOne({
+        _id: { $in: activeUnsavedChatRecheck.participants, $ne: userId }
+      });
+
+      console.log(`[QUEUE STATUS] ⭐ Race condition resolved: User ${user.email} was matched by ${partner?.username} - found on re-check`);
+      return res.json({
+        queued: false,
+        matched: true,
+        chatSessionId: activeUnsavedChatRecheck._id.toString()
+      });
+    }
+
+    // User is truly not in queue and has no active chat
+    console.log(`[QUEUE STATUS] User ${user.email} not in queue and no active chat`);
     return res.json({ queued: false, matched: false });
   } catch (error) {
     console.error('[QUEUE STATUS] Error:', error);
