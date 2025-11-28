@@ -616,12 +616,9 @@ const activeFilterCount = Object.values(activeFilters).filter(Boolean).length;
       });
     } catch (err) {
       console.error("Failed to end chat", err);
-      setError("We could not end the chat cleanly, but you can start a new match.");
     } finally {
       setIsEnding(false);
-      if (typeof onChatEnded === "function") {
-        onChatEnded();
-      }
+      setShowFeedback(true);
     }
   };
 
@@ -709,6 +706,35 @@ const activeFilterCount = Object.values(activeFilters).filter(Boolean).length;
       alert(err instanceof Error ? err.message : "Failed to block user");
     } finally {
       setIsBlocking(false);
+    }
+  };
+
+  const handleSubmitFeedback = async () => {
+    if (!rating) {
+      // Just close if no rating provided (Skip)
+      if (onChatEnded) onChatEnded();
+      return;
+    }
+
+    try {
+      const response = await fetch(`${API_BASE}/api/chat/${chatSessionId}/feedback`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ rating, comment: feedbackText }),
+      });
+
+      if (!response.ok) {
+        console.warn("Feedback submission failed");
+      }
+    } catch (err) {
+      console.error("Error submitting feedback", err);
+    } finally {
+      // Close modal and actually leave the screen
+      setShowFeedback(false);
+      if (onChatEnded) onChatEnded();
     }
   };
 
@@ -1250,29 +1276,20 @@ const activeFilterCount = Object.values(activeFilters).filter(Boolean).length;
             <div className="flex gap-4 mt-2">
               <button
                 type="button"
-                className="flex-1 bg-gray-300 text-white py-4 rounded-2xl"
-                onClick={() => setShowFeedback(false)}
+                className="flex-1 bg-gray-300 text-white py-4 rounded-2xl hover:bg-gray-400 transition-colors"
+                onClick={() => {
+                  setShowFeedback(false);
+                  if (onChatEnded) onChatEnded();
+                }}
               >
-                Cancel
+                Skip
               </button>
               <button
                 type="button"
-                className="flex-1 bg-brand-700 hover:bg-brand-600 text-white py-4 rounded-2xl"
-                onClick={() => {
-                  setShowFeedback(false);
-                  setStatusLog((prev) => [...prev, `Feedback submitted (rating: ${rating || 0})${feedbackText ? ` - ${feedbackText}` : ''}`]);
-                  // Continue with previous leave behavior
-                  simulateRequeue();
-                  if (typeof onDisconnect === 'function') {
-                    try { onDisconnect(); } catch (_) {}
-                  }
-                  // reset inputs
-                  setRating(0);
-                  setHoverRating(0);
-                  setFeedbackText('');
-                }}
+                className="flex-1 bg-brand-700 hover:bg-brand-600 text-white py-4 rounded-2xl transition-colors"
+                onClick={handleSubmitFeedback}
               >
-                OK
+                Submit
               </button>
             </div>
           </div>

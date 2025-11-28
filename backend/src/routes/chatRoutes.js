@@ -15,6 +15,7 @@ import {
   leaveQueue,
   getActiveMatch
 } from '../controllers/queueController.js';
+import { submitFeedback } from '../controllers/feedbackController.js';
 
 const router = express.Router();
 
@@ -31,5 +32,6 @@ router.post('/:chatSessionId/end', authenticate, endChatSession);
 router.post('/:chatSessionId/leave', authenticate, leaveChatSession);
 router.post('/:chatSessionId/save', authenticate, saveChatSession);
 router.post('/block', authenticate, blockUser);
+router.post('/:chatSessionId/feedback', authenticate, submitFeedback);
 
 export default router;
