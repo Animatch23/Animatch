@@ -321,9 +321,14 @@ io.on('connection', async (socket) => {
   // Handle disconnection
   socket.on('disconnect', () => {
     console.log(`[SOCKET] User disconnected: ${socket.userId}`);
-    // Don't emit partner-disconnected on normal disconnect
-    // Users may just be navigating away temporarily (e.g., checking profile)
-    // The frontend will handle reconnection automatically
+    
+    // Notify partner that user has disconnected from the chat room
+    if (socket.chatSessionId) {
+      socket.to(socket.chatSessionId).emit('chat:partner-disconnected', {
+        message: 'Your partner has disconnected'
+      });
+      console.log(`[SOCKET] Notified room ${socket.chatSessionId} that user ${socket.userId} disconnected`);
+    }
   });
 });
 
