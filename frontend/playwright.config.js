@@ -9,6 +9,12 @@ export default defineConfig({
     ["html", { open: "never" }]
   ],
 
+  use: {
+    trace: 'on-first-retry', // Record traces only when retrying a test (saves resources)
+    screenshot: 'only-on-failure',
+    video: 'retain-on-failure',
+  },
+
   workers: 1,
   retries: 0,
 });
