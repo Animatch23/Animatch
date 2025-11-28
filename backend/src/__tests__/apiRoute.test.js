@@ -39,6 +39,9 @@ describe('Auth Middleware Unit Tests', () => {
   });
 
   test('should return 403 if token is invalid', () => {
+    // Suppress console.error for this test
+    const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+
     mockReq.headers.authorization = 'Bearer invalid-token';
     jwt.verify = jest.fn().mockImplementation(() => {
       throw new Error('Invalid token');
@@ -49,6 +52,8 @@ describe('Auth Middleware Unit Tests', () => {
     expect(mockRes.status).toHaveBeenCalledWith(403);
     expect(mockRes.json).toHaveBeenCalledWith({ message: 'Invalid token' });
     expect(mockNext).not.toHaveBeenCalled();
+
+    consoleSpy.mockRestore();
   });
 
   test('should call next() if token is valid', () => {
