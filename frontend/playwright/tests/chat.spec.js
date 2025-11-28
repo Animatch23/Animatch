@@ -152,10 +152,6 @@ async function setupUser(page) {
 }
 
 test.describe("chat test", () => {
-  test.describe.configure({
-    repeatEach: 1,
-    retries: 1,
-  });
 
   test("chat", async () => {
     const browser = await chromium.launch();
@@ -164,9 +160,6 @@ test.describe("chat test", () => {
     const context2 = await browser.newContext();
 
     const page1 = await context1.newPage();
-
-    const browser2 = await chromium.launch();
-    const context2 = await browser2.newContext();
     const page2 = await context2.newPage();
 
     // Setup both users first (profile completion) - do NOT click Start Matching yet
@@ -214,7 +207,6 @@ test.describe("chat test", () => {
       page2.locator("div.bg-green-600").filter({ hasText: "Hello" })
     ).toBeVisible({ timeout: 10000 });
 
-    await browser1.close();
-    await browser2.close();
+    await browser.close();
   });
 });

@@ -164,9 +164,6 @@ async function setupUser(page) {
 
 test.describe("save chat test", () => {
 
-  test.describe.configure({
-    repeatEach: 1
-  });
   test("save chat, clicked button", async () => {
     const browser = await chromium.launch();
 
