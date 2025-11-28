@@ -3,7 +3,7 @@ import dotenv from "dotenv";
 import cors from "cors";
 import cookieParser from "cookie-parser";
 import cron from 'node-cron';
-import { expireChats } from './controllers/cronController.js';
+import { expireChats, cleanupStaleQueueEntries } from './controllers/cronController.js';
 import { createServer } from "http";
 import { Server } from "socket.io";
 import jwt from "jsonwebtoken";
@@ -20,6 +20,7 @@ import reportRoutes from "./routes/reportRoutes.js";
 import ChatSession from "./models/ChatSession.js";
 import Message from "./models/Message.js";
 import User from "./models/User.js";
+import Queue from "./models/Queue.js";
 
 if (process.env.NODE_ENV === 'test') {
   dotenv.config({ path: '.env.test' });
@@ -336,8 +337,19 @@ io.on('connection', async (socket) => {
   });
 
   // Handle disconnection
-  socket.on('disconnect', () => {
+  socket.on('disconnect', async () => {
     console.log(`[SOCKET] User disconnected: ${socket.userId}`);
+    
+    // ⭐ GHOST USER CLEANUP: Remove user from queue when socket disconnects
+    // This prevents ghost entries when users close browser while in queue
+    try {
+      const removedFromQueue = await Queue.findOneAndDelete({ userId: socket.userId });
+      if (removedFromQueue) {
+        console.log(`[SOCKET] ⭐ Cleaned up ghost queue entry for user ${socket.userId}`);
+      }
+    } catch (err) {
+      console.error(`[SOCKET] Error cleaning up queue for user ${socket.userId}:`, err);
+    }
     
     // Notify partner that user has left the chat room (navigated away, not necessarily logged out)
     if (socket.chatSessionId) {
@@ -350,9 +362,16 @@ io.on('connection', async (socket) => {
 });
 
 if (process.env.NODE_ENV !== 'test') {
+  // Run chat expiry check every hour
   cron.schedule('0 * * * *', () => {
     console.log('Running scheduled hourly check for chat expiry...');
     expireChats();
+  });
+
+  // Run stale queue cleanup every 5 minutes to remove ghost users
+  cron.schedule('*/5 * * * *', () => {
+    console.log('Running scheduled queue cleanup for ghost users...');
+    cleanupStaleQueueEntries();
   });
 }
 

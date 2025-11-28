@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { io } from "socket.io-client";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL;
 const POLL_INTERVAL_MS = 3000;
@@ -18,6 +19,7 @@ export default function MatchQueuePage() {
   const isJoiningRef = useRef(false);
   const notInQueueCountRef = useRef(0); // Track consecutive "not in queue" responses
   const hasJoinedSuccessfullyRef = useRef(false); // Track if join was successful
+  const socketRef = useRef(null); // Socket connection for ghost user cleanup
 
   useEffect(() => {
     const token = localStorage.getItem("sessionToken");
@@ -37,6 +39,22 @@ export default function MatchQueuePage() {
       setStatus("error");
       return;
     }
+
+    // ⭐ GHOST USER CLEANUP: Establish socket connection while in queue
+    // When user closes browser/tab, socket disconnects and server cleans up queue entry
+    const socket = io(API_BASE, {
+      auth: { token },
+      transports: ['websocket', 'polling'],
+    });
+    socketRef.current = socket;
+
+    socket.on('connect', () => {
+      console.log('[QUEUE] Socket connected for ghost user tracking');
+    });
+
+    socket.on('disconnect', () => {
+      console.log('[QUEUE] Socket disconnected');
+    });
 
     const handleMatch = (chatSessionId) => {
       if (!chatSessionId) {
@@ -222,6 +240,13 @@ export default function MatchQueuePage() {
         pollTimerRef.current = null;
       }
 
+      // Disconnect socket - this triggers server-side queue cleanup
+      if (socketRef.current) {
+        socketRef.current.disconnect();
+        socketRef.current = null;
+      }
+
+      // Also try HTTP cleanup (may not work on browser close, but works on navigation)
       if (API_BASE && authTokenRef.current) {
         fetch(`${API_BASE}/api/chat/queue/leave`, {
           method: "POST",
