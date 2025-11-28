@@ -121,7 +121,7 @@ const completeInterestSetup = async (page, coursePreference, housingPreference, 
 test.describe("save chat test", () => {
 
   test("save chat, clicked button", async () => {
-    const browser = await chromium.launch({ headless: false }); 
+    const browser = await chromium.launch({ headless: true }); 
 
     const context1 = await browser.newContext();
     const context2 = await browser.newContext();
