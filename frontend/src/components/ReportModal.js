@@ -29,7 +29,8 @@ export default function ReportModal({ isOpen, onClose, onSubmit, isSubmitting })
             <select
               value={reason}
               onChange={(e) => setReason(e.target.value)}
-              className="w-full rounded-md border border-gray-300 p-2 text-sm focus:border-[#286633] focus:outline-none focus:ring-1 focus:ring-[#286633]"
+              className="w-full rounded-md bg-black border border-black p-2 text-sm text-white placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-black"
+              aria-label="Report reason"
             >
               <option value="Spam">Spam</option>
               <option value="Harassment">Harassment</option>
@@ -46,8 +47,9 @@ export default function ReportModal({ isOpen, onClose, onSubmit, isSubmitting })
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               rows={3}
-              className="w-full rounded-md border border-gray-300 p-2 text-sm focus:border-[#286633] focus:outline-none focus:ring-1 focus:ring-[#286633]"
+              className="w-full rounded-md bg-black border border-black p-2 text-sm text-white placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-black"
               placeholder="Provide more details..."
+              aria-label="Report description (optional)"
             />
           </div>
 

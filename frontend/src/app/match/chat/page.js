@@ -25,6 +25,7 @@ function ChatContent() {
   const [chatInfo, setChatInfo] = useState(null);
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(true);
+  const [active, setActive] = useState(false);
 
   useEffect(() => {
     const storedToken = localStorage.getItem("sessionToken");
@@ -45,6 +46,75 @@ function ChatContent() {
     const delay = (ms) => new Promise((resolve) => {
       setTimeout(resolve, ms);
     });
+
+    // Check if we're opening a specific saved session
+    const sessionParam = searchParams.get('session');
+
+    const loadSavedSession = async (sessionId) => {
+      try {
+        const response = await fetch(`${API_BASE}/api/chat/${sessionId}`, {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${storedToken}`,
+          },
+        });
+
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          throw new Error(data.msg || data.message || "Failed to load saved chat");
+        }
+
+        // Get current user's email to identify which participant is the partner
+        const currentUserEmail = localStorage.getItem("userEmail");
+        
+        // Try to get current user info to filter participants correctly
+        let currentUserId = "";
+        try {
+          const userResponse = await fetch(`${API_BASE}/api/exist`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ email: currentUserEmail }),
+          });
+          if (userResponse.ok) {
+            const userData = await userResponse.json();
+            currentUserId = userData.user?._id || "";
+          }
+        } catch (err) {
+          console.warn("Could not fetch current user info:", err);
+        }
+
+        // Get partner info (filter out current user from participants)
+        let partner = null;
+        if (currentUserId && data.participants?.length > 0) {
+          partner = data.participants.find(p => p._id !== currentUserId);
+        }
+        // Fallback: if we couldn't identify partner, try to use the second participant
+        // or the first one if there's only one (edge case)
+        if (!partner && data.participants?.length > 0) {
+          partner = data.participants.length > 1 ? data.participants[1] : data.participants[0];
+        }
+
+        // Do NOT set activeChatSessionId in sessionStorage for history view
+        if (!isCancelled) {
+          setChatInfo({
+            chatSessionId: sessionId,
+            partnerUsername: partner?.username || "Match Partner",
+            partnerId: partner?._id,
+            currentUserId: currentUserId,
+            isSavedSession: true
+          });
+          // Set active based on chat session status (Design consideration #6)
+          // If the chat is still active, user can continue chatting
+          setActive(data.active === true);
+        }
+      } catch (err) {
+        if (!isCancelled) {
+          setError(err instanceof Error ? err.message : "Failed to load saved chat");
+        }
+      }
+    };
 
     const loadActiveChat = async () => {
       for (let attempt = 0; attempt < MAX_ACTIVE_CHAT_ATTEMPTS; attempt += 1) {
@@ -71,12 +141,18 @@ function ChatContent() {
             }
 
             sessionStorage.setItem("activeChatSessionId", data.chatSessionId);
+            
+            // Update URL to include session ID for QA visibility
+            window.history.replaceState(null, '', `/match/chat?session=${data.chatSessionId}`);
+            
             if (!isCancelled) {
               setChatInfo({
                 chatSessionId: data.chatSessionId,
                 partnerUsername: data.partnerUsername || "Match Partner",
+                partnerId: data.partnerId,
                 currentUserId: data.currentUserId || "",
               });
+              setActive(true);
             }
             return;
           }
@@ -91,7 +167,13 @@ function ChatContent() {
     };
 
     const initialise = async () => {
-      await loadActiveChat();
+      // If session parameter exists, load that specific saved session
+      if (sessionParam) {
+        await loadSavedSession(sessionParam);
+      } else {
+        // Otherwise, try to load active chat
+        await loadActiveChat();
+      }
       if (!isCancelled) {
         setIsLoading(false);
       }
@@ -133,14 +215,42 @@ function ChatContent() {
     return null;
   }
 
+  const activeChatSessionId = sessionStorage.getItem("activeChatSessionId");
+  const showReturnToActive = activeChatSessionId && activeChatSessionId !== chatInfo.chatSessionId;
+
   return (
-    <ChatInterface
-      chatSessionId={chatInfo.chatSessionId}
-      partnerUsername={chatInfo.partnerUsername}
-      currentUserId={chatInfo.currentUserId}
-      token={token}
-      onChatEnded={handleChatEnded}
-    />
+    <div className="relative">
+      {/* Back to matchmaking (top-left) */}
+      <button
+        type="button"
+        onClick={() => router.replace('/match')}
+        className="fixed top-4 left-4 z-50 p-2 rounded-lg bg-white/10 hover:bg-white/20 transition-colors flex items-center gap-2 text-sm font-medium text-white"
+        aria-label="Back to matchmaking"
+      >
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+        </svg>
+        <span className="hidden sm:inline">Back</span>
+      </button>
+      {showReturnToActive && (
+        <button
+          type="button"
+          onClick={() => router.push('/match/chat')}
+          className="fixed top-20 right-4 z-50 px-4 py-2 bg-[#286633] text-white text-sm font-medium rounded-md shadow-lg hover:brightness-110"
+        >
+          Return to Active Match
+        </button>
+      )}
+      <ChatInterface
+        chatSessionId={chatInfo.chatSessionId}
+        partnerUsername={chatInfo.partnerUsername}
+        partnerId={chatInfo.partnerId}
+        currentUserId={chatInfo.currentUserId}
+        token={token}
+        onChatEnded={handleChatEnded}
+        isReadOnly={!active}
+      />
+    </div>
   );
 }
 

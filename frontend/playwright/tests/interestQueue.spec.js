@@ -162,7 +162,9 @@ test.describe("interest queue tests", () => {
     //Sets the interests from select interests
     const setInterestsViaPage = async (page, interests) => {
         await page.goto("http://localhost:3000/profile/interests?from=match");
-        await page.waitForLoadState("networkidle");
+        
+        // Wait for the loading state to finish and the main content to appear
+        await expect(page.getByRole("heading", { name: "Select Interests" })).toBeVisible({ timeout: 15000 });
 
         console.log(`Adding ${interests.length} interests...`);
 
@@ -307,6 +309,7 @@ test.describe("interest queue tests", () => {
 
 
         test("queue matching with 3 users - similar and different interests using select interests", async ({ browser }) => {
+        test.setTimeout(60000);
         // Create 3 browser contexts for 3 different users
         console.log("Creating 3 browser contexts...");
         const context1 = await browser.newContext();

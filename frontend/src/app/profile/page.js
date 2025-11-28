@@ -1,9 +1,11 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
 export default function ProfilePage() {
+  const router = useRouter();
   const [profile, setProfile] = useState({ username: "", hasPhoto: false, profilePicture: null });
   const [isLoading, setIsLoading] = useState(true);
 
@@ -52,10 +54,30 @@ export default function ProfilePage() {
     loadProfile();
   }, []);
 
+  const handleLogout = () => {
+    // Clear all auth-related localStorage items
+    localStorage.removeItem("sessionToken");
+    localStorage.removeItem("userEmail");
+    localStorage.removeItem("animatch:profile");
+    // Redirect to login page
+    router.push("/login");
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-3xl mx-auto p-6">
-        <h1 className="text-3xl font-bold text-green-800 mb-6">My Profile</h1>
+        <div className="flex items-center justify-between mb-6">
+          <h1 className="text-3xl font-bold text-green-800">My Profile</h1>
+          <button
+            onClick={handleLogout}
+            className="px-4 py-2 rounded-md bg-red-100 text-red-700 hover:bg-red-200 font-medium transition-colors flex items-center gap-2"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+            </svg>
+            Logout
+          </button>
+        </div>
         {isLoading ? (
           <div className="bg-white rounded-lg shadow p-6">
             <p className="text-gray-600">Loading profile...</p>

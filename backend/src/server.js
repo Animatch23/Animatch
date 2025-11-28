@@ -250,6 +250,7 @@ io.on('connection', async (socket) => {
       
       socket.emit('chat:joined', { 
         chatSessionId,
+        userId: socket.userId,
         message: 'Successfully joined chat room'
       });
     } catch (error) {
@@ -326,10 +327,12 @@ io.on('connection', async (socket) => {
   });
 });
 
-cron.schedule('0 * * * *', () => {
-  console.log('Running scheduled hourly check for chat expiry...');
-  expireChats();
-});
+if (process.env.NODE_ENV !== 'test') {
+  cron.schedule('0 * * * *', () => {
+    console.log('Running scheduled hourly check for chat expiry...');
+    expireChats();
+  });
+}
 
 const PORT = process.env.PORT || 5000;
 
@@ -393,21 +396,23 @@ const start = async () => {
   }
 };
 
-// Handle uncaught errors
-process.on('uncaughtException', (error) => {
-  console.error('\n💥 UNCAUGHT EXCEPTION:');
-  console.error('Message:', error.message);
-  console.error('Stack:', error.stack);
-  process.exit(1);
-});
+if (process.env.NODE_ENV !== 'test') {
+  // Handle uncaught errors
+  process.on('uncaughtException', (error) => {
+    console.error('\n💥 UNCAUGHT EXCEPTION:');
+    console.error('Message:', error.message);
+    console.error('Stack:', error.stack);
+    process.exit(1);
+  });
 
-process.on('unhandledRejection', (reason) => {
-  console.error('\n💥 UNHANDLED PROMISE REJECTION:');
-  console.error('Reason:', reason);
-  process.exit(1);
-});
+  process.on('unhandledRejection', (reason, promise) => {
+    console.error('\n💥 UNHANDLED PROMISE REJECTION:');
+    console.error('Reason:', reason);
+    process.exit(1);
+  });
 
-// Always start server (Render needs this)
-start();
+  // Always start server (Render needs this)
+  start();
+}
 
 export default app;

@@ -8,8 +8,8 @@ const ChatSessionSchema = new mongoose.Schema({
   }],
   active: {
     type: Boolean,
-    default: true,
-    index: true // Add index for active chats
+    default: true
+    // index: true - Removed to avoid duplicate index warning
   },
   startedAt: {
     type: Date,
@@ -24,8 +24,8 @@ const ChatSessionSchema = new mongoose.Schema({
   }],
   isSaved: {
     type: Boolean,
-    default: false,
-    index: true // Add index for saved status
+    default: false
+    // index: true - Removed to avoid duplicate index warning
   },
   expiresAt: {
     type: Date,
@@ -34,7 +34,15 @@ const ChatSessionSchema = new mongoose.Schema({
       return new Date(Date.now() + 24 * 60 * 60 * 1000);
     },
     index: true // Add index for expiry queries
-  }
+  },
+  unmatchedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  },
+  hiddenFor: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  }]
 });
 
 // Compound index for finding active chats by participant
@@ -56,4 +64,29 @@ ChatSessionSchema.index(
   }
 );
 
-export default mongoose.model("ChatSession", ChatSessionSchema);
+// Pre-remove hook: Clean up associated messages when a chat session is deleted
+ChatSessionSchema.pre('deleteOne', { document: true, query: false }, async function() {
+  try {
+    const Message = mongoose.model('Message');
+    await Message.deleteMany({ chatSessionId: this._id });
+    console.log(`[CLEANUP] Deleted messages for chat session ${this._id}`);
+  } catch (error) {
+    console.error(`[CLEANUP] Error deleting messages for chat session ${this._id}:`, error);
+  }
+});
+
+// Also handle findOneAndDelete
+ChatSessionSchema.post('findOneAndDelete', async function(doc) {
+  if (doc) {
+    try {
+      const Message = mongoose.model('Message');
+      await Message.deleteMany({ chatSessionId: doc._id });
+      console.log(`[CLEANUP] Deleted messages for chat session ${doc._id}`);
+    } catch (error) {
+      console.error(`[CLEANUP] Error deleting messages for chat session ${doc._id}:`, error);
+    }
+  }
+});
+
+const ChatSession = mongoose.model('ChatSession', ChatSessionSchema);
+export default ChatSession;

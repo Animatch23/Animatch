@@ -62,6 +62,31 @@ const calculateSimilarity = (user1, user2) => {
 };
 
 /**
+ * Get users who have saved chats with the given user
+ * @param {string} userId - User ID to check
+ * @returns {Promise<string[]>} Array of user IDs who have saved chats with this user
+ */
+const getSavedChatPartners = async (userId) => {
+  // Only exclude partners from ACTIVE saved chats.
+  // If a saved chat is inactive (active: false) or unmatched, allow rematching with that partner.
+  const savedChats = await ChatSession.find({
+    participants: userId,
+    isSaved: true,
+    active: true, // Only block rematching for ACTIVE saved chats
+    unmatchedBy: { $exists: false } // exclude unmatched saved chats so rematching is allowed
+  });
+  
+  // Extract all partner IDs from saved chats
+  const partnerIds = savedChats.flatMap(chat => 
+    chat.participants
+      .filter(p => p.toString() !== userId.toString())
+      .map(p => p.toString())
+  );
+  
+  return [...new Set(partnerIds)]; // Remove duplicates
+};
+
+/**
  * Join the matchmaking queue
  * Ensures only 1 active chat session per user
  */
@@ -76,20 +101,28 @@ export const joinQueue = async (req, res) => {
 
     console.log(`[QUEUE JOIN] User: ${user.email} (${user.username})`);
 
-    // ⭐ CRITICAL: Check if user already has an active chat (enforces 1 active session rule)
-    const existingChat = await ChatSession.findOne({
+    // ⭐ CRITICAL: Check if user has an active UNSAVED chat (only unsaved chats block queue)
+    // Saved chats (isSaved=true) don't block - users can have saved chats AND find new matches
+    const existingUnsavedChat = await ChatSession.findOne({
       participants: userId,
       active: true,
+      isSaved: { $ne: true }, // Only block on UNSAVED active chats
       expiresAt: { $gt: new Date() }
     });
 
-    if (existingChat) {
-      console.log(`[QUEUE JOIN] User ${user.email} already in active chat - cannot join queue`);
+    if (existingUnsavedChat) {
+      console.log(`[QUEUE JOIN] User ${user.email} has active UNSAVED chat - cannot join queue`);
       return res.json({
         matched: true,
-        chatSessionId: existingChat._id.toString(),
+        chatSessionId: existingUnsavedChat._id.toString(),
         alreadyInChat: true
       });
+    }
+
+    // ⭐ Get users with saved chats to exclude from matching
+    const savedChatPartnerIds = await getSavedChatPartners(userId);
+    if (savedChatPartnerIds.length > 0) {
+      console.log(`[QUEUE JOIN] User ${user.email} has ${savedChatPartnerIds.length} saved chat partners - excluding from matching`);
     }
 
     // Check if user is already in queue
@@ -120,10 +153,19 @@ export const joinQueue = async (req, res) => {
       console.log(`[QUEUE JOIN] ⏰ User ${user.email} has been waiting ${timeInQueue.toFixed(1)}s (>= ${SIMILARITY_TIMEOUT_SECONDS}s), switching to random matching`);
     }
 
+    // Get blocked users lists
+    const blockedUsers = user.blockedUsers || [];
+    const usersWhoBlockedMe = await User.find({ blockedUsers: userId }).distinct('_id');
+    const excludedUserIds = [...blockedUsers.map(id => id.toString()), ...usersWhoBlockedMe.map(id => id.toString())];
+
     // Try to find a match - look for waiting users and calculate similarity
+    // ⭐ Exclude users who have saved chats with current user AND blocked users
     const waitingUsers = await Queue.find({
       status: 'waiting',
-      userId: { $ne: userId }
+      userId: { 
+        $ne: userId,
+        $nin: [...savedChatPartnerIds, ...excludedUserIds] // Exclude saved chat partners AND blocked users
+      }
     }).sort({ createdAt: 1 }).limit(50); // Get more candidates for better matching
 
     if (waitingUsers.length === 0) {
@@ -140,16 +182,24 @@ export const joinQueue = async (req, res) => {
         continue;
       }
 
-      // Check if candidate has active chat
-      const candidateActiveChat = await ChatSession.findOne({
+      // Check if candidate has active UNSAVED chat (saved chats don't block queue)
+      const candidateActiveUnsavedChat = await ChatSession.findOne({
         participants: queueEntry.userId,
         active: true,
+        isSaved: { $ne: true }, // Only block on UNSAVED active chats
         expiresAt: { $gt: new Date() }
       });
 
-      if (candidateActiveChat) {
-        // Remove from queue if they have active chat
+      if (candidateActiveUnsavedChat) {
+        // Remove from queue if they have active unsaved chat
         await Queue.deleteOne({ userId: queueEntry.userId });
+        continue;
+      }
+
+      // ⭐ Double-check: skip if candidate has saved chat with current user
+      const candidateSavedPartners = await getSavedChatPartners(queueEntry.userId.toString());
+      if (candidateSavedPartners.includes(userId.toString())) {
+        console.log(`[QUEUE JOIN] Skipping ${candidateUser.email} - has saved chat with current user`);
         continue;
       }
 
@@ -265,47 +315,62 @@ export const getQueueStatus = async (req, res) => {
     const userId = req.user?.id;
     const user = await User.findById(userId);
 
-    // ⭐ Check active chat first (enforces 1 active session rule)
-    const activeChat = await ChatSession.findOne({
+    // ⭐ Check for active UNSAVED chat first (only unsaved chats block queue)
+    // Users with active saved chats CAN still be in queue looking for new matches
+    const activeUnsavedChat = await ChatSession.findOne({
       participants: userId,
       active: true,
+      isSaved: { $ne: true }, // Only block on UNSAVED active chats
       expiresAt: { $gt: new Date() }
     });
 
-    if (activeChat) {
+    if (activeUnsavedChat) {
       const partner = await User.findOne({
-        _id: { $in: activeChat.participants, $ne: userId }
+        _id: { $in: activeUnsavedChat.participants, $ne: userId }
       });
 
-      console.log(`[QUEUE STATUS] User ${user.email} matched with ${partner?.username}`);
+      console.log(`[QUEUE STATUS] User ${user.email} has active UNSAVED chat with ${partner?.username}`);
       return res.json({
         queued: false,
         matched: true,
-        chatSessionId: activeChat._id.toString()
+        chatSessionId: activeUnsavedChat._id.toString()
       });
     }
+
+    // ⭐ Get users with saved chats to exclude from matching
+    const savedChatPartnerIds = await getSavedChatPartners(userId);
 
     // Check queue position
     const queueEntry = await Queue.findOne({ userId });
     if (queueEntry) {
-      // Calculate time in queue for timeout logic
+      // Calculate time in queue
       const now = new Date();
       const timeInQueue = (now - queueEntry.createdAt) / 1000; // Time in seconds
+      
+      // Determine matching strategy
       const SIMILARITY_TIMEOUT_SECONDS = 30;
-      const MINIMUM_SIMILARITY_THRESHOLD = 20; // Don't match below this score unless timeout
+      const MINIMUM_SIMILARITY_THRESHOLD = 20;
       const useRandomMatching = timeInQueue >= SIMILARITY_TIMEOUT_SECONDS;
 
       if (useRandomMatching) {
         console.log(`[QUEUE STATUS] ⏰ User ${user.email} has been waiting ${timeInQueue.toFixed(1)}s (>= ${SIMILARITY_TIMEOUT_SECONDS}s), switching to random matching`);
       }
 
+      // Get blocked users lists
+      const blockedUsers = user.blockedUsers || [];
+      const usersWhoBlockedMe = await User.find({ blockedUsers: userId }).distinct('_id');
+      const excludedUserIds = [userId, ...blockedUsers, ...usersWhoBlockedMe];
+
       // Try to find a match while checking status
+      // ⭐ Exclude users who have saved chats with current user AND blocked users
       const waitingUsers = await Queue.find({
         status: 'waiting',
-        userId: { $ne: userId }
+        userId: { 
+          $ne: userId,
+          $nin: [...savedChatPartnerIds, ...excludedUserIds] // Exclude saved chat partners AND blocked users
+        }
       }).sort({ createdAt: 1 }).limit(50); // Get more candidates for better matching
 
-      // Calculate similarity scores for all candidates
       const candidatesWithScores = [];
 
       if (waitingUsers.length > 0) {
@@ -317,16 +382,24 @@ export const getQueueStatus = async (req, res) => {
             continue;
           }
 
-          // ⭐ Check partner doesn't have active chat
-          const candidateActiveChat = await ChatSession.findOne({
+          // ⭐ Check partner doesn't have active UNSAVED chat (saved chats don't block queue)
+          const candidateActiveUnsavedChat = await ChatSession.findOne({
             participants: queueEntry.userId,
             active: true,
+            isSaved: { $ne: true }, // Only block on UNSAVED active chats
             expiresAt: { $gt: new Date() }
           });
 
-          if (candidateActiveChat) {
-            console.log(`[QUEUE STATUS] Candidate ${candidateUser.email} already in active chat, removing from queue`);
+          if (candidateActiveUnsavedChat) {
+            console.log(`[QUEUE STATUS] Candidate ${candidateUser.email} has active unsaved chat, removing from queue`);
             await Queue.deleteOne({ userId: queueEntry.userId });
+            continue;
+          }
+
+          // ⭐ Double-check: skip if candidate has saved chat with current user
+          const candidateSavedPartners = await getSavedChatPartners(queueEntry.userId.toString());
+          if (candidateSavedPartners.includes(userId.toString())) {
+            console.log(`[QUEUE STATUS] Skipping ${candidateUser.email} - has saved chat with current user`);
             continue;
           }
 
