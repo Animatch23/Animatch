@@ -202,7 +202,6 @@ test.describe("save chat test", () => {
     ]);
 
     await page1.click(saveChatSelector, { timeout: 30000 })
-    await page2.waitForTimeout(1500)
     await page2.click(saveChatSelector, { timeout: 30000 })
 
     console.log("User1 Clicked Save Chat");
@@ -290,7 +289,6 @@ test.describe("save chat test", () => {
     ]);
 
     await page1.click(saveChatSelector, { timeout: 30000 })
-    await page2.waitForTimeout(1500)
     await page2.click(saveChatSelector, { timeout: 30000 })
 
     console.log("User1 Clicked Save Chat");
@@ -301,8 +299,8 @@ test.describe("save chat test", () => {
     await expect(page2.locator(successMessageSelector)).toBeVisible({ timeout: 30000 });
 
     await Promise.all([
-      page1.goto("http://localhost:3000/match"),
-      page2.goto("http://localhost:3000/match")
+      page1.locator('button[aria-label="Back to matchmaking"]').click(),
+      page2.locator('button[aria-label="Back to matchmaking"]').click()
     ]);
 
     console.log(`User1: ${username1}`)
@@ -325,9 +323,9 @@ test.describe("save chat test", () => {
     let username3 = await setupUser(page3);
 
     await Promise.all([
-        page1.waitForTimeout(2500),
-        page3.waitForTimeout(2500)
-      ]);
+      page1.waitForTimeout(2500),
+      page3.waitForTimeout(2500)
+    ]);
 
     await Promise.all([
       page1.getByText("Start Matching").click(),
