@@ -1,6 +1,14 @@
 import { jest } from '@jest/globals';
-import { authMiddleware } from '../middleware/authMiddleware.js';
 import jwt from 'jsonwebtoken';
+
+// Mock the userHelpers module before importing authMiddleware
+const mockEnsureUserRecord = jest.fn();
+jest.unstable_mockModule('../utils/userHelpers.js', () => ({
+  ensureUserRecord: mockEnsureUserRecord
+}));
+
+// Import authMiddleware after mocking
+const { authMiddleware } = await import('../middleware/authMiddleware.js');
 
 describe('Auth Middleware Unit Tests', () => {
   let mockReq;
@@ -20,18 +28,18 @@ describe('Auth Middleware Unit Tests', () => {
     jest.clearAllMocks();
   });
 
-  test('should return 401 if no token is provided', () => {
-    authMiddleware(mockReq, mockRes, mockNext);
+  test('should return 401 if no token is provided', async () => {
+    await authMiddleware(mockReq, mockRes, mockNext);
 
     expect(mockRes.status).toHaveBeenCalledWith(401);
     expect(mockRes.json).toHaveBeenCalledWith({ message: 'No token provided' });
     expect(mockNext).not.toHaveBeenCalled();
   });
 
-  test('should return 401 if authorization header is malformed', () => {
+  test('should return 401 if authorization header is malformed', async () => {
     mockReq.headers.authorization = 'InvalidHeader';
 
-    authMiddleware(mockReq, mockRes, mockNext);
+    await authMiddleware(mockReq, mockRes, mockNext);
 
     expect(mockRes.status).toHaveBeenCalledWith(401);
     expect(mockRes.json).toHaveBeenCalledWith({ message: 'No token provided' });
@@ -56,13 +64,22 @@ describe('Auth Middleware Unit Tests', () => {
 
   test('should call next() if token is valid', async () => {
     const mockDecoded = { email: 'test@dlsu.edu.ph', name: 'Test User' };
+    const mockUser = { 
+      _id: { toString: () => 'mock-user-id' }, 
+      email: 'test@dlsu.edu.ph', 
+      username: 'Test User' 
+    };
+    
     mockReq.headers.authorization = 'Bearer valid-token';
     jwt.verify = jest.fn().mockReturnValue(mockDecoded);
+    mockEnsureUserRecord.mockResolvedValue(mockUser);
 
-    authMiddleware(mockReq, mockRes, mockNext);
+    await authMiddleware(mockReq, mockRes, mockNext);
 
     expect(jwt.verify).toHaveBeenCalledWith('valid-token', process.env.JWT_SECRET);
-    expect(mockReq.user).toEqual(mockDecoded);
+    expect(mockReq.userId).toEqual('mock-user-id');
+    expect(mockReq.userEmail).toEqual('test@dlsu.edu.ph');
+    expect(mockReq.user).toEqual(mockUser);
     expect(mockNext).toHaveBeenCalled();
     expect(mockRes.status).not.toHaveBeenCalled();
     expect(mockRes.json).not.toHaveBeenCalled();
