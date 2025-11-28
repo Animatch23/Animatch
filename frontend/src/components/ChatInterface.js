@@ -65,7 +65,13 @@ export default function ChatInterface({
   const [rating, setRating] = useState(0); // 0..5
   const [hoverRating, setHoverRating] = useState(0);
   const [filterQuery, setFilterQuery] = useState("");
-
+  const [showFilterMenu, setShowFilterMenu] = useState(false);
+  const [activeFilters, setActiveFilters] = useState({
+    course: false,
+    housing: false,
+    orgs: false
+  });
+  const [isLoadingSaved, setIsLoadingSaved] = useState(false);
   const socketRef = useRef(null);
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -84,6 +90,39 @@ export default function ChatInterface({
   useEffect(() => {
     currentUserIdRef.current = currentUserId ?? "";
   }, [currentUserId]);
+
+  const fetchSavedMatches = async () => {
+    if (!API_BASE || !token) return;
+    
+    setIsLoadingSaved(true);
+    try {
+      const queryParams = new URLSearchParams();
+      if (activeFilters.course) queryParams.append('course', 'true');
+      if (activeFilters.housing) queryParams.append('housing', 'true');
+      if (activeFilters.orgs) queryParams.append('orgs', 'true');
+
+      const response = await fetch(`${API_BASE}/api/chat/saved?${queryParams.toString()}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setSavedChats(data);
+      } else {
+        console.error("Failed to fetch saved matches");
+      }
+    } catch (err) {
+      console.error("Error fetching saved matches:", err);
+    } finally {
+      setIsLoadingSaved(false);
+    }
+  };
+
+  // Fetch on mount and when filters change
+  useEffect(() => {
+    fetchSavedMatches();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeFilters, token]);
 
   useEffect(() => {
     if (!API_BASE || !chatSessionId || !token) {
@@ -210,6 +249,7 @@ export default function ChatInterface({
           type: "success", 
           message: "🎉 Match saved! Both of you have saved this chat." 
         });
+        fetchSavedMatches();
       }
     });
 
@@ -521,6 +561,18 @@ export default function ChatInterface({
     }, 200);
   };
 
+const activeFilterCount = Object.values(activeFilters).filter(Boolean).length;
+  const clearFilters = () => {
+    setActiveFilters({ course: false, housing: false, orgs: false });
+    setShowFilterMenu(false);
+  };
+
+  const toggleFilter = (key) => setActiveFilters(p => ({ ...p, [key]: !p[key] }));
+
+  const displayChats = savedChats.filter(chat => 
+    (chat.name || "Anonymous").toLowerCase().includes(filterQuery.toLowerCase().trim())
+  );
+
   const blockUser = () => {
     setShowActionMenu(false);
     setConfirmBlockOpen(true);
@@ -818,71 +870,105 @@ export default function ChatInterface({
       {/* Content area: sidebar + chat, split-screen (no overlay) */}
       <div className="flex-1 flex overflow-hidden">
         {/* Left sidebar (saved chats) */}
-        <aside
-          aria-label="Saved chats"
-          className={`relative flex-shrink-0 bg-gray-100 border-r border-gray-200 overflow-hidden transition-[width,opacity] duration-200 ${showSidebar ? "w-80 sm:w-96 opacity-100" : "w-0 opacity-0"}`}
-        >
-          <div className="h-full overflow-y-auto p-4 space-y-4">
-            <button
-              type="button"
-              onClick={handleNextChat}
-              className="w-full text-left rounded-md bg-green-600 hover:bg-green-700 text-white px-4 py-3 shadow-sm flex items-center gap-2"
-            >
-              <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-              </svg>
-              Start a New Match
-            </button>
-
-            {/* Filter search bar */}
-            <div className="flex items-center gap-2">
-              <input
-                type="text"
-                value={filterQuery}
-                onChange={(e) => setFilterQuery(e.target.value)}
-                placeholder="Search chats..."
-                className="flex-1 h-9 px-3 rounded-md bg-white border border-gray-300 text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-600/40"
-              />
-              <button
-                type="button"
-                title="Apply filter"
-                className="h-9 px-3 rounded-md bg-brand-50 text-brand-700 border border-brand-700/20"
+        <aside className={`bg-gray-100 border-r border-gray-200 flex flex-col w-80 sm:w-96`}>
+          <div className="p-4 border-b border-gray-200 bg-white">
+            <h2 className="font-bold text-gray-700 mb-2">Saved Matches</h2>
+            
+            {/* Filter UI */}
+            <div className="flex gap-2 relative mb-2">
+              <button 
+                onClick={() => setShowFilterMenu(!showFilterMenu)}
+                className={`flex-1 h-9 px-3 rounded-md border text-sm font-medium flex items-center justify-center gap-2 ${activeFilterCount > 0 ? 'bg-green-50 border-green-500 text-green-700' : 'bg-white border-gray-300 text-gray-700'}`}
               >
-                Filter
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" /></svg>
+                Filter {activeFilterCount > 0 ? `(${activeFilterCount})` : ''}
               </button>
+              
+              {activeFilterCount > 0 && (
+                <button onClick={clearFilters} className="text-xs text-gray-500 hover:text-red-500 px-2">Clear</button>
+              )}
+
+              {/* Filter Dropdown */}
+              {showFilterMenu && (
+                <div className="absolute top-10 left-0 w-full bg-white shadow-xl rounded-lg border border-gray-200 p-3 z-30">
+                  <h3 className="text-xs font-semibold text-gray-500 uppercase mb-2">Show matches with:</h3>
+                  <label className="flex items-center gap-2 p-2 hover:bg-gray-50 rounded cursor-pointer">
+                    <input type="checkbox" checked={activeFilters.course} onChange={() => toggleFilter('course')} className="rounded text-green-600 focus:ring-green-500" />
+                    <span className="text-sm text-gray-800">Same Course</span>
+                  </label>
+                  <label className="flex items-center gap-2 p-2 hover:bg-gray-50 rounded cursor-pointer">
+                    <input type="checkbox" checked={activeFilters.housing} onChange={() => toggleFilter('housing')} className="rounded text-green-600 focus:ring-green-500" />
+                    <span className="text-sm text-gray-800">Same Housing</span>
+                  </label>
+                  <label className="flex items-center gap-2 p-2 hover:bg-gray-50 rounded cursor-pointer">
+                    <input type="checkbox" checked={activeFilters.orgs} onChange={() => toggleFilter('orgs')} className="rounded text-green-600 focus:ring-green-500" />
+                    <span className="text-sm text-gray-800">Shared Organizations</span>
+                  </label>
+                  <div className="mt-2 pt-2 border-t flex justify-end">
+                    <button 
+                      onClick={() => setShowFilterMenu(false)}
+                      className="text-xs bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700"
+                    >
+                      Done
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
 
-            {savedChats.length === 0 && (
-              <p className="text-sm text-gray-500">No saved chats yet. Use the yellow button to save one.</p>
-            )}
-            {savedChats.map((chat) => (
-              <button
-                key={chat.id}
-                onClick={() => { loadChat(chat); setShowSidebar(false); }}
-                className="w-full text-left bg-white hover:bg-gray-50 rounded-xl shadow-sm border border-gray-200 p-3"
-              >
-                <div className="flex items-center gap-4">
-                  {/* Avatar placeholder */}
-                  <span className="flex items-center justify-center w-12 h-12 rounded-full bg-gray-200 text-gray-600 ring-2 ring-gray-300 shrink-0">
-                    <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                    </svg>
-                  </span>
-                  <div className="flex-1">
-                    <div className="text-lg font-semibold text-gray-800">{chatDisplayName(chat)}</div>
-                    <div className="text-sm text-gray-500 italic text-pretty break-words leading-snug max-h-12 overflow-hidden">{lastPreview(chat)}</div>
+            {/* Text Search */}
+            <input
+              type="text"
+              value={filterQuery}
+              onChange={(e) => setFilterQuery(e.target.value)}
+              placeholder="Search by name..."
+              className="w-full h-9 px-3 rounded-md bg-gray-50 border border-gray-300 text-sm focus:ring-2 focus:ring-green-500 outline-none text-black"
+            />
+          </div>
+
+          <div className="flex-1 overflow-y-auto p-2 space-y-2">
+            {isLoadingSaved ? (
+              <p className="text-center text-gray-500 text-sm py-4">Loading matches...</p>
+            ) : displayChats.length === 0 ? (
+              <div className="text-center py-8 px-4">
+                <p className="text-gray-500 text-sm">
+                  {activeFilterCount > 0 || filterQuery ? "No matches found." : "No saved matches yet."}
+                </p>
+              </div>
+            ) : (
+              displayChats.map((chat) => (
+                <button
+                  key={chat.chatSessionId}
+                  onClick={() => router.push(`/match/chat?session=${chat.chatSessionId}`)}
+                  className={`w-full text-left p-3 rounded-lg border transition-all ${chat.chatSessionId === chatSessionId ? "bg-green-50 border-green-300" : "bg-white border-gray-200 hover:bg-gray-50"}`}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-gray-200 overflow-hidden relative flex-shrink-0">
+                      {chat.profilePicture?.url ? (
+                        <Image src={`${API_BASE}/api${chat.profilePicture.url}`} alt={chat.name} fill className="object-cover" />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-gray-400 font-bold">{chat.name?.[0]}</div>
+                      )}
+                    </div>
+                    <div className="overflow-hidden">
+                      <div className="font-semibold text-gray-800 text-sm truncate">{chat.name}</div>
+                      <div className="text-xs text-gray-500 truncate">
+                        {chat.partnerData?.course ? chat.partnerData.course : "Student"}
+                      </div>
+                    </div>
                   </div>
-                  <span className="relative w-12 h-12 ml-auto">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src="/streak.png" alt="Streak" className="absolute inset-0 w-12 h-12 object-contain" />
-                    <span className="absolute inset-0 flex items-center justify-center text-sm font-bold text-white drop-shadow">
-                      {computeStreakDays(chat.messages)}
-                    </span>
-                  </span>
-                </div>
-              </button>
-            ))}
+                </button>
+              ))
+            )}
+          </div>
+          
+          <div className="p-4 border-t border-gray-200">
+            <button
+              onClick={() => router.push("/match")}
+              className="w-full bg-green-600 hover:bg-green-700 text-white py-2 rounded-md text-sm font-medium"
+            >
+              Start New Match
+            </button>
           </div>
         </aside>
 

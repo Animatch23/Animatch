@@ -173,12 +173,9 @@ test.describe("save chat test", () => {
 
   test("save chat", async () => {
     test.setTimeout(60000);
-    const browser = await chromium.launch();
+    const browser1 = await chromium.launch();
 
     const context1 = await browser.newContext();
-    const context2 = await browser.newContext();
-    const context3 = await browser.newContext();
-    const context4 = await browser.newContext();
 
     const page1 = await context1.newPage();
 

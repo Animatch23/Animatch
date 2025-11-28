@@ -158,10 +158,9 @@ test.describe("chat test", () => {
   });
 
   test("chat", async () => {
-    const browser = await chromium.launch();
+    const browser1 = await chromium.launch();
 
     const context1 = await browser.newContext();
-    const context2 = await browser.newContext();
 
     const page1 = await context1.newPage();
 

@@ -6,7 +6,8 @@ import {
   endChatSession,
   leaveChatSession,
   saveChatSession,
-  blockUser
+  blockUser,
+  getSavedMatches
 } from '../controllers/chatController.js';
 import {
   joinQueue,
@@ -25,6 +26,7 @@ router.get('/match/active', authenticate, getActiveMatch);
 // All routes require authentication
 router.get('/active', authenticate, getActiveChat);
 router.get('/:chatSessionId/history', authenticate, getChatHistory);
+router.get('/saved', authenticate, getSavedMatches);
 router.post('/:chatSessionId/end', authenticate, endChatSession);
 router.post('/:chatSessionId/leave', authenticate, leaveChatSession);
 router.post('/:chatSessionId/save', authenticate, saveChatSession);

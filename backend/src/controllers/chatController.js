@@ -299,3 +299,85 @@ export const blockUser = async (req, res) => {
     res.status(500).json({ message: 'Failed to block user' });
   }
 };
+
+export const getSavedMatches = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { course, housing, orgs } = req.query;
+
+    // 1. Get current user to compare their attributes
+    const currentUser = await User.findById(userId);
+    if (!currentUser) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // 2. Find sessions saved by this user
+    const savedSessions = await ChatSession.find({
+      savedByUsers: userId
+    })
+    .populate('participants', 'username profilePicture course housing organizations interests')
+    .sort({ updatedAt: -1 });
+
+    // 3. Process and Filter
+    const results = [];
+
+    for (const session of savedSessions) {
+      // Find the partner (not the current user)
+      const partner = session.participants.find(
+        p => p._id.toString() !== userId.toString()
+      );
+
+      // If partner deleted account, skip
+      if (!partner) continue;
+
+      let isMatch = true;
+
+      // -- FILTER LOGIC --
+      
+      // Filter: Same Course
+      if (course === 'true') {
+        const uVal = (currentUser.course || "").toLowerCase().trim();
+        const pVal = (partner.course || "").toLowerCase().trim();
+        // Match only if both exist and are equal
+        if (!uVal || !pVal || uVal !== pVal) isMatch = false;
+      }
+
+      // Filter: Same Housing
+      if (isMatch && housing === 'true') {
+        const uVal = (currentUser.housing || "").toLowerCase().trim();
+        const pVal = (partner.housing || "").toLowerCase().trim();
+        if (!uVal || !pVal || uVal !== pVal) isMatch = false;
+      }
+
+      // Filter: Shared Organizations
+      if (isMatch && orgs === 'true') {
+        const uOrgs = (currentUser.organizations || []).map(o => o.toLowerCase().trim());
+        const pOrgs = (partner.organizations || []).map(o => o.toLowerCase().trim());
+        // Check intersection
+        const hasShared = uOrgs.some(org => pOrgs.includes(org));
+        if (!hasShared) isMatch = false;
+      }
+
+      if (isMatch) {
+        results.push({
+          chatSessionId: session._id,
+          name: partner.username,
+          profilePicture: partner.profilePicture,
+          partnerData: {
+            course: partner.course,
+            housing: partner.housing,
+            organizations: partner.organizations
+          },
+          // Calculate streak or other metadata here if needed
+          updatedAt: session.updatedAt
+        });
+      }
+    }
+
+    res.json(results);
+
+  } catch (error) {
+    console.error('Error fetching saved matches:', error);
+    res.status(500).json({ message: 'Failed to fetch saved matches' });
+  }
+};
