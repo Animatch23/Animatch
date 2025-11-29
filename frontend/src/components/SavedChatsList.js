@@ -33,10 +33,12 @@ export default function SavedChatsList({ visible, onClose }) {
       const chatData = await chatRes.json();
       const activeData = activeRes?.ok ? await activeRes.json() : null;
       
-      setChats(chatData || []);
+      // Ensure chats is always an array
+      setChats(Array.isArray(chatData) ? chatData : []);
       setHasActiveChat(!!activeData?.chatSessionId);
     } catch (err) {
       setError(err.message || "Failed to fetch saved chats");
+      setChats([]); // Reset to empty array on error
     }
   }, []);
 

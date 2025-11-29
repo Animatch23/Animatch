@@ -153,6 +153,10 @@ async function setupUser(page) {
 
 test.describe("chat test", () => {
   test("chat", async () => {
+
+    await fetch("http://localhost:3000/test/clearQueue");
+
+
     const browser = await chromium.launch();
     const context1 = await browser.newContext();
     const context2 = await browser.newContext();
@@ -196,7 +200,10 @@ test.describe("chat test", () => {
     await browser.close();
   });
 
-    test("end chat test", async () => {
+  test("end chat test", async () => {
+
+    await fetch("http://localhost:3000/test/clearQueue");
+
     const browser = await chromium.launch();
     const context1 = await browser.newContext();
     const context2 = await browser.newContext();
@@ -242,5 +249,5 @@ test.describe("chat test", () => {
     ]);
 
     await browser.close();
-    });
+  });
 });

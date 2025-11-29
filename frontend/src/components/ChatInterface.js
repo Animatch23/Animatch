@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import SavedChatsList from "./SavedChatsList";
+import ProfileReveal from "./ProfileReveal";
 import { io } from "socket.io-client";
 import Image from "next/image";
 import ReportModal from "./ReportModal";
@@ -559,6 +560,15 @@ export default function ChatInterface({
     }, 1200);
   };
 
+  // Detect whether current input contains contact info to prevent sending
+  const inputContainsContactInfo = useMemo(() => {
+    const text = (inputValue || "").trim();
+    if (!text) return false;
+    const hasEmail = /(?:^|\s)[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}(?:\s|$)/i.test(text);
+    const hasPhone = /(?:(?:\+?\d{1,3}[\s-.]?)?(?:\(?\d{2,4}\)?[\s-.]?)?\d{3,4}[\s-.]?\d{3,4})(?!\d)/.test(text) && (text.replace(/\D/g, "").length >= 7);
+    return hasEmail || hasPhone;
+  }, [inputValue]);
+
   const handleInputBlur = () => {
     if (typingTimeoutRef.current) {
       clearTimeout(typingTimeoutRef.current);
@@ -572,6 +582,18 @@ export default function ChatInterface({
 
     const messageText = inputValue.trim();
     if (!messageText || !socketRef.current) {
+      return;
+    }
+
+    // Client-side policy: prevent sharing emails or phone numbers
+    const containsEmail = /(?:^|\s)[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}(?:\s|$)/i.test(messageText);
+    // Phone pattern: supports various formats, requires at least 7 digits
+    const containsPhone = /(?:(?:\+?\d{1,3}[\s-.]?)?(?:\(?\d{2,4}\)?[\s-.]?)?\d{3,4}[\s-.]?\d{3,4})(?!\d)/.test(messageText) && (messageText.replace(/\D/g, "").length >= 7);
+    if (containsEmail || containsPhone) {
+      setFeedback({
+        type: "error",
+        message: "Sharing contact info (emails or phone numbers) is not allowed in chat.",
+      });
       return;
     }
 
@@ -1022,10 +1044,10 @@ export default function ChatInterface({
           <button
             type="button"
             onClick={handleLeaveChat}
-            disabled={isEnding || partnerLeft || isReadOnly}
+            disabled={isEnding || isReadOnly}
             className="h-9 px-4 rounded-md bg-rose-500 text-white text-sm font-medium shadow-sm hover:brightness-95 disabled:opacity-70 disabled:cursor-not-allowed"
           >
-            {partnerLeft ? "Partner Left" : isEnding ? "Leaving..." : "End Chat"}
+            {isEnding ? "Leaving..." : "End Chat"}
           </button>
         </div>
       </header>
@@ -1059,6 +1081,18 @@ export default function ChatInterface({
               <span>{feedback.message}</span>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Profile Reveal Section - Gamification feature */}
+      {!isReadOnly && (
+        <div className="px-6 pt-4">
+          <ProfileReveal
+            chatSessionId={chatSessionId}
+            token={token}
+            currentUserId={currentUserId}
+            socketRef={socketRef}
+          />
         </div>
       )}
 
@@ -1164,9 +1198,14 @@ export default function ChatInterface({
             disabled={connectionStatus !== "connected"}
             className="flex-1 resize-none rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#286633]/60 disabled:opacity-60"
           />
+          {inputContainsContactInfo && (
+            <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-2xl px-3 py-2">
+              Sharing contact info (emails or phone numbers) is not allowed.
+            </div>
+          )}
           <button
             type="submit"
-            disabled={!inputValue.trim() || connectionStatus !== "connected"}
+            disabled={!inputValue.trim() || connectionStatus !== "connected" || inputContainsContactInfo}
             className="h-11 px-6 rounded-2xl bg-[#286633] text-white text-sm font-semibold shadow-sm hover:brightness-110 disabled:opacity-60"
           >
             Send
