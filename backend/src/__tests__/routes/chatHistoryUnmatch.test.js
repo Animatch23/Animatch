@@ -135,7 +135,7 @@ describe('Chat History and Unmatch API Tests', () => {
             expect(updatedChat.unmatchedBy.toString()).toBe(user1._id.toString());
         });
 
-        test('should NOT delete the chat, but hide it from history', async () => {
+        test('should NOT delete the chat, and keep it visible in history (saved chats preserved)', async () => {
             const token = generateToken(user1._id, user1.email);
 
             const response = await request(app)
@@ -150,15 +150,16 @@ describe('Chat History and Unmatch API Tests', () => {
             expect(chatExists.active).toBe(false);
             expect(chatExists.unmatchedBy).toBeDefined();
 
-            // The chat should be hidden from history after unmatching
+            // The saved chat should still appear in history (saved chats are always preserved)
             const historyToken = generateToken(user1._id, user1.email);
             const historyResponse = await request(app)
                 .get('/api/chat/history')
                 .set('Authorization', `Bearer ${historyToken}`);
 
             expect(historyResponse.status).toBe(200);
-            // Unmatched chats should NOT appear in history
-            expect(historyResponse.body.length).toBe(0);
+            // Saved chats remain visible even after unmatching
+            expect(historyResponse.body.length).toBe(1);
+            expect(historyResponse.body[0]._id).toBe(chatSession._id.toString());
         });
     });
 });
