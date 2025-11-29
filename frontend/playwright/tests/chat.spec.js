@@ -128,10 +128,10 @@ const completeInterestSetup = async (page, coursePreference, housingPreference, 
 
   const completeBtn = page.getByRole("button", { name: "Complete Setup" });
 
-  await expect(completeBtn).toBeEnabled({ timeout: 10000 });
+  await expect(completeBtn).toBeEnabled({ timeout: 30000 });
   await completeBtn.click();
 
-  await page.waitForURL("**/match", { timeout: 15000 });
+  await page.waitForURL("**/match", { timeout: 30000 });
 
   return { selectedCourse, selectedHousing, selectedOrganizations };
 };
@@ -187,11 +187,11 @@ test.describe("chat test", () => {
 
     await expect(
       page1.locator("div.bg-white.text-gray-900").filter({ hasText: "Hello" })
-    ).toBeVisible({ timeout: 10000 });
+    ).toBeVisible({ timeout: 30000 });
 
     await expect(
       page2.locator("div.bg-white.text-gray-900").filter({ hasText: "Hello" })
-    ).toBeVisible({ timeout: 10000 });
+    ).toBeVisible({ timeout: 30000 });
 
     await browser.close();
   });

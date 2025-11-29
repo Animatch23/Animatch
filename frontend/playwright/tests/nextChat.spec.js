@@ -9,6 +9,7 @@ test.describe("next chat button tests", () => {
   });
 
   const setupUserBeforeEach = async (page) => {
+    await fetch("http://localhost:3000/test/clearQueue");
     console.log(`Setting up ${page}`)
     await mockSession(page);
     await login(page);

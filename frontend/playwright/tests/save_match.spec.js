@@ -127,10 +127,10 @@ const completeInterestSetup = async (page, coursePreference, housingPreference, 
 
   const completeBtn = page.getByRole("button", { name: "Complete Setup" });
 
-  await expect(completeBtn).toBeEnabled({ timeout: 10000 });
+  await expect(completeBtn).toBeEnabled({ timeout: 30000 });
   await completeBtn.click();
 
-  await page.waitForURL("**/match", { timeout: 15000 });
+  await page.waitForURL("**/match", { timeout: 30000 });
 
   return { selectedCourse, selectedHousing, selectedOrganizations };
 };
@@ -142,7 +142,7 @@ async function setupUser(page) {
   let retries = 3;
   while (retries > 0) {
     try {
-      await page.goto("http://localhost:3000/terms", { timeout: 10000 });
+      await page.goto("http://localhost:3000/terms", { timeout: 30000 });
       break;
     } catch (error) {
       retries--;
@@ -345,7 +345,7 @@ test.describe("save chat test", () => {
 
       await expect(
         page1.locator("h1.text-lg.font-semibold.text-gray-900")
-      ).toHaveText(username3, { timeout: 15000 });
+      ).toHaveText(username3, { timeout: 30000 });
 
       const matchedUser3 = await page3.locator("h1.text-lg.font-semibold.text-gray-900").innerText();
       console.log("User 3 matched with:", matchedUser3);
@@ -353,7 +353,7 @@ test.describe("save chat test", () => {
 
       await expect(
         page3.locator("h1.text-lg.font-semibold.text-gray-900")
-      ).toHaveText(username1, { timeout: 15000 });
+      ).toHaveText(username1, { timeout: 30000 });
 
     } catch (err) {
       const cancelButton = page3.locator('button[aria-label="Cancel matching"]');

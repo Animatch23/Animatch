@@ -10,6 +10,7 @@ test.describe("interest queue tests", () => {
 
     // Helper function to setup user through beforeEach steps
     const setupUserBeforeEach = async (page) => {
+        await fetch("http://localhost:3000/test/clearQueue");
         await mockSession(page);
         await login(page);
 
