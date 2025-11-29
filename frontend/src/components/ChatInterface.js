@@ -1084,6 +1084,8 @@ export default function ChatInterface({
         </div>
       )}
 
+      {/* i love stswenggggg */}
+      
       {/* Profile Reveal Section - Gamification feature */}
       {!isReadOnly && (
         <div className="px-6 pt-4">
