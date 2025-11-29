@@ -3,6 +3,30 @@ import Message from '../models/Message.js';
 import User from '../models/User.js';
 
 /**
+ * Calculate reveal percentage based on message count
+ * 0-9 messages = 0% (fully blurred)
+ * 10-19 = 20%, 20-29 = 40%, 30-39 = 60%, 40-49 = 80%, 50+ = 100% (fully revealed)
+ * @param {number} messageCount - Number of messages sent by user
+ * @returns {number} Reveal percentage (0-100)
+ */
+const calculateRevealPercentage = (messageCount) => {
+  if (messageCount < 10) return 0;
+  if (messageCount >= 50) return 100;
+  // Each 10 messages = 20% reveal
+  return Math.floor(messageCount / 10) * 20;
+};
+
+/**
+ * Calculate blur level from reveal percentage
+ * @param {number} revealPercentage - 0 to 100
+ * @returns {number} Blur in pixels (20 = fully blurred, 0 = clear)
+ */
+const calculateBlurLevel = (revealPercentage) => {
+  // At 0% reveal, blur is 20px. At 100%, blur is 0.
+  return Math.round(20 * (1 - revealPercentage / 100));
+};
+
+/**
  * Get active chat session for current user
  */
 export const getActiveChat = async (req, res) => {
@@ -12,11 +36,15 @@ export const getActiveChat = async (req, res) => {
       return res.status(401).json({ message: 'User not authenticated' });
     }
 
+    // Prioritize UNSAVED active chats over saved ones
+    // This ensures "Return to Active Match" goes to the unsaved chat first
     const chatSession = await ChatSession.findOne({
       participants: userId,
       active: true,
       expiresAt: { $gt: new Date() }
-    }).populate('participants', 'username');
+    })
+    .sort({ isSaved: 1 }) // unsaved (false/undefined) comes before saved (true)
+    .populate('participants', 'username');
 
     if (!chatSession) {
       return res.status(404).json({ message: 'No active chat session found' });
@@ -64,8 +92,9 @@ export const getChatHistory = async (req, res) => {
       return res.status(403).json({ message: 'Access denied to this chat session' });
     }
 
-    // Block access if chat was unmatched (hidden from both users)
-    if (chatSession.unmatchedBy) {
+    // Block access if chat was unmatched, UNLESS it was saved by both users
+    // If both users saved the chat (isSaved: true), they can still view history
+    if (chatSession.unmatchedBy && !chatSession.isSaved) {
       return res.status(403).json({ message: 'This chat has been removed' });
     }
 
@@ -271,13 +300,14 @@ export const getSavedChats = async (req, res) => {
       return res.status(401).json({ message: 'User not authenticated' });
     }
 
-    // Find all ACTIVE saved chats for this user (inactive saved chats are hidden)
-    // Exclude unmatched chats (they should not appear in saved list)
+    // Find all saved chats for this user where both users saved (isSaved: true)
+    // Saved chats remain visible even if unmatched or inactive
+    // This preserves chat history for mutually saved matches
     const savedChats = await ChatSession.find({
       participants: userId,
-      isSaved: true,
-      active: true, // Only show ACTIVE saved chats
-      unmatchedBy: { $exists: false } // Exclude unmatched chats
+      isSaved: true
+      // Note: We show saved chats regardless of active status or unmatchedBy
+      // because both users agreed to save this connection
     })
     .populate('participants', 'username email')
     .sort({ endedAt: -1, startedAt: -1 })
@@ -352,8 +382,9 @@ export const getChatSession = async (req, res) => {
       return res.status(403).json({ msg: 'User not authorized for this chat' });
     }
 
-    // Block access if chat was unmatched
-    if (chatSession.unmatchedBy) {
+    // Block access if chat was unmatched, UNLESS it was saved by both users
+    // If both users saved the chat (isSaved: true), they can still view it
+    if (chatSession.unmatchedBy && !chatSession.isSaved) {
       return res.status(403).json({ msg: 'This chat has been removed' });
     }
 
@@ -451,7 +482,7 @@ export const unmatchUser = async (req, res) => {
 
 /**
  * US #6: Next Chat - Skip to another match
- * If chat is saved, keep it active (users can continue chatting in saved chats)
+ * If chat is saved, unmatch it (set unmatchedBy, deactivate) but preserve messages
  * If chat is unsaved, end it and delete messages
  */
 export const nextChat = async (req, res) => {
@@ -475,38 +506,40 @@ export const nextChat = async (req, res) => {
 
     const wasSaved = chatSession.isSaved;
 
-    // If chat is NOT saved, end it and delete messages (AC6)
+    // For BOTH saved and unsaved chats, end the session
+    chatSession.active = false;
+    chatSession.endedAt = new Date();
+
     if (!wasSaved) {
-      chatSession.active = false;
-      chatSession.endedAt = new Date();
-      await chatSession.save();
-
-      // Delete all messages from this chat
+      // If chat is NOT saved, delete messages (AC6)
       await Message.deleteMany({ chatSessionId: chatSession._id });
-
       console.log(`[NEXT CHAT] User ${userId} skipped unsaved chat ${chatSessionId} - messages deleted`);
     } else {
-      // For saved chats, keep them ACTIVE so users can continue chatting
-      // Just notify the partner that this user is looking for a new match
-      console.log(`[NEXT CHAT] User ${userId} looking for new match, saved chat ${chatSessionId} remains ACTIVE`);
+      // For saved chats, mark as unmatched so it behaves like unmatch
+      // This allows both users to rematch with others while preserving the chat history
+      chatSession.unmatchedBy = userId;
+      console.log(`[NEXT CHAT] User ${userId} unmatched from saved chat ${chatSessionId} - chat preserved for history`);
     }
+
+    await chatSession.save();
 
     // Notify partner
     const io = req.app.get('io');
     if (io) {
-      if (!wasSaved) {
-        io.to(chatSessionId.toString()).emit('chat:partner-left', {
-          message: 'Your partner is looking for a new match'
+      if (wasSaved) {
+        // For saved chats, emit unmatched event
+        io.to(chatSessionId.toString()).emit('chat:unmatched', {
+          message: 'Your partner has moved on to find a new match. This saved chat is preserved in your history.'
         });
       } else {
-        io.to(chatSessionId.toString()).emit('chat:partner-next', {
-          message: 'Your partner is looking for a new match. This saved chat remains available.'
+        io.to(chatSessionId.toString()).emit('chat:partner-left', {
+          message: 'Your partner is looking for a new match'
         });
       }
     }
 
     res.json({
-      message: wasSaved ? 'Looking for new match (saved chat preserved)' : 'Chat ended, looking for new match',
+      message: wasSaved ? 'Unmatched from saved chat, looking for new match' : 'Chat ended, looking for new match',
       redirectToQueue: true,
       chatPreserved: wasSaved,
       isSaved: wasSaved
@@ -607,5 +640,121 @@ export const notifyLogout = async (req, res) => {
   } catch (error) {
     console.error('Error notifying logout:', error);
     res.status(500).json({ message: 'Failed to notify logout' });
+  }
+};
+
+/**
+ * Get profile reveal status for a chat session
+ * Returns profile picture URLs and reveal percentages for both users
+ * Based on message counts: 10 msgs = 20%, 20 = 40%, 30 = 60%, 40 = 80%, 50+ = 100%
+ */
+export const getProfileRevealStatus = async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    const { chatSessionId } = req.params;
+
+    if (!userId) {
+      return res.status(401).json({ message: 'User not authenticated' });
+    }
+
+    const chatSession = await ChatSession.findOne({
+      _id: chatSessionId,
+      participants: userId
+    }).populate('participants', 'username profilePicture');
+
+    if (!chatSession) {
+      return res.status(404).json({ message: 'Chat session not found' });
+    }
+
+    // Get current user and partner
+    const currentUser = chatSession.participants.find(
+      p => p._id.toString() === userId.toString()
+    );
+    const partner = chatSession.participants.find(
+      p => p._id.toString() !== userId.toString()
+    );
+
+    if (!currentUser || !partner) {
+      return res.status(404).json({ message: 'Participants not found' });
+    }
+
+    // Get message counts from the map (or default to 0)
+    const messageCounts = chatSession.messageCounts || new Map();
+    const currentUserMessageCount = messageCounts.get(userId.toString()) || 0;
+    const partnerMessageCount = messageCounts.get(partner._id.toString()) || 0;
+
+    // Calculate reveal percentages
+    const currentUserReveal = calculateRevealPercentage(currentUserMessageCount);
+    const partnerReveal = calculateRevealPercentage(partnerMessageCount);
+
+    res.json({
+      currentUser: {
+        id: currentUser._id,
+        username: currentUser.username,
+        profilePicture: currentUser.profilePicture?.url || null,
+        hasProfilePicture: !!currentUser.profilePicture?.url,
+        messageCount: currentUserMessageCount,
+        revealPercentage: currentUserReveal,
+        blurLevel: calculateBlurLevel(currentUserReveal)
+      },
+      partner: {
+        id: partner._id,
+        username: partner.username,
+        profilePicture: partner.profilePicture?.url || null,
+        hasProfilePicture: !!partner.profilePicture?.url,
+        messageCount: partnerMessageCount,
+        revealPercentage: partnerReveal,
+        blurLevel: calculateBlurLevel(partnerReveal)
+      },
+      // Show reveal section only if BOTH users have profile pictures
+      showRevealSection: !!(currentUser.profilePicture?.url && partner.profilePicture?.url)
+    });
+  } catch (error) {
+    console.error('Error fetching profile reveal status:', error);
+    res.status(500).json({ message: 'Failed to fetch profile reveal status' });
+  }
+};
+
+/**
+ * Increment message count for a user in a chat session
+ * Called by socket handler when a message is sent
+ * @param {string} chatSessionId - The chat session ID
+ * @param {string} senderId - The ID of the user who sent the message
+ * @returns {Object} Updated reveal status
+ */
+export const incrementMessageCount = async (chatSessionId, senderId) => {
+  try {
+    const chatSession = await ChatSession.findById(chatSessionId);
+    if (!chatSession) {
+      return null;
+    }
+
+    // Initialize messageCounts if it doesn't exist
+    if (!chatSession.messageCounts) {
+      chatSession.messageCounts = new Map();
+    }
+
+    // Increment the sender's message count
+    const currentCount = chatSession.messageCounts.get(senderId.toString()) || 0;
+    const newCount = currentCount + 1;
+    chatSession.messageCounts.set(senderId.toString(), newCount);
+
+    await chatSession.save();
+
+    // Calculate new reveal percentage
+    const newRevealPercentage = calculateRevealPercentage(newCount);
+    const previousRevealPercentage = calculateRevealPercentage(currentCount);
+
+    // Return reveal update info
+    return {
+      senderId,
+      messageCount: newCount,
+      revealPercentage: newRevealPercentage,
+      blurLevel: calculateBlurLevel(newRevealPercentage),
+      milestoneReached: newRevealPercentage > previousRevealPercentage
+    };
+  } catch (error) {
+    console.error('Error incrementing message count:', error);
+    return null;
   }
 };

@@ -12,7 +12,8 @@ import {
   getChatSaveStatus,
   nextChat,
   blockUser,
-  notifyLogout
+  notifyLogout,
+  getProfileRevealStatus
 } from '../controllers/chatController.js';
 import {
   joinQueue,
@@ -44,6 +45,7 @@ router.post('/block', authenticate, blockUser);
 router.get('/history', authenticate, getSavedChats);
 router.get('/:sessionId', authenticate, getChatSession);
 router.get('/:chatSessionId/save-status', authenticate, getChatSaveStatus);
+router.get('/:chatSessionId/profile-reveal', authenticate, getProfileRevealStatus);
 router.post('/:chatSessionId/unmatch', authenticate, unmatchUser);
 
 export default router;

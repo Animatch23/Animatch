@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import SavedChatsList from "./SavedChatsList";
+import ProfileReveal from "./ProfileReveal";
 import { io } from "socket.io-client";
 import Image from "next/image";
 import ReportModal from "./ReportModal";
@@ -60,6 +61,10 @@ export default function ChatInterface({
   const [reportOpen, setReportOpen] = useState(false);
   const [reportReason, setReportReason] = useState("");
   const [statusLog, setStatusLog] = useState([]);
+  
+  // US #14: Icebreaker Prompts
+  const [icebreaker, setIcebreaker] = useState(null);
+  const [icebreakerLoading, setIcebreakerLoading] = useState(false);
 
   const router = useRouter();
 
@@ -84,6 +89,7 @@ export default function ChatInterface({
     setFeedback(null);
     setPartnerLeft(false);
     setPartnerOffline(false);
+    setIcebreaker(null); // Reset icebreaker when chat changes
     
     // Fetch current save status from backend to handle reloads (Design consideration #1)
     if (API_BASE && chatSessionId && token) {
@@ -106,12 +112,8 @@ export default function ChatInterface({
             });
             
             // Show persistent feedback messages based on saved state
-            if (data.isSaved) {
-              setFeedback({ 
-                type: "success", 
-                message: "🎉 Match saved! Both of you have saved this chat." 
-              });
-            } else if (partnerSavedButNotBoth) {
+            // Note: Don't show success message on reload - it should only appear once when saving
+            if (partnerSavedButNotBoth) {
               // Partner saved but current user hasn't - show notification to prompt user to save
               setFeedback({
                 type: "info",
@@ -124,6 +126,7 @@ export default function ChatInterface({
                 message: "✓ You saved the chat. Waiting for your partner to save..." 
               });
             }
+            // If bothSaved (data.isSaved), don't show any message on reload
           }
         })
         .catch(err => console.error("Failed to fetch save status:", err));
@@ -190,6 +193,36 @@ export default function ChatInterface({
       cancelled = true;
     };
   }, [chatSessionId, token]);
+
+  // US #14: Fetch icebreaker prompt for new chats
+  useEffect(() => {
+    if (!API_BASE || !chatSessionId || !token || isReadOnly) {
+      return;
+    }
+
+    const fetchIcebreaker = async () => {
+      try {
+        const response = await fetch(`${API_BASE}/api/icebreaker/${chatSessionId}`, {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        const data = await response.json().catch(() => ({}));
+
+        if (response.ok && data.prompt && !data.dismissed) {
+          setIcebreaker(data.prompt);
+        } else if (data.dismissed) {
+          setIcebreaker(null);
+        }
+      } catch (err) {
+        console.error("Failed to fetch icebreaker:", err);
+      }
+    };
+
+    fetchIcebreaker();
+  }, [chatSessionId, token, isReadOnly]);
 
   useEffect(() => {
     if (!socketUrl || !chatSessionId || !token) {
@@ -315,8 +348,24 @@ export default function ChatInterface({
       }
     });
 
-    socket.on("chat:unmatched", () => {
+    socket.on("chat:unmatched", ({ message }) => {
       setIsUnmatched(true);
+      setPartnerLeft(true);
+      
+      // Show feedback notification
+      setFeedback({
+        type: "info",
+        message: message || "Your partner has moved on to find a new match. This saved chat is preserved in your history."
+      });
+      
+      // Add a system message to the chat
+      setMessages(prev => [...prev, {
+        id: `system-${Date.now()}`,
+        content: "Your partner has left the chat",
+        sentAt: new Date().toISOString(),
+        isOwn: false,
+        isSystem: true
+      }]);
     });
 
     // Handle partner navigating away from chat (e.g., went to profile page)
@@ -335,6 +384,15 @@ export default function ChatInterface({
     socket.on("chat:partner-joined", () => {
       // Partner is back - clear offline status
       setPartnerOffline(false);
+    });
+
+    // US #14: Handle icebreaker updates from partner
+    socket.on("icebreaker:updated", ({ prompt, dismissed }) => {
+      if (dismissed) {
+        setIcebreaker(null);
+      } else if (prompt) {
+        setIcebreaker(prompt);
+      }
     });
 
     socket.on("disconnect", () => {
@@ -502,6 +560,15 @@ export default function ChatInterface({
     }, 1200);
   };
 
+  // Detect whether current input contains contact info to prevent sending
+  const inputContainsContactInfo = useMemo(() => {
+    const text = (inputValue || "").trim();
+    if (!text) return false;
+    const hasEmail = /(?:^|\s)[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}(?:\s|$)/i.test(text);
+    const hasPhone = /(?:(?:\+?\d{1,3}[\s-.]?)?(?:\(?\d{2,4}\)?[\s-.]?)?\d{3,4}[\s-.]?\d{3,4})(?!\d)/.test(text) && (text.replace(/\D/g, "").length >= 7);
+    return hasEmail || hasPhone;
+  }, [inputValue]);
+
   const handleInputBlur = () => {
     if (typingTimeoutRef.current) {
       clearTimeout(typingTimeoutRef.current);
@@ -515,6 +582,18 @@ export default function ChatInterface({
 
     const messageText = inputValue.trim();
     if (!messageText || !socketRef.current) {
+      return;
+    }
+
+    // Client-side policy: prevent sharing emails or phone numbers
+    const containsEmail = /(?:^|\s)[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}(?:\s|$)/i.test(messageText);
+    // Phone pattern: supports various formats, requires at least 7 digits
+    const containsPhone = /(?:(?:\+?\d{1,3}[\s-.]?)?(?:\(?\d{2,4}\)?[\s-.]?)?\d{3,4}[\s-.]?\d{3,4})(?!\d)/.test(messageText) && (messageText.replace(/\D/g, "").length >= 7);
+    if (containsEmail || containsPhone) {
+      setFeedback({
+        type: "error",
+        message: "Sharing contact info (emails or phone numbers) is not allowed in chat.",
+      });
       return;
     }
 
@@ -672,6 +751,10 @@ export default function ChatInterface({
           type: "success", 
           message: "🎉 Match saved! Both of you have saved this chat." 
         });
+        // Auto-dismiss success message after 3 seconds
+        setTimeout(() => {
+          setFeedback(null);
+        }, 3000);
       } else {
         setFeedback({ 
           type: "waiting", 
@@ -685,6 +768,79 @@ export default function ChatInterface({
       });
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  // US #14: Refresh icebreaker prompt
+  const handleRefreshIcebreaker = async () => {
+    if (!API_BASE || !chatSessionId || !token || icebreakerLoading) return;
+
+    try {
+      setIcebreakerLoading(true);
+      const response = await fetch(`${API_BASE}/api/icebreaker/${chatSessionId}/refresh`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      const data = await response.json().catch(() => ({}));
+
+      if (response.ok && data.prompt) {
+        setIcebreaker(data.prompt);
+      } else if (data.message?.includes("used all available")) {
+        // All prompts used - dismiss the icebreaker
+        setIcebreaker(null);
+      }
+    } catch (err) {
+      console.error("Failed to refresh icebreaker:", err);
+    } finally {
+      setIcebreakerLoading(false);
+    }
+  };
+
+  // US #14: Dismiss icebreaker prompt
+  const handleDismissIcebreaker = async () => {
+    if (!API_BASE || !chatSessionId || !token) return;
+
+    try {
+      await fetch(`${API_BASE}/api/icebreaker/${chatSessionId}/dismiss`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      setIcebreaker(null);
+    } catch (err) {
+      console.error("Failed to dismiss icebreaker:", err);
+      // Still dismiss locally even if API fails
+      setIcebreaker(null);
+    }
+  };
+
+  // US #14: Show/restore icebreaker prompt
+  const handleShowIcebreaker = async () => {
+    if (!API_BASE || !chatSessionId || !token || icebreakerLoading) return;
+
+    try {
+      setIcebreakerLoading(true);
+      const response = await fetch(`${API_BASE}/api/icebreaker/${chatSessionId}/refresh`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      const data = await response.json().catch(() => ({}));
+
+      if (response.ok && data.prompt) {
+        setIcebreaker(data.prompt);
+      }
+    } catch (err) {
+      console.error("Failed to show icebreaker:", err);
+    } finally {
+      setIcebreakerLoading(false);
     }
   };
 
@@ -807,17 +963,6 @@ export default function ChatInterface({
       />
       <header className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          {/* Burger icon to open SavedChatsList */}
-          <button
-            type="button"
-            onClick={() => setShowSavedChats(true)}
-            className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
-            aria-label="Open saved chats"
-          >
-            <svg className="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-            </svg>
-          </button>
           <div>
             <h1 className="text-lg font-semibold text-gray-900">
               {partnerUsername || "Anonymous Match"}
@@ -832,6 +977,19 @@ export default function ChatInterface({
           </div>
         </div>
         <div className="flex gap-2">
+          {/* US #14: Show Icebreaker button */}
+          {!icebreaker && !isReadOnly && (
+            <button
+              type="button"
+              onClick={handleShowIcebreaker}
+              disabled={icebreakerLoading || partnerLeft}
+              className="h-9 px-3 rounded-md bg-purple-500 text-white text-sm font-medium shadow-sm hover:bg-purple-600 disabled:opacity-60 disabled:cursor-not-allowed transition-colors flex items-center gap-1"
+              title="Show icebreaker prompt"
+            >
+              <span>💡</span>
+              {icebreakerLoading ? "..." : "Icebreaker"}
+            </button>
+          )}
           {/* US #6: Next Chat button - to the left of Save Chat (AC1) */}
           <button
             type="button"
@@ -869,7 +1027,8 @@ export default function ChatInterface({
           <button
             type="button"
             onClick={() => setIsReportModalOpen(true)}
-            className="h-9 px-4 rounded-md text-sm font-medium shadow-sm bg-rose-600 text-white hover:bg-rose-700 focus-visible:ring-2 focus-visible:ring-rose-400"
+            disabled={isReadOnly}
+            className="h-9 px-4 rounded-md text-sm font-medium shadow-sm bg-rose-600 text-white hover:bg-rose-700 focus-visible:ring-2 focus-visible:ring-rose-400 disabled:opacity-60 disabled:cursor-not-allowed"
           >
             Report User
           </button>
@@ -885,10 +1044,10 @@ export default function ChatInterface({
           <button
             type="button"
             onClick={handleLeaveChat}
-            disabled={isEnding || partnerLeft}
-            className="h-9 px-4 rounded-md bg-rose-500 text-white text-sm font-medium shadow-sm hover:brightness-95 disabled:opacity-70"
+            disabled={isEnding || isReadOnly}
+            className="h-9 px-4 rounded-md bg-rose-500 text-white text-sm font-medium shadow-sm hover:brightness-95 disabled:opacity-70 disabled:cursor-not-allowed"
           >
-            {partnerLeft ? "Partner Left" : isEnding ? "Leaving..." : "End Chat"}
+            {isEnding ? "Leaving..." : "End Chat"}
           </button>
         </div>
       </header>
@@ -925,7 +1084,57 @@ export default function ChatInterface({
         </div>
       )}
 
+      {/* Profile Reveal Section - Gamification feature */}
+      {!isReadOnly && (
+        <div className="px-6 pt-4">
+          <ProfileReveal
+            chatSessionId={chatSessionId}
+            token={token}
+            currentUserId={currentUserId}
+            socketRef={socketRef}
+          />
+        </div>
+      )}
+
       <main className="flex-1 overflow-y-auto px-6 py-6">
+        {/* US #14: Icebreaker Prompt */}
+        {icebreaker && !isReadOnly && (
+          <div className="mb-6 p-4 bg-gradient-to-r from-purple-100 to-pink-100 rounded-2xl border border-purple-200 shadow-sm">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex-1">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-lg">💡</span>
+                  <span className="text-xs font-semibold uppercase tracking-wide text-purple-600">Icebreaker</span>
+                </div>
+                <p className="text-sm text-gray-800 font-medium">{icebreaker}</p>
+              </div>
+              <div className="flex gap-2 flex-shrink-0">
+                <button
+                  type="button"
+                  onClick={handleRefreshIcebreaker}
+                  disabled={icebreakerLoading}
+                  className="p-2 rounded-lg bg-white/80 hover:bg-white text-purple-600 hover:text-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  title="Get new prompt"
+                >
+                  <svg className={`w-4 h-4 ${icebreakerLoading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDismissIcebreaker}
+                  className="p-2 rounded-lg bg-white/80 hover:bg-white text-gray-500 hover:text-gray-700 transition-colors"
+                  title="Dismiss"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className="flex flex-col gap-3">
           {messages.map((message) => (
             <div
@@ -989,9 +1198,14 @@ export default function ChatInterface({
             disabled={connectionStatus !== "connected"}
             className="flex-1 resize-none rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#286633]/60 disabled:opacity-60"
           />
+          {inputContainsContactInfo && (
+            <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-2xl px-3 py-2">
+              Sharing contact info (emails or phone numbers) is not allowed.
+            </div>
+          )}
           <button
             type="submit"
-            disabled={!inputValue.trim() || connectionStatus !== "connected"}
+            disabled={!inputValue.trim() || connectionStatus !== "connected" || inputContainsContactInfo}
             className="h-11 px-6 rounded-2xl bg-[#286633] text-white text-sm font-semibold shadow-sm hover:brightness-110 disabled:opacity-60"
           >
             Send

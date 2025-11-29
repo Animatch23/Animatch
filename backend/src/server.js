@@ -17,10 +17,12 @@ import termRoutes from "./routes/termsRoutes.js";
 import matchRoutes from "./routes/matchRoutes.js";
 import chatRoutes from "./routes/chatRoutes.js";
 import reportRoutes from "./routes/reportRoutes.js";
+import icebreakerRoutes from "./routes/icebreakerRoutes.js";
 import ChatSession from "./models/ChatSession.js";
 import Message from "./models/Message.js";
 import User from "./models/User.js";
 import Queue from "./models/Queue.js";
+import { incrementMessageCount } from "./controllers/chatController.js";
 
 if (process.env.NODE_ENV === 'test') {
   dotenv.config({ path: '.env.test' });
@@ -174,6 +176,7 @@ app.use("/api/terms", termRoutes);
 app.use("/api", matchRoutes);
 app.use("/api/chat", chatRoutes);
 app.use("/api/reports", reportRoutes);
+app.use("/api/icebreaker", icebreakerRoutes);
 
 // API ping route
 app.get("/api/ping", (req, res) => res.json({ pong: true, api: true, timestamp: new Date().toISOString() }));
@@ -305,6 +308,23 @@ io.on('connection', async (socket) => {
       };
       
       io.to(chatSessionId).emit('chat:message', messagePayload);
+
+      // Profile Reveal: Increment message count and notify about reveal progress
+      const revealUpdate = await incrementMessageCount(chatSessionId, socket.userId);
+      if (revealUpdate) {
+        // Emit reveal update to both participants
+        io.to(chatSessionId).emit('chat:reveal-update', revealUpdate);
+        
+        // If milestone reached (reveal percentage increased), send a special notification
+        if (revealUpdate.milestoneReached) {
+          io.to(chatSessionId).emit('chat:reveal-milestone', {
+            userId: socket.userId,
+            newPercentage: revealUpdate.revealPercentage,
+            message: `Profile picture ${revealUpdate.revealPercentage}% revealed!`
+          });
+          console.log(`[SOCKET] Profile reveal milestone: ${revealUpdate.revealPercentage}% for user ${socket.userId}`);
+        }
+      }
 
       console.log(`[SOCKET] Message sent in room ${chatSessionId} by ${socket.userId}`);
     } catch (error) {

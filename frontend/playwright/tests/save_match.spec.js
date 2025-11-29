@@ -165,6 +165,8 @@ async function setupUser(page) {
 test.describe("save chat test", () => {
 
   test("save chat, clicked button", async () => {
+    await fetch("http://localhost:3000/test/clearQueue");
+
     const browser = await chromium.launch();
 
     const context1 = await browser.newContext();
@@ -250,6 +252,9 @@ test.describe("save chat test", () => {
   });
 
   test("save chat, queue with another user", async () => {
+
+    await fetch("http://localhost:3000/test/clearQueue");
+
     const browser = await chromium.launch();
 
     const context1 = await browser.newContext();
