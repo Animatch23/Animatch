@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import Image from "next/image";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL;
 
@@ -197,20 +196,16 @@ function ProfileCard({ user, label, isCurrentUser }) {
       {/* Profile picture container */}
       <div className="relative">
         <div 
-          className="w-20 h-20 sm:w-24 sm:h-24 rounded-full overflow-hidden border-4 border-white shadow-lg"
+          className="w-20 h-20 sm:w-24 sm:h-24 rounded-full overflow-hidden border-4 border-white shadow-lg transition-all duration-500 ease-out"
           style={{
             filter: hasProfilePicture ? `blur(${blurLevel}px)` : 'none',
-            transition: 'filter 0.5s ease-out',
           }}
         >
           {hasProfilePicture ? (
-            <Image
+            <img
               src={`${process.env.NEXT_PUBLIC_API_URL}/api${user.profilePicture}`}
               alt={`${label}'s profile`}
-              width={96}
-              height={96}
               className="object-cover w-full h-full"
-              unoptimized
             />
           ) : (
             <div className="w-full h-full bg-gradient-to-br from-gray-200 to-gray-300 flex items-center justify-center">
