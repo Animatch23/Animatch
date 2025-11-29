@@ -205,7 +205,7 @@ function ProfileCard({ user, label, isCurrentUser }) {
         >
           {hasProfilePicture ? (
             <Image
-              src={`${process.env.NEXT_PUBLIC_API_URL}${user.profilePicture}`}
+              src={`${process.env.NEXT_PUBLIC_API_URL}/api${user.profilePicture}`}
               alt={`${label}'s profile`}
               width={96}
               height={96}
