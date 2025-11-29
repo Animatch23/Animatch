@@ -706,8 +706,8 @@ export const getProfileRevealStatus = async (req, res) => {
         revealPercentage: partnerReveal,
         blurLevel: calculateBlurLevel(partnerReveal)
       },
-      // Show reveal section only if at least one user has a profile picture
-      showRevealSection: !!(currentUser.profilePicture?.url || partner.profilePicture?.url)
+      // Show reveal section only if BOTH users have profile pictures
+      showRevealSection: !!(currentUser.profilePicture?.url && partner.profilePicture?.url)
     });
   } catch (error) {
     console.error('Error fetching profile reveal status:', error);
