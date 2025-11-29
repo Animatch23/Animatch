@@ -3,6 +3,30 @@ import Message from '../models/Message.js';
 import User from '../models/User.js';
 
 /**
+ * Calculate reveal percentage based on message count
+ * 0-9 messages = 0% (fully blurred)
+ * 10-19 = 20%, 20-29 = 40%, 30-39 = 60%, 40-49 = 80%, 50+ = 100% (fully revealed)
+ * @param {number} messageCount - Number of messages sent by user
+ * @returns {number} Reveal percentage (0-100)
+ */
+const calculateRevealPercentage = (messageCount) => {
+  if (messageCount < 10) return 0;
+  if (messageCount >= 50) return 100;
+  // Each 10 messages = 20% reveal
+  return Math.floor(messageCount / 10) * 20;
+};
+
+/**
+ * Calculate blur level from reveal percentage
+ * @param {number} revealPercentage - 0 to 100
+ * @returns {number} Blur in pixels (20 = fully blurred, 0 = clear)
+ */
+const calculateBlurLevel = (revealPercentage) => {
+  // At 0% reveal, blur is 20px. At 100%, blur is 0.
+  return Math.round(20 * (1 - revealPercentage / 100));
+};
+
+/**
  * Get active chat session for current user
  */
 export const getActiveChat = async (req, res) => {
@@ -616,5 +640,121 @@ export const notifyLogout = async (req, res) => {
   } catch (error) {
     console.error('Error notifying logout:', error);
     res.status(500).json({ message: 'Failed to notify logout' });
+  }
+};
+
+/**
+ * Get profile reveal status for a chat session
+ * Returns profile picture URLs and reveal percentages for both users
+ * Based on message counts: 10 msgs = 20%, 20 = 40%, 30 = 60%, 40 = 80%, 50+ = 100%
+ */
+export const getProfileRevealStatus = async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    const { chatSessionId } = req.params;
+
+    if (!userId) {
+      return res.status(401).json({ message: 'User not authenticated' });
+    }
+
+    const chatSession = await ChatSession.findOne({
+      _id: chatSessionId,
+      participants: userId
+    }).populate('participants', 'username profilePicture');
+
+    if (!chatSession) {
+      return res.status(404).json({ message: 'Chat session not found' });
+    }
+
+    // Get current user and partner
+    const currentUser = chatSession.participants.find(
+      p => p._id.toString() === userId.toString()
+    );
+    const partner = chatSession.participants.find(
+      p => p._id.toString() !== userId.toString()
+    );
+
+    if (!currentUser || !partner) {
+      return res.status(404).json({ message: 'Participants not found' });
+    }
+
+    // Get message counts from the map (or default to 0)
+    const messageCounts = chatSession.messageCounts || new Map();
+    const currentUserMessageCount = messageCounts.get(userId.toString()) || 0;
+    const partnerMessageCount = messageCounts.get(partner._id.toString()) || 0;
+
+    // Calculate reveal percentages
+    const currentUserReveal = calculateRevealPercentage(currentUserMessageCount);
+    const partnerReveal = calculateRevealPercentage(partnerMessageCount);
+
+    res.json({
+      currentUser: {
+        id: currentUser._id,
+        username: currentUser.username,
+        profilePicture: currentUser.profilePicture?.url || null,
+        hasProfilePicture: !!currentUser.profilePicture?.url,
+        messageCount: currentUserMessageCount,
+        revealPercentage: currentUserReveal,
+        blurLevel: calculateBlurLevel(currentUserReveal)
+      },
+      partner: {
+        id: partner._id,
+        username: partner.username,
+        profilePicture: partner.profilePicture?.url || null,
+        hasProfilePicture: !!partner.profilePicture?.url,
+        messageCount: partnerMessageCount,
+        revealPercentage: partnerReveal,
+        blurLevel: calculateBlurLevel(partnerReveal)
+      },
+      // Show reveal section only if at least one user has a profile picture
+      showRevealSection: !!(currentUser.profilePicture?.url || partner.profilePicture?.url)
+    });
+  } catch (error) {
+    console.error('Error fetching profile reveal status:', error);
+    res.status(500).json({ message: 'Failed to fetch profile reveal status' });
+  }
+};
+
+/**
+ * Increment message count for a user in a chat session
+ * Called by socket handler when a message is sent
+ * @param {string} chatSessionId - The chat session ID
+ * @param {string} senderId - The ID of the user who sent the message
+ * @returns {Object} Updated reveal status
+ */
+export const incrementMessageCount = async (chatSessionId, senderId) => {
+  try {
+    const chatSession = await ChatSession.findById(chatSessionId);
+    if (!chatSession) {
+      return null;
+    }
+
+    // Initialize messageCounts if it doesn't exist
+    if (!chatSession.messageCounts) {
+      chatSession.messageCounts = new Map();
+    }
+
+    // Increment the sender's message count
+    const currentCount = chatSession.messageCounts.get(senderId.toString()) || 0;
+    const newCount = currentCount + 1;
+    chatSession.messageCounts.set(senderId.toString(), newCount);
+
+    await chatSession.save();
+
+    // Calculate new reveal percentage
+    const newRevealPercentage = calculateRevealPercentage(newCount);
+    const previousRevealPercentage = calculateRevealPercentage(currentCount);
+
+    // Return reveal update info
+    return {
+      senderId,
+      messageCount: newCount,
+      revealPercentage: newRevealPercentage,
+      blurLevel: calculateBlurLevel(newRevealPercentage),
+      milestoneReached: newRevealPercentage > previousRevealPercentage
+    };
+  } catch (error) {
+    console.error('Error incrementing message count:', error);
+    return null;
   }
 };

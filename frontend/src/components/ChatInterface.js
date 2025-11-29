@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import SavedChatsList from "./SavedChatsList";
+import ProfileReveal from "./ProfileReveal";
 import { io } from "socket.io-client";
 import Image from "next/image";
 import ReportModal from "./ReportModal";
@@ -1059,6 +1060,18 @@ export default function ChatInterface({
               <span>{feedback.message}</span>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Profile Reveal Section - Gamification feature */}
+      {!isReadOnly && (
+        <div className="px-6 pt-4">
+          <ProfileReveal
+            chatSessionId={chatSessionId}
+            token={token}
+            currentUserId={currentUserId}
+            socketRef={socketRef}
+          />
         </div>
       )}
 

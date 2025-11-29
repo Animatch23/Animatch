@@ -54,6 +54,12 @@ const ChatSessionSchema = new mongoose.Schema({
   icebreakerDismissed: {
     type: Boolean,
     default: false
+  },
+  // US #XX: Profile Picture Reveal - Track message counts per user for gamification
+  messageCounts: {
+    type: Map,
+    of: Number,
+    default: new Map()
   }
 });
 

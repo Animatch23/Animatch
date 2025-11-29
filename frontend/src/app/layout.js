@@ -20,8 +20,8 @@ export const metadata = {
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="en">
-      <body className={`${montserrat.variable} antialiased font-sans`}>
+    <html lang="en" suppressHydrationWarning>
+      <body className={`${montserrat.variable} antialiased font-sans`} suppressHydrationWarning>
         <Providers>
           {/* Global TopBar except on login and /profile-setup */}
           <TopBarWrapper />

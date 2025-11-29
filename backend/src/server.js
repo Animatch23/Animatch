@@ -22,6 +22,7 @@ import ChatSession from "./models/ChatSession.js";
 import Message from "./models/Message.js";
 import User from "./models/User.js";
 import Queue from "./models/Queue.js";
+import { incrementMessageCount } from "./controllers/chatController.js";
 
 if (process.env.NODE_ENV === 'test') {
   dotenv.config({ path: '.env.test' });
@@ -307,6 +308,23 @@ io.on('connection', async (socket) => {
       };
       
       io.to(chatSessionId).emit('chat:message', messagePayload);
+
+      // Profile Reveal: Increment message count and notify about reveal progress
+      const revealUpdate = await incrementMessageCount(chatSessionId, socket.userId);
+      if (revealUpdate) {
+        // Emit reveal update to both participants
+        io.to(chatSessionId).emit('chat:reveal-update', revealUpdate);
+        
+        // If milestone reached (reveal percentage increased), send a special notification
+        if (revealUpdate.milestoneReached) {
+          io.to(chatSessionId).emit('chat:reveal-milestone', {
+            userId: socket.userId,
+            newPercentage: revealUpdate.revealPercentage,
+            message: `Profile picture ${revealUpdate.revealPercentage}% revealed!`
+          });
+          console.log(`[SOCKET] Profile reveal milestone: ${revealUpdate.revealPercentage}% for user ${socket.userId}`);
+        }
+      }
 
       console.log(`[SOCKET] Message sent in room ${chatSessionId} by ${socket.userId}`);
     } catch (error) {
